@@ -56,8 +56,12 @@ const formObj = form => Object.fromEntries(new FormData(form).entries());
 const textToHtml = s => esc(s).replace(/\n/g,'<br>');
 
 function toast(msg,type='success'){
-  const el=document.createElement('div'); el.className='toast '+type; el.textContent=msg;
-  $('#toasts').appendChild(el); setTimeout(()=>el.remove(),3200);
+  const stack=$('#toasts'); if(!stack)return;
+  const key=type+'|'+String(msg);
+  for(const old of Array.from(stack.children)) if(old.dataset.toastKey===key) old.remove();
+  const el=document.createElement('div'); el.className='toast '+type; el.textContent=msg; el.dataset.toastKey=key;
+  stack.appendChild(el); while(stack.children.length>3) stack.firstElementChild?.remove();
+  setTimeout(()=>el.remove(),3200);
   if(window.Android?.toast) try{ Android.toast(msg); }catch(_e){}
 }
 function confirmAction(msg){ return window.confirm(msg); }
@@ -106,6 +110,11 @@ const DB={
 async function setting(key,def=null){ const x=await DB.get('settings',key); return x?x.value:def; }
 async function setSetting(key,value){ await DB.put('settings',{key,value}); }
 async function nextSeq(key){ const v=i(await setting(key,0))+1; await setSetting(key,v); return v; }
+async function nextAvailableBillNo(){
+  const bills=await DB.all('bills'); const used=new Set(bills.map(b=>String(b.bill_no??'').trim()).filter(Boolean));
+  const nums=[...used].filter(x=>/^\d+$/.test(x)).map(Number); let x=nums.length?Math.max(...nums)+1:1;
+  while(used.has(String(x)))x++; return String(x);
+}
 async function seedDb(){
   if(await DB.count('users')===0){ await DB.put('users',{username:'admin',password:'shiva',role:'admin',created_at:nowIso()}); }
   const defaults={terms_invoice:DEFAULT_TERMS,custom_rules:DEFAULT_CUSTOM_RULES,custom_terms:DEFAULT_CUSTOM_TERMS};
@@ -288,8 +297,8 @@ function woodFormSection(b,r){return `<div class="form-section"><div class="form
 function transportFormSection(b){return `<div class="form-section"><div class="form-section-head"><span>Transport & Charges</span><span class="sa-badge open">FIRST CYCLE ONLY</span></div><div class="form-section-body"><div class="form-grid"><div class="field"><label class="sa-label">Up Trips</label><input class="sa-input" name="transport_up_trips" type="number" min="0" value="${esc(b.transport_up_trips??0)}"></div><div class="field"><label class="sa-label">Up Charge / Trip</label><input class="sa-input" name="transport_up_charge" type="number" step="0.01" value="${esc(b.transport_up_charge??0)}"></div><div class="field"><label class="sa-label">Down Trips</label><input class="sa-input" name="transport_down_trips" type="number" min="0" value="${esc(b.transport_down_trips??0)}"></div><div class="field"><label class="sa-label">Down Charge / Trip</label><input class="sa-input" name="transport_down_charge" type="number" step="0.01" value="${esc(b.transport_down_charge??0)}"></div><div class="field"><label class="sa-label">Loading Charge</label><input class="sa-input" name="loading_charge" type="number" step="0.01" value="${esc(b.loading_charge??0)}"></div><div class="field"><label class="sa-label">Unloading Charge</label><input class="sa-input" name="unloading_charge" type="number" step="0.01" value="${esc(b.unloading_charge??0)}"></div></div></div></div>`}
 function billFromForm(f,old={}){ const b={...old,...f}; for(const [_k,_l,qf,rf] of MATERIALS){b[qf]=nonneg(f[qf]);b[rf]=n(f[rf],DEFAULT_RATES[rf])} for(const [k,_l,rf] of WOODS){b[k]=(f[k]||'').trim();b[rf]=n(f[rf],DEFAULT_RATES[rf])} for(const k of ['transport_up_trips','transport_down_trips'])b[k]=nonneg(f[k]); for(const k of ['transport_up_charge','transport_down_charge','loading_charge','unloading_charge','advance_amount'])b[k]=n(f[k]); b.cycle_days=Math.max(i(f.cycle_days,30),1); b.bill_no=(f.bill_no||'').trim();b.name=(f.name||'').trim();b.mobile=(f.mobile||'').trim();b.place=(f.place||'').trim();b.start_date=f.start_date||today(); return b; }
 async function renderBillForm(id){
-  const editing=id&&id!=='new'; let old={}; if(editing){old=await DB.get('bills',id); if(!old){toast('Bill not found','danger');SA.go('dashboard');return}}
-  shell(billFormHtml(old,editing),'home'); const form=$('#billForm'); form.onsubmit=async ev=>{ev.preventDefault();const btn=form.querySelector('button[type=submit]');setBusy(btn,true);try{const f=formObj(form); const b=billFromForm(f,old); if(!b.bill_no)throw new Error('Bill number is required'); if(!editing&&await DB.get('bills',b.bill_no))throw new Error('Duplicate bill number is not allowed'); if(!editing){b.payments=[];b.payment_audit=[];b.return_history=[];b.additional_history=[];b.status='open';b.created_date=today();b.created_at=nowIso();b.created_by=currentUser.username} else {b.updated_at=nowIso();b.updated_by=currentUser.username}
+  const editing=id&&id!=='new'; let old={}; if(editing){old=await DB.get('bills',id); if(!old){toast('Bill not found','danger');SA.go('dashboard');return}} else {old.bill_no=await nextAvailableBillNo();}
+  shell(billFormHtml(old,editing),'home'); const form=$('#billForm'); form.onsubmit=async ev=>{ev.preventDefault();const btn=form.querySelector('button[type=submit]');setBusy(btn,true);try{const f=formObj(form); const b=billFromForm(f,old); if(!b.bill_no)throw new Error('Bill number is required'); if(!editing&&await DB.get('bills',b.bill_no)){const suggestion=await nextAvailableBillNo();form.elements.bill_no.value=suggestion;toast(`Bill number ${b.bill_no} already exists. Next available number is ${suggestion}.`,'danger');form.elements.bill_no.focus();return} if(!editing){b.payments=[];b.payment_audit=[];b.return_history=[];b.additional_history=[];b.status='open';b.created_date=today();b.created_at=nowIso();b.created_by=currentUser.username} else {b.updated_at=nowIso();b.updated_by=currentUser.username}
     if(b.mobile){const cust=await DB.get('customers',b.mobile);await DB.put('customers',{mobile:b.mobile,customer_id:cust?.customer_id||`CUST${String(await nextSeq('customer_seq')).padStart(5,'0')}`,name:b.name||cust?.name||'',place:b.place||cust?.place||'',created_at:cust?.created_at||nowIso()})}
     await DB.put('bills',b);toast(editing?'Bill updated':'Bill created');SA.go('bill/'+encodeURIComponent(b.bill_no));
   }catch(e){toast(e.message,'danger')}finally{setBusy(btn,false)}};
