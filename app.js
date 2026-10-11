@@ -96,7 +96,7 @@ async function idb(store,mode,work){
   const db=await openDb(); return new Promise((resolve,reject)=>{
     const tx=db.transaction(store,mode); const os=tx.objectStore(store); let result;
     try{ result=work(os); }catch(e){reject(e);return;}
-    tx.oncomplete=()=>resolve(result?.result ?? result); tx.onerror=()=>reject(tx.error); tx.onabort=()=>reject(tx.error||new Error('DB transaction aborted'));
+    tx.oncomplete=()=>{ if(result && typeof result==='object' && 'result' in result) resolve(result.result); else resolve(result); }; tx.onerror=()=>reject(tx.error); tx.onabort=()=>reject(tx.error||new Error('DB transaction aborted'));
   });
 }
 const DB={
