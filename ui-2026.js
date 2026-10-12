@@ -68,7 +68,7 @@
     const b=hydrateBill(raw), due=n(b.total_due),paid=n(b.total_paid),pending=n(b.pending),progress=pct(paid,due),cycle=Math.max(i(b.current_cycle_index,1),1);
     const materials=MATERIALS.map(([k,l])=>`<div class="ux-material-row"><strong>${esc(l)}</strong><span class="ux-qty ${nonneg(b.balance_qty?.[k])>0?'has':''}">${nonneg(b.balance_qty?.[k])}</span></div>`).join('');
     const lastCycle=b.cycles?.[b.cycles.length-1];const currentRent=n(lastCycle?.rent,0);
-    const pays=(b.payments||[]).slice().reverse().map(p=>`<div class="ux-material-row"><span>${esc(p.payment_date||p.date||'-')}<small style="display:block;color:var(--ux-muted)">${esc(p.note||'')}</small></span><strong>${money(p.amount)}</strong></div>`).join('')||'<div class="empty">No payments recorded.</div>';
+    const pays=(b.payments||[]).slice().reverse().map(p=>`<div class="ux-material-row"><span>${esc(p.payment_date||p.date||'-')}<small style="display:block;color:var(--ux-muted)">${esc([p.method,p.note].filter(Boolean).join(' · '))}</small></span><strong>${money(p.amount)}</strong></div>`).join('')||'<div class="empty">No payments recorded.</div>';
     const cycles=(b.cycles||[]).slice().reverse().map(c=>`<div class="ux-material-row"><span>Cycle #${c.index}<small style="display:block;color:var(--ux-muted)">${esc(c.start_date)} → ${esc(c.end_date)}</small></span><strong>${money(c.total)}</strong></div>`).join('')||'<div class="empty">No cycles.</div>';
     shell(`<div class="ux-detail-head"><button class="ux-icon-btn" onclick="SA.back()">‹</button><h2>Bill #${esc(b.bill_no)}</h2><div><button class="ux-icon-btn" onclick="SA.go('print-invoice/${encodeURIComponent(b.bill_no)}')">▣</button> <button class="sa-btn outline" onclick="SA.go('edit/${encodeURIComponent(b.bill_no)}')">Edit</button></div></div>
     <div class="ux-detail-person"><div class="ux-avatar">${initial(b.name)}</div><div class="meta"><strong>${esc(b.name||'-')}</strong><span>${esc(b.mobile||'-')} · ${esc(b.place||'-')}</span></div><span class="ux-pill">${b.status==='closed'?'Closed':'Open'}</span></div>
@@ -80,3 +80,4 @@
     <div class="ux-paybar no-print"><button class="pay" onclick="SA.quickPayment('${esc(b.bill_no)}',false)">▤ &nbsp; Record Payment</button><button class="more" onclick="SA.openMenu()">•••</button></div>`, 'bills');
   };
 })();
+

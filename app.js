@@ -346,19 +346,109 @@ async function renderBill(id){
 }
 function historyRow(x,type,billNo){ const items=MATERIALS.filter(([k])=>nonneg(x.items?.[k])>0).map(([k,l])=>`${l}: ${nonneg(x.items[k])}`); const woods=WOODS.filter(([k])=>Object.keys(x.wood?.[k]||{}).length).map(([k,l])=>`${l}: ${mapToText(x.wood[k])}`); const del=isAdmin()?`<button class="sa-btn danger sm" onclick="SA.deleteHistory('${esc(billNo)}','${type}','${esc(x.rid||x.aid)}')">Delete</button>`:''; return `<div class="bill-card"><div class="bill-head"><div><div class="fw-800">${esc(x.date)} · Effective Cycle #${i(x.effective_from_cycle)}</div><div class="small muted">${esc(x.note||'')}</div></div>${del}</div><div class="pill-row mt-2">${[...items,...woods].map(z=>`<span class="sa-badge ${type==='return'?'pending':'open'}">${esc(z)}</span>`).join('')||'<span class="muted">No quantities</span>'}</div></div>`; }
 
+// In-app payment sheet. Uses the existing payment records and billing calculations.
 SA.quickPayment=async(billNo,isCustom=false)=>{
-  const amount=promptValue('Payment amount'); if(amount===null)return; const val=n(amount,-1); if(val<=0){toast('Enter a valid payment amount','danger');return} const date=promptValue('Payment date (YYYY-MM-DD)',today()); if(date===null)return; const note=promptValue('Payment note (optional)','')??'';
-  const store=isCustom?'customBills':'bills'; const b=await DB.get(store,billNo); if(!b){toast('Bill not found','danger');return} b.payments=b.payments||[];
-  const dup=b.payments.some(p=>round2(p.amount)===round2(val)&&(p.payment_date||p.date)===date); if(dup&&!confirmAction('A payment with the same date and amount already exists. Add it again?'))return;
-  b.payments.push({payment_id:uid('pay'),amount:round2(val),payment_date:date,note,created_by:currentUser.username,created_at:nowIso()}); await DB.put(store,b); toast('Payment recorded'); if(location.hash.includes('custom-view'))renderRoute(); else if(location.hash.includes('/bill/'))renderRoute(); else renderDashboard();
+  if(!currentUser)return;
+  try {
+    const store=isCustom?'customBills':'bills';
+    const raw=await DB.get(store,billNo);
+    if(!raw){toast('Bill not found','danger');return}
+    const bill=isCustom?hydrateCustom(raw).bill:hydrateBill(raw);
+    const remaining=Math.max(0,round2(bill.pending));
+    const originFocus=document.activeElement;
+    modal('Record payment',`<form id="paymentForm" novalidate>
+      <div class="payment-person">Bill #${esc(billNo)} · ${esc(bill.name||'Customer')}</div>
+      <label class="sa-label" for="paymentAmount">Payment amount</label>
+      <div class="payment-amount"><span aria-hidden="true">₹</span><input id="paymentAmount" name="amount" inputmode="decimal" type="text" autocomplete="off" placeholder="0.00" aria-describedby="paymentRemaining paymentError" required></div>
+      <p id="paymentRemaining" class="payment-remaining">${money(remaining)} remaining</p>
+      <div class="payment-shortcuts"><button class="sa-btn outline" type="button" data-fraction="1" ${remaining<=0?'disabled':''}>Full</button><button class="sa-btn outline" type="button" data-fraction="0.5" ${remaining<=0?'disabled':''}>Half</button></div>
+      <fieldset class="payment-method"><legend class="sa-label">Payment method</legend><div class="payment-segments">${['Cash','UPI','Bank'].map((method,idx)=>`<label><input type="radio" name="method" value="${method}" ${idx===0?'checked':''}><span>${method}</span></label>`).join('')}</div></fieldset>
+      <div class="payment-fields"><div><label class="sa-label" for="paymentDate">Date</label><input class="sa-input" id="paymentDate" name="date" type="date" value="${ymd(new Date())}" required></div><div><label class="sa-label" for="paymentNote">Note · optional</label><input class="sa-input" id="paymentNote" name="note" maxlength="500" placeholder="Add a payment note"></div></div>
+      <div id="paymentError" class="payment-error" role="alert" hidden></div>
+      <label id="paymentDuplicate" class="payment-duplicate" hidden><input type="checkbox" name="duplicate">I checked: record another payment with this date and amount.</label>
+      <div class="payment-submit"><button class="sa-btn gold lg w-100" type="submit">Save payment</button></div>
+    </form>`);
+    const m=$('#modal'),form=$('#paymentForm'),amount=$('#paymentAmount'),error=$('#paymentError');
+    m.classList.add('payment-modal');m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-label','Record payment');
+    $('#app').inert=true;
+    SA.paymentOriginFocus=originFocus;
+    SA.paymentPreviousOverflow=document.body.style.overflow;
+    document.body.style.overflow='hidden';
+    SA.paymentSaving=false;
+    const fail=message=>{error.textContent=message;error.hidden=false;};
+    form.querySelectorAll('[data-fraction]').forEach(button=>button.onclick=()=>{
+      amount.value=round2(remaining*Number(button.dataset.fraction)).toFixed(2);
+      amount.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    const resetDuplicate=()=>{$('#paymentDuplicate').hidden=true;form.elements.duplicate.checked=false;error.hidden=true;};
+    amount.oninput=resetDuplicate;form.elements.date.oninput=resetDuplicate;
+    form.onsubmit=async ev=>{
+      ev.preventDefault();if(SA.paymentSaving)return;
+      const text=amount.value.trim(),val=Number(text),date=form.elements.date.value;
+      if(!/^(?:\d+|\d*\.\d{1,2})$/.test(text)||!Number.isFinite(val)||val<=0||!Number.isSafeInteger(Math.round(val*100))){fail('Enter an amount above ₹0, with up to 2 decimal places.');amount.focus();return}
+      const parsed=parseDate(date);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!parsed||ymd(parsed)!==date){fail('Choose a valid payment date.');form.elements.date.focus();return}
+      const method=form.elements.method.value;
+      if(!['Cash','UPI','Bank'].includes(method)){fail('Choose a payment method.');return}
+      const note=form.elements.note.value.trim(),allowDuplicate=form.elements.duplicate.checked;
+      const submit=form.querySelector('[type=submit]');SA.paymentSaving=true;setBusy(submit,true);
+      try {
+        // Check and append in one transaction so rapid taps cannot lose or duplicate a write.
+        const db=await openDb();
+        await new Promise((resolve,reject)=>{
+          const tx=db.transaction(store,'readwrite'),os=tx.objectStore(store),req=os.get(billNo);
+          let problem=null;
+          req.onsuccess=()=>{
+            const b=req.result;
+            if(!b){problem=new Error('This bill no longer exists.');tx.abort();return}
+            b.payments=b.payments||[];
+            const duplicate=b.payments.some(p=>round2(p.amount)===round2(val)&&(p.payment_date||p.date)===date);
+            if(duplicate&&!allowDuplicate){problem=new Error('A payment with this date and amount already exists. Check below to record it again.');problem.duplicate=true;tx.abort();return}
+            b.payments.push({payment_id:uid('pay'),amount:round2(val),payment_date:date,note,method,created_by:currentUser.username,created_at:nowIso()});
+            os.put(b);
+          };
+          tx.oncomplete=resolve;
+          tx.onabort=()=>reject(problem||tx.error||new Error('Payment could not be saved. Please retry.'));
+          tx.onerror=()=>reject(problem||tx.error||new Error('Payment could not be saved. Please retry.'));
+        });
+        SA.paymentSaving=false;SA.closeModal();toast('Payment recorded');await renderRoute();
+      } catch(e) {
+        fail(e.message||'Payment could not be saved. Please retry.');
+        if(e.duplicate)$('#paymentDuplicate').hidden=false;
+      } finally {SA.paymentSaving=false;setBusy(submit,false);}
+    };
+    // Keep focus inside the sheet; do not force the keyboard open before the user taps.
+    m.querySelector('.modal-close').focus({preventScroll:true});
+  } catch(e){toast('Could not open payment: '+(e.message||'Please retry'),'danger');}
 };
+
 SA.deletePayment=async(billNo,pid)=>{ if(!roleGuard())return; const reason=promptValue('Reason for deleting this payment'); if(!reason)return; const b=await DB.get('bills',billNo); if(!b)return; const idx=(b.payments||[]).findIndex(p=>p.payment_id===pid); if(idx<0)return; const removed=b.payments.splice(idx,1)[0]; b.payment_audit=b.payment_audit||[]; b.payment_audit.push({action:'deleted',payment_id:pid,amount:removed.amount,payment_date:removed.payment_date,note:removed.note,deleted_by:currentUser.username,deleted_at:nowIso(),reason}); await DB.put('bills',b);toast('Payment deleted','warning');renderRoute(); };
 SA.closeBill=async billNo=>{ if(!roleGuard()||!confirmAction('Close this bill? Rental cycles will stop on today\'s date.'))return; const b=await DB.get('bills',billNo); if(!b)return;b.status='closed';b.closed_at=today();await DB.put('bills',b);toast('Bill closed');renderRoute(); };
 SA.deleteBill=async billNo=>{ if(!roleGuard()||!confirmAction(`Delete bill ${billNo}? This cannot be undone.`))return; await DB.del('bills',billNo);toast('Bill deleted','warning');SA.go('dashboard'); };
 SA.deleteHistory=async(billNo,type,id)=>{if(!roleGuard()||!confirmAction('Delete this history entry?'))return;const b=await DB.get('bills',billNo);if(!b)return;const key=type==='return'?'return_history':'additional_history',idKey=type==='return'?'rid':'aid';b[key]=(b[key]||[]).filter(x=>x[idKey]!==id);await DB.put('bills',b);toast('Entry deleted','warning');renderRoute();};
 
 function modal(title,body){ const m=$('#modal'); m.innerHTML=`<div class="modal-card"><div class="modal-head"><div class="fw-800">${esc(title)}</div><button class="modal-close" onclick="SA.closeModal()">×</button></div><div class="modal-body">${body}</div></div>`;m.classList.add('show');}
-SA.closeModal=()=>{$('#modal').classList.remove('show');$('#modal').innerHTML=''};
+SA.closeModal=()=>{
+  if(SA.paymentSaving)return;
+  const m=$('#modal');
+  if(m.classList.contains('payment-modal')){
+    $('#app').inert=false;document.body.style.overflow=SA.paymentPreviousOverflow||'';
+    if(SA.paymentOriginFocus?.isConnected)SA.paymentOriginFocus.focus({preventScroll:true});
+    SA.paymentOriginFocus=null;
+  }
+  m.classList.remove('show','payment-modal');m.innerHTML='';
+  m.removeAttribute('role');m.removeAttribute('aria-modal');m.removeAttribute('aria-label');
+};
+document.addEventListener('keydown',ev=>{
+  const m=$('#modal');if(!m?.classList.contains('payment-modal'))return;
+  if(ev.key==='Escape'){ev.preventDefault();SA.closeModal();}
+  if(ev.key==='Tab'){
+    const fields=[...m.querySelectorAll('button,input,select,textarea,[tabindex]')].filter(x=>!x.disabled&&x.tabIndex>=0&&x.getClientRects().length);
+    const first=fields[0],last=fields[fields.length-1];
+    if(ev.shiftKey&&document.activeElement===first){ev.preventDefault();last?.focus();}
+    else if(!ev.shiftKey&&document.activeElement===last){ev.preventDefault();first?.focus();}
+  }
+});
 function historyForm(type,b){ const suff=type==='return'?'return':'add'; return `<form id="historyForm"><div class="form-grid two"><div><label class="sa-label">Date</label><input class="sa-input" name="date" type="date" value="${today()}"></div><div><label class="sa-label">Note</label><input class="sa-input" name="note" placeholder="Optional note"></div></div><div class="section-title mt-3">Materials</div><div class="form-grid three">${MATERIALS.map(([k,l])=>`<div><label class="sa-label">${l}</label><input class="sa-input" type="number" min="0" name="${k}" value="0"></div>`).join('')}</div><div class="section-title mt-3">Wood</div><div class="form-grid two">${WOODS.map(([k,l])=>`<div><label class="sa-label">${l}</label><input class="sa-input mono" name="${k}_${suff}" placeholder="8×5+10×2"></div>`).join('')}</div><button class="sa-btn ${type==='return'?'gold':'primary'} lg w-100 mt-3" type="submit">Save ${type==='return'?'Return':'Additional Material'}</button></form>`; }
 SA.openReturn=async billNo=>{const raw=await DB.get('bills',billNo);if(!raw)return;modal('Return Material',historyForm('return',raw));$('#historyForm').onsubmit=ev=>saveHistory(ev,billNo,'return')};
 SA.openAdditional=async billNo=>{const raw=await DB.get('bills',billNo);if(!raw)return;modal('Additional Material',historyForm('additional',raw));$('#historyForm').onsubmit=ev=>saveHistory(ev,billNo,'additional')};
@@ -462,7 +552,7 @@ async function renderReturnBill(){shell(`${headerBlock('Return Bill','Standalone
 // PRINT VIEWS — invoice / customer / next cycle / custom
 // =========================================================
 function printHeader(title){return `<div class="print-title"><h1>${esc(BUSINESS.name)}</h1><p>${esc(BUSINESS.address)} · ${esc(BUSINESS.phone)}</p><div class="sa-badge gold mt-2">${esc(title)}</div></div>`}
-function printActions(job){return `<div class="actions no-print mt-4" style="justify-content:center"><button class="sa-btn gold lg" onclick="SA.printNow('${esc(job)}')">Print / Save PDF</button><button class="sa-btn outline lg" onclick="SA.back()">Back</button></div>`}
+function printActions(job){return `<div class="actions no-print mt-4" style="justify-content:center"><button class="sa-btn gold lg" onclick="SA.printNow('${esc(job)}')">Print / Save PDF</button><button class="sa-btn outline lg" onclick="SA.shareInvoiceImage(this)">Share image</button><button class="sa-btn outline lg" onclick="SA.back()">Back</button></div>`}
 SA.printNow=job=>{if(window.Android?.printPage)Android.printPage(job);else window.print()};
 function customerInfoTable(b){return `<div class="sa-card mb-3"><div class="sa-card-body"><div class="form-grid three"><div class="info-pair"><span class="k">Bill No</span><span class="v">${esc(b.bill_no)}</span></div><div class="info-pair"><span class="k">Start Date</span><span class="v">${esc(b.start_date||'-')}</span></div><div class="info-pair"><span class="k">Cycle</span><span class="v">${i(b.cycle_days)} Days</span></div><div class="info-pair"><span class="k">Customer</span><span class="v">${esc(b.name||'-')}</span></div><div class="info-pair"><span class="k">Mobile</span><span class="v">${esc(b.mobile||'-')}</span></div><div class="info-pair"><span class="k">Place</span><span class="v">${esc(b.place||'-')}</span></div></div></div></div>`}
 async function renderPrintInvoice(no,mode='invoice'){const raw=await DB.get('bills',no);if(!raw){toast('Bill not found','danger');return}const b=hydrateBill(raw),snap=b.cycles?.[b.cycles.length-1]||{snapshot_qty:b.base_qty,snapshot_wood:b.base_wood_maps},br=calcRent(snap.snapshot_qty,snap.snapshot_wood,b.rates),terms=await setting('terms_invoice',DEFAULT_TERMS);const title=mode==='customer'?`Customer Bill ${b.bill_no}`:`Invoice ${b.bill_no}`;printShell(`${printHeader(title)}${customerInfoTable(b)}<div class="summary-strip mb-3"><div class="summary-box blue"><div class="label">Total Due</div><div class="value">${money(b.total_due)}</div></div><div class="summary-box green"><div class="label">Total Paid</div><div class="value">${money(b.total_paid)}</div></div><div class="summary-box red"><div class="label">Pending</div><div class="value">${money(b.pending)}</div></div><div class="summary-box gold"><div class="label">Advance Deposit</div><div class="value">${money(b.advance_locked)}</div></div></div><div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Current Cycle Material Rent</h3></div><div class="sa-card-body p-0"><table class="sa-table"><thead><tr><th>Material</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>${br.lines_materials.map(x=>`<tr><td>${x.label}</td><td>${x.qty}</td><td>${money(x.rate)}</td><td>${money(x.amount)}</td></tr>`).join('')}${WOODS.map(([k,l,rf])=>{const w=br.wood_totals[k];return`<tr><td>${l} <span class="mono small">${esc(w.text)}</span></td><td>${w.total_feet} ft</td><td>${money(w.rate)}</td><td>${money(w.amount)}</td></tr>`}).join('')}<tr><td colspan="3" class="right fw-900">Current Rent</td><td class="fw-900">${money(br.rent_total)}</td></tr></tbody></table></div></div><div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Rental Cycle Summary</h3></div><div class="sa-card-body p-0"><table class="sa-table"><thead><tr><th>Cycle</th><th>From</th><th>To</th><th>Rent</th><th>Transport</th><th>Total</th></tr></thead><tbody>${b.cycles.map(c=>`<tr><td>#${c.index}</td><td>${c.start_date}</td><td>${c.end_date}</td><td>${money(c.rent)}</td><td>${money(c.transport)}</td><td class="fw-800">${money(c.total)}</td></tr>`).join('')}</tbody></table></div></div><div class="sa-card"><div class="sa-card-header"><h3 class="sa-card-title">Terms & Conditions</h3></div><div class="sa-card-body small">${textToHtml(terms)}</div></div>${printActions(`${BUSINESS.name} - ${title}`)}`);}
@@ -470,3 +560,4 @@ async function renderPrintNextCycle(no){const raw=await DB.get('bills',no);if(!r
 async function renderPrintCustom(no){const raw=await DB.get('customBills',no);if(!raw){toast('Custom bill not found','danger');return}const {bill:b,breakdown:br,calc}=hydrateCustom(raw);printShell(`${printHeader(`Custom Shop Bill ${b.bill_no}`)}${customerInfoTable(b)}<div class="sa-card mb-3"><div class="sa-card-body p-0"><table class="sa-table"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>Material Rent</td><td>${money(calc.material_total)}</td></tr><tr><td>Wood Material</td><td>${money(calc.wood_total)}</td></tr><tr><td>Transport</td><td>${money(calc.transport_vehicle_total)}</td></tr><tr><td>Loading</td><td>${money(calc.loading)}</td></tr><tr><td>Unloading</td><td>${money(calc.unloading)}</td></tr><tr><td>Advance (Material + Wood)</td><td>${money(calc.advance_amount)}</td></tr><tr><td class="fw-900">Grand Total</td><td class="fw-900">${money(calc.grand_total)}</td></tr><tr><td>Paid</td><td>${money(b.total_paid)}</td></tr><tr><td class="text-red fw-900">Pending</td><td class="text-red fw-900">${money(b.pending)}</td></tr></tbody></table></div></div><div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Rules</h3></div><div class="sa-card-body small">${textToHtml(b.print_rules||DEFAULT_CUSTOM_RULES)}</div></div><div class="sa-card"><div class="sa-card-header"><h3 class="sa-card-title">Terms & Conditions</h3></div><div class="sa-card-body small">${textToHtml(b.terms_conditions||DEFAULT_CUSTOM_TERMS)}</div></div>${printActions(`${BUSINESS.name} - Custom Bill ${b.bill_no}`)}`);}
 
 // End of offline port.
+

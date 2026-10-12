@@ -19,6 +19,8 @@ on:
       - 'invoice-2026.js'
       - 'next-cycle-2026.js'
       - 'premium-theme.css'
+      - 'invoice-share.js'
+      - 'vendor/**'
 
 jobs:
   build:
@@ -58,3 +60,4 @@ jobs:
           name: S-A-Traders-Android-APK
           path: android-app/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+

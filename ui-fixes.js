@@ -18,7 +18,7 @@
     const b=hydrateBill(raw), due=n(b.total_due),paid=n(b.total_paid),pending=n(b.pending),progress=pct(paid,due),cycle=Math.max(i(b.current_cycle_index,1),1);
     const materials=MATERIALS.map(([k,l])=>`<div class="ux-material-row"><strong>${esc(l)}</strong><span class="ux-qty ${nonneg(b.balance_qty?.[k])>0?'has':''}">${nonneg(b.balance_qty?.[k])}</span></div>`).join('');
     const lastCycle=b.cycles?.[b.cycles.length-1];const currentRent=n(lastCycle?.rent,0);
-    const pays=(b.payments||[]).slice().reverse().map(p=>`<div class="ux-material-row"><span>${esc(p.payment_date||p.date||'-')}<small style="display:block;color:var(--ux-muted)">${esc(p.note||'')}</small></span><strong>${money(p.amount)}</strong></div>`).join('')||'<div class="empty">No payments recorded.</div>';
+    const pays=(b.payments||[]).slice().reverse().map(p=>`<div class="ux-material-row"><span>${esc(p.payment_date||p.date||'-')}<small style="display:block;color:var(--ux-muted)">${esc([p.method,p.note].filter(Boolean).join(' · '))}</small></span><strong>${money(p.amount)}</strong></div>`).join('')||'<div class="empty">No payments recorded.</div>';
     const mobile=String(b.mobile||'').trim();
     const actionBar=`<div class="ux-action-scroll no-print"><button class="ux-action-chip" onclick="window.scrollTo({top:0,behavior:'smooth'})">Pro View</button>${mobile?`<button class="ux-action-chip" onclick="SA.go('customer/${encodeURIComponent(mobile)}')">All Bills (${esc(mobile)})</button><button class="ux-action-chip" onclick="SA.go('customer-materials/${encodeURIComponent(mobile)}')">View All Material</button>`:''}<button class="ux-action-chip primary" onclick="SA.go('print-invoice/${encodeURIComponent(b.bill_no)}')">Print Invoice</button><button class="ux-action-chip" onclick="SA.go('print-customer/${encodeURIComponent(b.bill_no)}')">Customer Bill</button><button class="ux-action-chip" onclick="SA.go('print-next-cycle/${encodeURIComponent(b.bill_no)}')">Next Cycle Bill</button></div>`;
     shell(`<div class="ux-detail-head"><button class="ux-icon-btn" onclick="SA.back()">‹</button><h2>Bill #${esc(b.bill_no)}</h2><div><button class="ux-icon-btn" onclick="SA.go('print-invoice/${encodeURIComponent(b.bill_no)}')">▣</button><button class="sa-btn outline" onclick="SA.go('edit/${encodeURIComponent(b.bill_no)}')">Edit</button></div></div>
@@ -31,3 +31,4 @@
     <div class="ux-paybar no-print"><button class="pay" onclick="SA.quickPayment('${esc(b.bill_no)}',false)">▤ &nbsp; Record Payment</button><button class="more" onclick="SA.openMenu()">•••</button></div>`, 'bills');
   };
 })();
+

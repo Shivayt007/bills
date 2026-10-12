@@ -38,7 +38,7 @@
     const tr=Number(cycle?.transport||0);
 
     printShell(`<div class="invoice-page">
-      <div class="invoice-toolbar no-print"><button class="invoice-circle" onclick="SA.back()">‹</button><h1>${mode==='customer'?'Customer Bill':'Invoice'}</h1><button class="invoice-circle" onclick="SA.printNow('${esc(BUSINESS.name+' - '+title)}')">↗</button></div>
+      <div class="invoice-toolbar no-print"><button class="invoice-circle" onclick="SA.back()">‹</button><h1>${mode==='customer'?'Customer Bill':'Invoice'}</h1><button class="invoice-circle" aria-label="Share invoice image" onclick="SA.shareInvoiceImage(this)">↗</button></div>
       <section class="invoice-sheet">
         <div class="invoice-brand"><div><h2>${esc(BUSINESS.name)}</h2><p>${esc(BUSINESS.address)}<br>${esc(BUSINESS.phone)}</p></div><div class="invoice-no">${esc(title).toUpperCase()}</div></div>
         <div class="invoice-body">
@@ -52,7 +52,8 @@
       </section>
       <section class="invoice-cycle-section"><h3>Rental Cycle Summary</h3><div class="invoice-cycle-list">${invoiceCycles(b)}</div></section>
       <details class="invoice-terms"><summary>Terms & Conditions</summary><div class="invoice-terms-body">${textToHtml(terms)}</div></details>
-      <div class="invoice-actions no-print"><button class="print" onclick="SA.printNow('${esc(BUSINESS.name+' - '+title)}')">▣ &nbsp; Print / Save PDF</button><button class="back" onclick="SA.back()">Back</button></div>
+      <div class="invoice-actions no-print"><button class="print" onclick="SA.printNow('${esc(BUSINESS.name+' - '+title)}')">▣ &nbsp; Print / Save PDF</button><button class="share-image" onclick="SA.shareInvoiceImage(this)">Share image</button></div>
     </div>`);
   };
 })();
+

@@ -417,3 +417,37 @@ h1 { font-size:26px; letter-spacing:-.8px; } h2 { font-size:20px; } h3 { font-si
 .invoice-terms summary::after { font-size:20px; line-height:1; color:var(--app-muted); }
 /* Reserve only actual fixed-action space: avoids a 2px sample-invoice overflow. */
 .invoice-page { padding-bottom:calc(76px + var(--app-safe-bottom)); }
+
+
+/* v1.2: in-app payment form and image sharing. */
+.payment-modal .modal-card { max-height:92vh; max-height:92dvh; }
+.payment-modal .modal-head { position:sticky; top:-18px; z-index:2; background:var(--app-card); }
+.payment-modal .modal-close { color:var(--app-text); }
+.payment-person { color:var(--app-muted); font-size:12px; margin:0 0 24px; }
+.payment-amount { display:flex; align-items:center; gap:6px; font-size:40px; font-weight:800; letter-spacing:-1.5px; }
+.payment-amount input { width:100%; min-width:0; border:0; outline:none; background:transparent; color:var(--app-text); font:inherit; font-size:40px; line-height:1.4; padding:4px 0; border-bottom:2px solid var(--app-border); border-radius:0; }
+.payment-amount input:focus { border-bottom-color:var(--app-lime); }
+.payment-remaining { color:var(--app-coral); font-size:12px; margin:8px 0 16px; }
+.payment-shortcuts { display:flex; gap:10px; margin-bottom:22px; }
+.payment-shortcuts button { flex:1; }
+.payment-method { padding:0; border:0; margin:0 0 20px; min-width:0; }
+.payment-method legend { margin-bottom:8px; }
+.payment-segments { display:flex; padding:4px; background:var(--app-raised); border:1px solid var(--app-border); border-radius:99px; }
+.payment-segments label { position:relative; flex:1; cursor:pointer; }
+.payment-segments input { position:absolute; inset:0; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+.payment-segments span { display:flex; align-items:center; justify-content:center; min-height:48px; border-radius:99px; font-weight:700; font-size:12px; color:var(--app-muted); }
+.payment-segments input:checked+span { background:var(--app-lime); color:var(--app-on-accent); }
+.payment-segments input:focus-visible+span { outline:2px solid var(--app-text); outline-offset:2px; }
+.payment-fields { display:grid; gap:16px; }
+.payment-error { background:var(--app-coral-soft); color:var(--app-coral); padding:12px; font-size:12px; border-radius:14px; margin-top:16px; }
+.payment-duplicate { display:flex; align-items:center; gap:10px; padding:12px 0; font-size:12px; min-height:48px; }
+.payment-duplicate input { width:24px; height:24px; flex:none; accent-color:var(--app-lime); }
+.payment-error[hidden],.payment-duplicate[hidden] { display:none; }
+.payment-submit { position:sticky; bottom:-20px; padding:18px 0 4px; background:var(--app-card); }
+.invoice-actions .share-image { flex:1; min-height:56px; border-radius:99px; background:var(--app-raised); border:1px solid var(--app-border); color:var(--app-lime); font-weight:800; font-size:13px; }
+.invoice-actions .print { flex:1.2; }
+.invoice-image-stage .invoice-image-copy { width:390px!important; max-width:390px!important; min-height:0!important; padding:16px!important; margin:0!important; overflow:visible!important; background:#fff!important; color:#171B26!important; }
+.invoice-image-copy .invoice-cycle-section,.invoice-image-copy .invoice-terms { background:#fff!important; color:#171B26!important; border-color:#DFE2EA!important; }
+.invoice-image-copy .invoice-cycle-dates,.invoice-image-copy .invoice-cycle-dates strong,.invoice-image-copy .invoice-terms-body { color:#171B26!important; }
+.invoice-image-copy .invoice-terms-body { display:block!important; border-color:#DFE2EA; }
+@media print { .invoice-actions .share-image { display:none!important; } }
