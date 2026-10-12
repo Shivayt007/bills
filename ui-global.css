@@ -1,0 +1,96 @@
+/* Shared visual system for all S.A Traders screens.
+   Extends ui-2026.css without replacing business logic. */
+:root{
+ --sa-navy:#0b2926;--sa-navy-light:#145f58;--sa-slate:#607570;
+ --sa-gold:#22c9b9;--sa-gold-light:#5eead4;--sa-gold-soft:#d7faf2;
+ --sa-emerald:#0f8175;--sa-emerald-soft:#d1f8ed;
+ --sa-blue:#0f8175;--sa-blue-soft:#e1f5f1;
+ --sa-bg:#f3f8f7;--sa-border:#e2ece9;--sa-text:#0b211e;
+ --sa-muted:#677a77;--sa-radius:24px;--sa-radius-sm:16px;
+ --sa-shadow:0 8px 28px rgba(15,48,44,.075);
+ --sa-shadow-lg:0 14px 38px rgba(15,48,44,.12)
+}
+html{scroll-behavior:smooth}
+body{background:#f3f8f7}
+.page .container{max-width:760px}
+.sa-card,.bill-card,.quick-card,.summary-box,.sa-stat{
+ border:1px solid #e6efed;border-radius:25px;background:#fff;
+ box-shadow:var(--sa-shadow)
+}
+.sa-card{overflow:hidden}
+.sa-card-header{padding:20px 22px;border-color:#edf2f1}
+.sa-card-body{padding:22px}
+.sa-card-title{font-size:17px;letter-spacing:-.35px}
+.sa-card-subtitle,.muted,.bill-meta{color:#697b78}
+.hero{background:linear-gradient(135deg,#128579,#0c6e64);border-radius:28px;padding:26px}
+.hero p{color:rgba(255,255,255,.8)}
+.sa-stat{padding:22px}
+.sa-stat::after{height:0}
+.sa-stat-label,.section-title,.detail-eyebrow{color:#6c7e7a}
+.sa-stat-value,.money-big{color:#0d645b}
+.sa-btn{min-height:43px;border-radius:15px;padding:10px 17px;transition:transform .15s,box-shadow .15s}
+.sa-btn:active,.ux-outline:active{transform:scale(.98)}
+.sa-btn.primary,.sa-btn.success,.sa-btn.blue{background:#117d72;color:#fff}
+.sa-btn.gold{background:#117d72;color:#fff}
+.sa-btn.outline{background:#fff;border:1px solid #d1dedb;color:#0b211e}
+.sa-btn.danger{background:#fff0ed;color:#b33e23;border-color:#f6d4cc}
+.sa-input{min-height:47px;border-radius:15px;border:1.5px solid #dbe6e3;background:#fff}
+.sa-input:focus{border-color:#128579;box-shadow:0 0 0 3px rgba(18,133,121,.13)}
+.sa-label{color:#4d6762;font-weight:750}
+.form-section{border:1px solid #e3eeeb;border-radius:23px;background:#fff;box-shadow:var(--sa-shadow)}
+.form-section-head{background:#f0f7f5;border-bottom-color:#e3eeeb;padding:17px 20px;color:#173e39}
+.form-section-body{padding:20px}
+.quick-card{padding:21px}
+.quick-card.gold-soft{background:#e4faf4;border-color:#c9ede3}
+.quick-card h3{color:#0c574f}
+.sa-table-wrap{border-radius:17px;overflow:auto}
+.sa-table thead th{background:#edf4f2;color:#667a76;border-color:#e0ebe8}
+.sa-table tbody td{border-bottom-color:#edf2f0}
+.sa-table tbody tr:hover{background:#f6fbf9}
+.sa-badge{border-radius:99px;padding:5px 11px}
+.sa-badge.open{background:#d1faf0;color:#0d6d62}
+.sa-badge.cycle{background:#e2f5f1;color:#0c6e64}
+.tabbar{background:#e3eeeb;padding:5px;border-radius:18px;gap:3px}
+.tab{border:0;background:transparent;border-radius:14px;min-height:43px}
+.tab.active{background:#fff;color:#0b211e;box-shadow:0 3px 9px rgba(15,48,44,.08)}
+.bill-card{padding:20px}
+.summary-box{padding:17px}
+.summary-box.green{background:#e4faf4;border-color:#bfece1}
+.summary-box.blue{background:#eaf7f4;border-color:#cbe8e2}
+.info-pair{border-color:#eaf1ef}
+.modal{background:rgba(3,28,25,.62)}
+.modal-card{border-radius:28px 28px 0 0}
+.modal-head{border-color:#e7efed}
+.modal-close{border-radius:50%;background:#edf5f2}
+.login-wrap{background:linear-gradient(155deg,#edf7f4,#dcefeb)}
+.login-card{border-radius:30px;box-shadow:0 18px 50px rgba(15,48,44,.14)}
+.login-logo{background:#0a332f;color:#30d7c5}
+.toast{border-radius:16px;background:#0b403a}
+.toast.success{background:#0f8175}
+.fab{background:#27d4c1;color:#063d36;border-radius:50%;bottom:105px}
+.customer-meta-grid{border-color:#e4efeb}
+.wood-matrix-wrap{border-color:#e2ecea;border-radius:18px}
+.wood-matrix th,.wood-matrix tfoot td{background:#eef4f3;color:#607570}
+.wood-matrix td{border-color:#edf2f0;color:#0b211e}
+.rent-total-card{border-radius:20px}
+.ux-bottom button,.ux-icon-btn,.ux-menu-tile{cursor:pointer}
+@media(max-width:600px){
+ .page .container{width:calc(100% - 28px)}
+ .sa-card-body{padding:19px}
+ .sa-card-header{padding:17px 19px}
+ .sa-stat{padding:17px}
+ .sa-stat-value{font-size:22px}
+ .form-section-body{padding:17px}
+ .form-grid,.form-grid.two,.form-grid.three{gap:13px}
+ .actions{gap:9px}
+ .actions .sa-btn{flex:1 1 auto}
+ .sa-table-wrap{margin:0 -4px}
+ .modal-card{max-height:92dvh}
+}
+@media print{
+ :root{--sa-bg:#fff;--sa-border:#ddd}
+ body{background:#fff!important;padding:0!important}
+ .sa-card,.bill-card,.summary-box,.sa-stat,.form-section{box-shadow:none!important;border-radius:0}
+ .print-sheet{box-shadow:none!important}
+ .ux-bottom,.ux-topbar,.ux-paybar,.ux-menu,.fab{display:none!important}
+}
