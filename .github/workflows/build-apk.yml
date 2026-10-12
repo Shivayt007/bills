@@ -32,11 +32,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set Android SDK path
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "/usr/local/lib/android/sdk/platform-tools" >> $GITHUB_PATH
+
       - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses > /dev/null || true
+        run: yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
 
       - name: Install Android SDK 35
-        run: sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
+        run: /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0'
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
