@@ -1,0 +1,97 @@
+name: Enhance bill detail view
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/enhance-bill-view.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update bill detail UI
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text()
+          helper=r'''function woodMaterialMatrix(b){
+  const groups=WOODS.map(([k,label,rf])=>{
+    const entries=Object.entries(b.balance_wood?.[k]||{})
+      .map(([feet,pieces])=>({feet:n(feet),pieces:i(pieces)}))
+      .filter(x=>x.feet>0&&x.pieces>0)
+      .sort((a,b)=>a.feet-b.feet);
+    const totalFeet=round2(entries.reduce((sum,x)=>sum+(x.feet*x.pieces),0));
+    const rate=n(b.rates?.[rf],DEFAULT_RATES[rf]);
+    return {label,entries,totalFeet,amount:round2(totalFeet*rate)};
+  });
+  const rows=Math.max(1,...groups.map(g=>g.entries.length));
+  const body=Array.from({length:rows},(_,idx)=>`<tr>${groups.map(g=>{const x=g.entries[idx];return `<td>${x?`${x.feet}×${x.pieces}`:'&nbsp;'}</td>`}).join('')}</tr>`).join('');
+  return `<div class="wood-matrix-wrap"><table class="wood-matrix"><thead><tr>${groups.map(g=>`<th>${esc(g.label).toUpperCase()}</th>`).join('')}</tr></thead><tbody>${body}</tbody><tfoot><tr>${groups.map(g=>`<td><strong>${g.totalFeet} ft</strong><span>${money(g.amount)}</span></td>`).join('')}</tr></tfoot></table></div>`;
+}
+
+'''
+          if 'function woodMaterialMatrix(b)' not in s:
+              marker='async function renderBill(id){'
+              if marker not in s: raise SystemExit('renderBill marker missing')
+              s=s.replace(marker,helper+marker,1)
+
+          start=s.index('async function renderBill(id){')
+          end=s.index('function historyRow(',start)
+          new_render=r'''async function renderBill(id){
+  const raw=await DB.get('bills',id); if(!raw){shell(`<div class="sa-alert danger">Bill not found.</div>`,'dashboard');return} const b=hydrateBill(raw);
+  const lastCycle=b.cycles?.[b.cycles.length-1];
+  const cycleRows=(b.cycles||[]).map(c=>`<tr><td>#${c.index}</td><td>${c.start_date}</td><td>${c.end_date}</td><td>${money(c.rent)}</td><td>${money(c.transport)}</td><td class="fw-800">${money(c.total)}</td></tr>`).join('');
+  const payRows=(b.payments||[]).slice().reverse().map(p=>`<tr><td>${esc(p.payment_date||p.date||'')}</td><td>${money(p.amount)}</td><td>${esc(p.note||'-')}</td><td>${esc(p.created_by||'-')}</td><td>${isAdmin()?`<button class="sa-btn danger sm no-print" onclick="SA.deletePayment('${esc(b.bill_no)}','${esc(p.payment_id)}')">Delete</button>`:''}</td></tr>`).join('');
+  const returnRows=(b.return_history||[]).slice().reverse().map(r=>historyRow(r,'return',b.bill_no)).join('');
+  const addRows=(b.additional_history||[]).slice().reverse().map(a=>historyRow(a,'additional',b.bill_no)).join('');
+  const matBalance=MATERIALS.map(([k,l])=>`<tr><td>${l}</td><td class="right fw-800">${nonneg(b.balance_qty[k])}</td><td class="right">${money(n(b.rates?.[MATERIALS.find(x=>x[0]===k)?.[3]],0))}</td></tr>`).join('');
+  const activeLabel=b.status==='closed'?'Closed':'Active';
+  const cycleNo=Math.max(i(b.current_cycle_index,1),1);
+  const liveSnap=b.start_date?snapshotForCycle(b,cycleNo):{qty:b.base_qty||{},wood:b.base_wood_maps||{}};
+  const currentRent=calcRent(liveSnap.qty,liveSnap.wood,b.rates||ratesOf(b));
+  const mobile=String(b.mobile||'').trim();
+  const viewActions=`<button class="sa-btn outline" onclick="SA.back()">← Back</button><button class="sa-btn gold" onclick="window.scrollTo({top:0,behavior:'smooth'})">Pro View</button>${mobile?`<button class="sa-btn outline" onclick="SA.go('customer/${encodeURIComponent(mobile)}')">All Bills (${esc(mobile)})</button><button class="sa-btn outline" onclick="SA.go('customer-materials/${encodeURIComponent(mobile)}')">View All Material</button>`:''}<button class="sa-btn primary" onclick="SA.go('print-invoice/${encodeURIComponent(b.bill_no)}')">Print Invoice</button><button class="sa-btn gold" onclick="SA.go('print-customer/${encodeURIComponent(b.bill_no)}')">Customer Bill</button><button class="sa-btn primary" onclick="SA.go('print-next-cycle/${encodeURIComponent(b.bill_no)}')">Next Cycle Bill</button><button class="sa-btn outline" onclick="SA.go('edit/${encodeURIComponent(b.bill_no)}')">Edit</button>`;
+  shell(`<div class="bill-view-head mb-3"><div class="bill-view-title"><div><div class="bill-number-row"><h1>${esc(b.bill_no)}</h1><span class="sa-badge ${b.status==='closed'?'closed':'open'}">${activeLabel}</span></div><p>${esc(b.name||'-')} · ${esc(b.mobile||'-')} · ${esc(b.place||'-')}</p></div></div><div class="view-action-grid no-print">${viewActions}</div></div>
+  <div class="sa-card mb-3 customer-detail-card"><div class="sa-card-body"><div class="detail-eyebrow">CUSTOMER DETAILS</div><div class="customer-detail-lines"><div>Name: <strong>${esc(b.name||'-')}</strong></div><div>Mobile: <strong>${esc(b.mobile||'-')}</strong></div><div>Place: <strong>${esc(b.place||'-')}</strong></div></div>${mobile?`<button class="sa-btn outline mt-3 no-print" onclick="SA.go('customer/${encodeURIComponent(mobile)}')">View Customer History</button>`:''}<div class="customer-meta-grid"><div><span>START DATE</span><strong>${esc(b.start_date||'-')}</strong></div><div><span>CYCLE</span><strong>${i(b.cycle_days)} days</strong></div></div></div></div>
+  <div class="sa-card mb-3"><div class="sa-card-header"><div><h3 class="sa-card-title">Smart Summary</h3><div class="sa-card-subtitle">${statusBadge(b.status)} · Current cycle #${cycleNo}</div></div></div><div class="sa-card-body"><div class="summary-strip"><div class="summary-box blue"><div class="label">Total Due</div><div class="value">${money(b.total_due)}</div></div><div class="summary-box green"><div class="label">Total Paid</div><div class="value">${money(b.total_paid)}</div></div><div class="summary-box red"><div class="label">Pending</div><div class="value">${money(b.pending)}</div></div><div class="summary-box gold"><div class="label">Advance Deposit</div><div class="value">${money(b.advance_locked)}</div></div></div><div class="actions mt-3 no-print">${b.status!=='closed'?`<button class="sa-btn gold" onclick="SA.quickPayment('${esc(b.bill_no)}',false)">Record Payment</button><button class="sa-btn outline" onclick="SA.openReturn('${esc(b.bill_no)}')">Return Material</button><button class="sa-btn outline" onclick="SA.openAdditional('${esc(b.bill_no)}')">Additional Material</button>`:''}${isAdmin()&&b.status!=='closed'?`<button class="sa-btn success" onclick="SA.closeBill('${esc(b.bill_no)}')">Close Bill</button>`:''}${isAdmin()?`<button class="sa-btn danger" onclick="SA.deleteBill('${esc(b.bill_no)}')">Delete</button>`:''}</div></div></div>
+  <div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Current Materials</h3></div><div class="sa-card-body p-0"><div class="sa-table-wrap"><table class="sa-table"><thead><tr><th>Material</th><th class="right">Qty</th><th class="right">Rate</th></tr></thead><tbody>${matBalance}</tbody></table></div></div></div>
+  <div class="sa-card mb-3"><div class="sa-card-body"><div class="detail-eyebrow mb-3">WOOD MATERIALS</div>${woodMaterialMatrix(b)}</div></div>
+  <div class="rent-total-card mb-3"><span>RENT TOTAL</span><strong>${money(currentRent.rent_total)}</strong></div>
+  <div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">First Cycle Charges</h3></div><div class="sa-card-body"><div class="info-pair"><span class="k">Transport Up</span><span class="v">${money(b.transport_breakdown.up)}</span></div><div class="info-pair"><span class="k">Transport Down</span><span class="v">${money(b.transport_breakdown.down)}</span></div><div class="info-pair"><span class="k">Loading</span><span class="v">${money(b.transport_breakdown.loading)}</span></div><div class="info-pair"><span class="k">Unloading</span><span class="v">${money(b.transport_breakdown.unloading)}</span></div></div></div>
+  <div class="sa-card mb-3"><div class="sa-card-header"><div><h3 class="sa-card-title">Rental Cycles</h3><div class="sa-card-subtitle">Returns and additions take effect from the next cycle</div></div></div><div class="sa-card-body p-0"><div class="sa-table-wrap"><table class="sa-table"><thead><tr><th>Cycle</th><th>From</th><th>To</th><th>Rent</th><th>Transport</th><th>Total</th></tr></thead><tbody>${cycleRows||'<tr><td colspan="6">No cycle data</td></tr>'}</tbody></table></div></div></div>
+  <div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Payment History</h3></div><div class="sa-card-body p-0"><div class="sa-table-wrap"><table class="sa-table"><thead><tr><th>Date</th><th>Amount</th><th>Note</th><th>User</th><th></th></tr></thead><tbody>${payRows||'<tr><td colspan="5" class="muted">No payments recorded.</td></tr>'}</tbody></table></div></div></div>
+  <div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Return History</h3></div><div class="sa-card-body">${returnRows||'<div class="empty">No return entries.</div>'}</div></div>
+  <div class="sa-card"><div class="sa-card-header"><h3 class="sa-card-title">Additional Material History</h3></div><div class="sa-card-body">${addRows||'<div class="empty">No additional material entries.</div>'}</div></div>`, 'dashboard');
+}
+'''
+          s=s[:start]+new_render+s[end:]
+          p.write_text(s)
+
+          css=Path('app.css')
+          c=css.read_text()
+          marker='/* BILL VIEW 2026-10-12 */'
+          if marker not in c:
+              c+='''\n\n/* BILL VIEW 2026-10-12 */\n.bill-view-head{background:transparent;padding:4px 0 10px}.bill-number-row{display:flex;align-items:center;gap:14px}.bill-number-row h1{margin:0;font-size:2rem;line-height:1}.bill-view-title p{margin:10px 0 0;color:#64748b;font-size:1rem}.view-action-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}.detail-eyebrow{font-size:.85rem;font-weight:800;letter-spacing:.08em;color:#64748b}.customer-detail-lines{font-size:1.05rem;line-height:1.75;color:#64748b}.customer-detail-lines strong{color:#0f172a}.customer-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px;padding-top:22px;border-top:1px solid #eef2f7}.customer-meta-grid span{display:block;color:#64748b;font-size:.78rem;font-weight:800;letter-spacing:.04em}.customer-meta-grid strong{display:block;margin-top:6px;font-size:1.15rem}.wood-matrix-wrap{overflow-x:auto;border:1px solid #e2e8f0;border-radius:14px}.wood-matrix{border-collapse:collapse;width:100%;min-width:570px;table-layout:fixed;background:#fff}.wood-matrix th{background:#f1f5f9;color:#64748b;font-size:.76rem;letter-spacing:.04em;padding:16px 12px;text-align:center;white-space:nowrap}.wood-matrix td{height:54px;padding:13px 12px;text-align:center;border-bottom:1px solid #eef2f7;font-weight:600;color:#1e293b}.wood-matrix tfoot td{background:#f1f5f9;height:auto;font-weight:800}.wood-matrix tfoot strong,.wood-matrix tfoot span{display:block}.wood-matrix tfoot span{margin-top:4px}.rent-total-card{background:#fff4c2;border:1px solid #f7d97c;border-radius:16px;padding:24px;text-align:center}.rent-total-card span{display:block;color:#92400e;font-size:.82rem;font-weight:800;letter-spacing:.05em}.rent-total-card strong{display:block;color:#92400e;font-size:2rem;margin-top:10px}.mb-3{margin-bottom:1rem}@media(max-width:640px){.view-action-grid{gap:8px}.view-action-grid .sa-btn{flex:0 1 auto}.bill-number-row h1{font-size:1.8rem}.customer-meta-grid{grid-template-columns:1fr 1fr}.wood-matrix{min-width:560px}}\n'''
+              css.write_text(c)
+
+          idx=Path('index.html')
+          h=idx.read_text()
+          import re
+          h=re.sub(r'app\.css\?v=[^"\']+','app.css?v=20261012-0750',h)
+          h=re.sub(r'app\.js\?v=[^"\']+','app.js?v=20261012-0750',h)
+          if 'app.css?v=' not in h: h=h.replace('app.css','app.css?v=20261012-0750')
+          if 'app.js?v=' not in h: h=h.replace('app.js','app.js?v=20261012-0750')
+          idx.write_text(h)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js app.css index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Match bill detail and wood material view"
+          git push
