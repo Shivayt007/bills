@@ -1,0 +1,139 @@
+/* S.A Traders premium business theme — visual overrides only */
+:root{
+  --premium-navy:#0f172a;
+  --premium-navy2:#111827;
+  --premium-blue:#2563eb;
+  --premium-indigo:#4f46e5;
+  --premium-violet:#7c3aed;
+  --premium-emerald:#059669;
+  --premium-teal:#0f766e;
+  --premium-cyan:#0891b2;
+  --premium-amber:#d97706;
+  --premium-red:#dc2626;
+  --premium-slate:#64748b;
+  --premium-bg:#f4f7fb;
+  --premium-card:#ffffff;
+  --premium-line:#e5e7eb;
+  --premium-text:#111827;
+  --premium-muted:#6b7280;
+  --premium-shadow:0 10px 30px rgba(15,23,42,.09);
+}
+
+body{background:var(--premium-bg)!important;color:var(--premium-text)!important}
+.page,.ux-menu{background:var(--premium-bg)!important}
+
+/* Header / navigation */
+.ux-topbar{background:rgba(244,247,251,.97)!important;border-bottom:1px solid #dbe2ea!important}
+.ux-logo,.ux-shop .logo{background:linear-gradient(145deg,#0f172a,#1e293b)!important;color:#60a5fa!important}
+.ux-brand strong,.ux-shop strong{color:var(--premium-navy)!important}
+.ux-brand small,.ux-shop span{color:var(--premium-muted)!important}
+.ux-icon-btn{background:#fff!important;color:var(--premium-navy)!important;border:1px solid #e5e7eb!important;box-shadow:var(--premium-shadow)!important}
+.ux-bottom{background:linear-gradient(135deg,#0f172a,#111827)!important;box-shadow:0 16px 38px rgba(15,23,42,.28)!important}
+.ux-bottom button{color:#94a3b8!important}
+.ux-bottom .active{background:#1e3a8a!important;color:#fff!important}
+.ux-bottom .plus{background:linear-gradient(135deg,#2563eb,#4f46e5)!important;color:#fff!important;box-shadow:0 8px 20px rgba(37,99,235,.35)!important}
+
+/* Dashboard */
+.ux-hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 55%,#2563eb 100%)!important;box-shadow:0 16px 36px rgba(30,58,138,.22)!important}
+.ux-ring{border-color:rgba(255,255,255,.25)!important;border-top-color:#fff!important;border-right-color:#fff!important}
+.ux-quick .ico{background:#fff!important;border:1px solid #e5e7eb!important;box-shadow:var(--premium-shadow)!important}
+.ux-quick button:nth-child(1) .ico{color:var(--premium-blue)!important}
+.ux-quick button:nth-child(2) .ico{color:var(--premium-violet)!important}
+.ux-quick button:nth-child(3) .ico{color:var(--premium-cyan)!important}
+.ux-quick button:nth-child(4) .ico{color:var(--premium-teal)!important}
+.ux-tabs{background:#e9eef5!important}
+.ux-tabs button.active{color:var(--premium-navy)!important;background:#fff!important}
+.ux-bill-card,.ux-summary,.ux-section,.sa-card,.bill-card,.summary-box,.sa-stat,.quick-card{background:#fff!important;border-color:#e5e7eb!important;box-shadow:var(--premium-shadow)!important}
+.ux-avatar{background:#dbeafe!important;color:#1d4ed8!important}
+.ux-pill{background:#dcfce7!important;color:#047857!important}
+.ux-progress i,.ux-summary .bar i{background:linear-gradient(90deg,#2563eb,#4f46e5)!important}
+
+/* Core buttons: each intent gets its own professional color */
+.sa-btn{box-shadow:0 4px 12px rgba(15,23,42,.08)}
+.sa-btn.primary{background:linear-gradient(135deg,#0f172a,#1e293b)!important;color:#fff!important}
+.sa-btn.gold{background:linear-gradient(135deg,#2563eb,#1d4ed8)!important;color:#fff!important}
+.sa-btn.success{background:linear-gradient(135deg,#059669,#047857)!important;color:#fff!important}
+.sa-btn.blue{background:linear-gradient(135deg,#4f46e5,#4338ca)!important;color:#fff!important}
+.sa-btn.danger{background:linear-gradient(135deg,#dc2626,#b91c1c)!important;color:#fff!important;border-color:transparent!important}
+.sa-btn.outline{background:#fff!important;color:#334155!important;border:1px solid #cbd5e1!important;box-shadow:none!important}
+.sa-btn:hover{filter:brightness(.98)}
+.sa-btn:active{transform:translateY(1px)}
+
+/* Bill detail actions get deliberate colors even where older markup reused classes */
+.view-action-grid .sa-btn:nth-child(1){background:#fff!important;color:#334155!important;border:1px solid #cbd5e1!important}
+.view-action-grid .sa-btn:nth-child(2){background:linear-gradient(135deg,#4f46e5,#4338ca)!important;color:#fff!important;border-color:transparent!important}
+.view-action-grid .sa-btn:nth-child(3){background:linear-gradient(135deg,#0f766e,#0d9488)!important;color:#fff!important;border-color:transparent!important}
+.view-action-grid .sa-btn:nth-child(4){background:linear-gradient(135deg,#0891b2,#0e7490)!important;color:#fff!important;border-color:transparent!important}
+.view-action-grid .sa-btn:nth-child(5){background:linear-gradient(135deg,#4f46e5,#3730a3)!important;color:#fff!important;border-color:transparent!important}
+.view-action-grid .sa-btn:nth-child(6){background:linear-gradient(135deg,#7c3aed,#6d28d9)!important;color:#fff!important;border-color:transparent!important}
+.view-action-grid .sa-btn:nth-child(7){background:linear-gradient(135deg,#0f172a,#1e293b)!important;color:#fff!important;border-color:transparent!important}
+.view-action-grid .sa-btn:nth-child(8){background:#fff!important;color:#2563eb!important;border:1px solid #93c5fd!important}
+
+/* Material actions */
+.ux-actions2 .ux-outline:first-child{background:linear-gradient(135deg,#0f766e,#0d9488)!important;color:#fff!important;border-color:transparent!important}
+.ux-actions2 .ux-outline:last-child{background:linear-gradient(135deg,#d97706,#b45309)!important;color:#fff!important;border-color:transparent!important}
+.ux-paybar .pay{background:linear-gradient(135deg,#059669,#047857)!important;box-shadow:0 8px 20px rgba(5,150,105,.24)!important}
+.ux-paybar .more{color:var(--premium-navy)!important;border-color:#cbd5e1!important}
+.ux-qty.has{background:#dcfce7!important;color:#047857!important}
+.ux-rent-total{background:linear-gradient(135deg,#fff7ed,#ffedd5)!important;border-color:#fed7aa!important;color:#9a3412!important}
+.ux-rent-total strong,.ux-rent-total span{color:#9a3412!important}
+
+/* Summary colors */
+.summary-box.blue{background:#eef2ff!important;border-color:#c7d2fe!important}
+.summary-box.blue .value{color:#4338ca!important}
+.summary-box.green{background:#ecfdf5!important;border-color:#a7f3d0!important}
+.summary-box.green .value{color:#047857!important}
+.summary-box.red{background:#fff7ed!important;border-color:#fed7aa!important}
+.summary-box.red .value{color:#c2410c!important}
+.summary-box.gold{background:#f5f3ff!important;border-color:#ddd6fe!important}
+.summary-box.gold .value{color:#6d28d9!important}
+
+/* Forms/tables */
+.sa-input:focus{border-color:#2563eb!important;box-shadow:0 0 0 3px rgba(37,99,235,.12)!important}
+.form-section-head,.sa-table thead th{background:#f1f5f9!important;color:#475569!important}
+.sa-badge.open{background:#dcfce7!important;color:#047857!important}
+.sa-badge.closed{background:#e2e8f0!important;color:#475569!important}
+.sa-badge.pending{background:#ffedd5!important;color:#c2410c!important}
+.sa-badge.cycle{background:#dbeafe!important;color:#1d4ed8!important}
+.sa-badge.gold{background:#ede9fe!important;color:#6d28d9!important}
+
+/* Menu */
+.ux-profile{border:1px solid #e5e7eb!important}
+.ux-menu-tile{border:1px solid #e5e7eb!important}
+.ux-menu-tile b{color:#2563eb!important}
+.ux-menu-tile:nth-child(3) b{color:#7c3aed!important}
+.ux-menu-tile:nth-child(4) b{color:#0891b2!important}
+.ux-menu-tile:nth-child(5) b{color:#0f766e!important}
+.ux-menu-tile:nth-child(6) b{color:#4f46e5!important}
+.ux-menu-tile:nth-child(7) b{color:#334155!important}
+.ux-menu-tile.active{background:linear-gradient(135deg,#0f172a,#1e3a8a)!important;color:#fff!important;border-color:transparent!important}
+.ux-menu-tile.active b{color:#fff!important}
+.ux-menu-tile.logout{color:#dc2626!important}
+.ux-menu-tile.logout b{color:#dc2626!important}
+
+/* Invoice / next-cycle invoice */
+.invoice-brand{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 60%,#4f46e5 100%)!important}
+.invoice-no{background:rgba(15,23,42,.45)!important;border:1px solid rgba(255,255,255,.18)!important}
+.invoice-cyclebar{background:#f1f5f9!important;color:#0f172a!important}
+.invoice-total{background:linear-gradient(135deg,#0f172a,#1e293b)!important}
+.invoice-total span{color:#93c5fd!important}
+.invoice-paybox.paid{background:#ecfdf5!important}.invoice-paybox.paid strong{color:#047857!important}
+.invoice-paybox.pending{background:#fff7ed!important}.invoice-paybox.pending strong{color:#c2410c!important}
+.invoice-paybox:not(.paid):not(.pending){background:#f5f3ff!important}.invoice-paybox:not(.paid):not(.pending) strong{color:#6d28d9!important}
+.invoice-cycle-index{background:#dbeafe!important;color:#1d4ed8!important}
+.invoice-actions .print{background:linear-gradient(135deg,#4f46e5,#4338ca)!important;box-shadow:0 8px 20px rgba(79,70,229,.25)!important}
+.invoice-actions .back{color:#334155!important;border-color:#cbd5e1!important}
+.invoice-circle{color:#1e3a8a!important}
+
+/* Alerts */
+.sa-alert.success{background:#ecfdf5!important;color:#047857!important;border-color:#a7f3d0!important}
+.sa-alert.info{background:#eff6ff!important;color:#1d4ed8!important;border-color:#bfdbfe!important}
+.sa-alert.warning{background:#fffbeb!important;color:#b45309!important;border-color:#fde68a!important}
+.sa-alert.danger{background:#fef2f2!important;color:#b91c1c!important;border-color:#fecaca!important}
+.toast.success{background:#047857!important}.toast.warning{background:#b45309!important}.toast.danger{background:#b91c1c!important}
+
+@media print{
+  body{background:#fff!important}
+  .invoice-brand{background:#0f172a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .invoice-total{background:#0f172a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
