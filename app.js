@@ -115,6 +115,11 @@ async function nextAvailableBillNo(){
   const nums=[...used].filter(x=>/^\d+$/.test(x)).map(Number); let x=nums.length?Math.max(...nums)+1:1;
   while(used.has(String(x)))x++; return String(x);
 }
+async function nextAvailableBillNo(){
+  const bills=await DB.all('bills'); const used=new Set(bills.map(b=>String(b.bill_no??'').trim()).filter(Boolean));
+  const nums=[...used].filter(x=>/^\d+$/.test(x)).map(Number); let x=nums.length?Math.max(...nums)+1:1;
+  while(used.has(String(x)))x++; return String(x);
+}
 async function seedDb(){
   if(await DB.count('users')===0){ await DB.put('users',{username:'admin',password:'shiva',role:'admin',created_at:nowIso()}); }
   const defaults={terms_invoice:DEFAULT_TERMS,custom_rules:DEFAULT_CUSTOM_RULES,custom_terms:DEFAULT_CUSTOM_TERMS};
