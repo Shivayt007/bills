@@ -5,8 +5,10 @@
   const read=()=>{try{return{...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch(_e){return{...defaults}}};
   const save=value=>localStorage.setItem(KEY,JSON.stringify(value));
 
-  SA.syncReminders=async function(){
+  let timer=null,running=false;
+  async function syncNow(){
     if(!window.Android?.syncBillReminders)return;
+    if(running)return;running=true;
     try{
       const settings=read(),bills=await allHydratedBills();
       const reminders=bills.filter(b=>b.status!=='closed'&&Number(b.pending)>0).map(b=>{
@@ -15,17 +17,14 @@
         return {billNo:String(b.bill_no),name:String(b.name||'Customer'),mobile:String(b.mobile||''),balance:round2(b.pending),cycle:cycle?.index||1,cycleStart:cycle?.start_date||b.start_date||'',cycleEnd:cycle?.end_date||'',cycleAmount:round2(cycle?.total||0),cyclePaid:round2(cyclePaid)};
       });
       Android.syncBillReminders(JSON.stringify(reminders),!!settings.enabled,Number(settings.days)||1);
-    }catch(e){console.warn('Reminder sync failed',e)}
-  };
+    }catch(e){console.warn('Reminder sync failed',e)}finally{running=false}
+  }
+  SA.syncReminders=function(){clearTimeout(timer);timer=setTimeout(syncNow,2000)};
 
   SA.openNotificationSettings=function(){
     const settings=read();
     modal('Payment reminders',`<form id="reminderForm"><label class="reminder-toggle"><span><strong>Balance notifications</strong><small>Notify when a rental cycle starts and its payment is pending.</small></span><input type="checkbox" name="enabled" ${settings.enabled?'checked':''}></label><fieldset class="payment-method reminder-frequency"><legend class="sa-label">Repeat reminder</legend><div class="payment-segments">${[[1,'Daily'],[3,'3 days'],[7,'Weekly']].map(([days,label])=>`<label><input type="radio" name="days" value="${days}" ${Number(settings.days)===days?'checked':''}><span>${label}</span></label>`).join('')}</div></fieldset><p class="reminder-note">Reminders are calculated on this phone and work without internet. Android may deliver them later when battery saving is active.</p><div class="payment-submit"><button class="sa-btn gold lg w-100" type="submit">Save reminders</button></div></form>`);
-    const form=$('#reminderForm');form.onsubmit=async ev=>{ev.preventDefault();const value={enabled:form.elements.enabled.checked,days:Number(form.elements.days.value)||1};save(value);await SA.syncReminders();SA.closeModal();toast(value.enabled?'Payment reminders enabled':'Payment reminders disabled')};
+    const form=$('#reminderForm');form.onsubmit=ev=>{ev.preventDefault();const value={enabled:form.elements.enabled.checked,days:Number(form.elements.days.value)||1};save(value);SA.syncReminders();SA.closeModal();toast(value.enabled?'Payment reminders enabled':'Payment reminders disabled')};
   };
-
-  window.addEventListener('hashchange',()=>setTimeout(SA.syncReminders,400));
-  window.addEventListener('DOMContentLoaded',()=>setTimeout(SA.syncReminders,1200));
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(SA.syncReminders,300)});
-  setInterval(SA.syncReminders,30*60*1000);
+  window.SAFirebase?.DB?.onChange?.((store,reason)=>{if(store==='bills'&&reason==='write')SA.syncReminders()});
 })();

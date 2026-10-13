@@ -1,16 +1,18 @@
 /* Local PNG export + Android Sharesheet. No network service or automatic sending. */
 (function(){
   let sharing=false;
+  let html2canvasLoader=null;
+  function loadHtml2Canvas(){if(typeof html2canvas==='function')return Promise.resolve();if(html2canvasLoader)return html2canvasLoader;html2canvasLoader=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='vendor/html2canvas.min.js?v=1.4.1';script.onload=resolve;script.onerror=()=>reject(new Error('Image export is unavailable. Reinstall the latest APK.'));document.head.appendChild(script)});return html2canvasLoader}
   async function shareInvoice(button,mobile=''){
     if(sharing)return;
     const source=document.querySelector('.invoice-page')||document.querySelector('.print-sheet');
     if(!source){toast('Open an invoice first.','warning');return}
-    if(typeof html2canvas!=='function'){toast('Image export is unavailable. Reinstall the latest APK.','danger');return}
     sharing=true;
     const previous=button?.innerHTML;
     if(button){button.disabled=true;button.textContent='Preparing…';}
     let staging;
     try {
+      await loadHtml2Canvas();
       if(document.fonts?.ready)await document.fonts.ready;
       staging=document.createElement('div');staging.className='invoice-image-stage';
       staging.style.cssText='position:fixed;left:-10000px;top:0;width:390px;pointer-events:none;';

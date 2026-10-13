@@ -43,16 +43,17 @@
     <div class="ux-quick"><button onclick="SA.go('edit/new')"><span class="ico">▧</span>New Bill</button><button onclick="SA.go('customers')"><span class="ico">♙</span>Customers</button><button onclick="SA.go('reports')"><span class="ico">⌁</span>Reports</button><button onclick="SA.go('inventory')"><span class="ico">◇</span>Inventory</button></div>
     <div class="ux-tabs" id="dashTabs"><button class="active" data-f="open">Open · ${active.length}</button><button data-f="closed">Closed</button><button data-f="all">All</button></div>
     <input id="dashSearch" class="sa-input mb-3" placeholder="Search bill / customer / mobile" style="width:100%">
-    <div class="ux-bill-list" id="uxBillList">${active.length?active.map(x=>dashCard(x.bill,x.isCustom)).join(''):`<div class="empty"><strong>No active bills</strong>Create your first bill.</div>`}</div>`, 'home');
-    const search=$('#dashSearch'),tabs=[...document.querySelectorAll('#dashTabs button')];
+    <div class="ux-bill-list" id="uxBillList"></div>`, 'home');
+    const search=$('#dashSearch'),tabs=[...document.querySelectorAll('#dashTabs button')];let visible=20;
     async function refresh(filter){
       const q=(search.value||'').toLowerCase().trim();
       let arr=wrapped.filter(x=>filter==='all'||(filter==='open'?x.bill.status!=='closed':x.bill.status==='closed'));
       if(q) arr=arr.filter(x=>`${x.bill.bill_no} ${x.bill.name} ${x.bill.mobile} ${x.bill.place}`.toLowerCase().includes(q));
-      $('#uxBillList').innerHTML=arr.length?arr.map(x=>dashCard(x.bill,x.isCustom)).join(''):`<div class="empty">No matching bills.</div>`;
+      $('#uxBillList').innerHTML=(arr.length?arr.slice(0,visible).map(x=>dashCard(x.bill,x.isCustom)).join(''):`<div class="empty">No matching bills.</div>`)+(visible<arr.length?'<div class="load-more-wrap"><button class="sa-btn outline" id="dashMore">Load more</button></div>':'');
+      $('#dashMore')?.addEventListener('click',()=>{visible+=20;refresh(filter)});
     }
-    tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));t.classList.add('active');refresh(t.dataset.f)});
-    search.oninput=()=>refresh(document.querySelector('#dashTabs .active')?.dataset.f||'open');
+    tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));t.classList.add('active');visible=20;refresh(t.dataset.f)});
+    search.oninput=()=>{visible=20;refresh(document.querySelector('#dashTabs .active')?.dataset.f||'open')};refresh('open');
   };
 
   function woodMatrix(b){
@@ -64,8 +65,8 @@
   SA.uxTab=function(name){document.querySelectorAll('.ux-tabpane').forEach(x=>x.classList.toggle('active',x.dataset.pane===name));document.querySelectorAll('#billUxTabs button').forEach(x=>x.classList.toggle('active',x.dataset.tab===name))};
 
   renderBill=async function(id){
-    const raw=await DB.get('bills',id); if(!raw){shell(`<div class="sa-alert danger">Bill not found.</div>`);return}
-    const b=hydrateBill(raw), due=n(b.total_due),paid=n(b.total_paid),pending=n(b.pending),progress=pct(paid,due),cycle=Math.max(i(b.current_cycle_index,1),1);
+    const b=await hydratedBillByNo(id); if(!b){shell(`<div class="sa-alert danger">Bill not found.</div>`);return}
+    const due=n(b.total_due),paid=n(b.total_paid),pending=n(b.pending),progress=pct(paid,due),cycle=Math.max(i(b.current_cycle_index,1),1);
     const materials=MATERIALS.map(([k,l])=>`<div class="ux-material-row"><strong>${esc(l)}</strong><span class="ux-qty ${nonneg(b.balance_qty?.[k])>0?'has':''}">${nonneg(b.balance_qty?.[k])}</span></div>`).join('');
     const lastCycle=b.cycles?.[b.cycles.length-1];const currentRent=n(lastCycle?.rent,0);
     const pays=(b.payments||[]).slice().reverse().map(p=>`<div class="ux-material-row"><span>${esc(p.payment_date||p.date||'-')}<small style="display:block;color:var(--ux-muted)">${esc([p.cycle_index?`Cycle #${p.cycle_index}`:'Cycle not recorded',p.method,p.note].filter(Boolean).join(' · '))}</small></span><strong>${money(p.amount)}</strong></div>`).join('')||'<div class="empty">No payments recorded.</div>';

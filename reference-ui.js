@@ -16,9 +16,9 @@
   renderBills=async function(){
     const bills=await allHydratedBills();
     shell(`<div class="ref-page-head"><div><button class="ux-icon-btn" onclick="SA.back()">‹</button><h1>Bills</h1></div><button class="ux-icon-btn" onclick="document.getElementById('billSearch')?.focus()">⌕</button></div><div class="ref-search"><span>⌕</span><input id="billSearch" placeholder="Search bill, customer, mobile"></div><div class="ux-tabs ref-filter" id="refBillTabs"><button class="active" data-filter="open">Open ${bills.filter(b=>b.status!=='closed').length}</button><button data-filter="closed">Closed ${bills.filter(b=>b.status==='closed').length}</button><button data-filter="all">All</button></div><div id="refBillList" class="ref-list"></div><button class="ref-fab" onclick="SA.go('edit/new')">＋ &nbsp; New bill</button>`,'bills');
-    const input=$('#billSearch'),tabs=[...document.querySelectorAll('#refBillTabs button')];
-    const draw=()=>{const f=document.querySelector('#refBillTabs .active')?.dataset.filter||'open',q=input.value.toLowerCase().trim();const rows=bills.filter(b=>(f==='all'||(f==='open'?b.status!=='closed':b.status==='closed'))&&`${b.bill_no} ${b.name} ${b.mobile} ${b.place}`.toLowerCase().includes(q));$('#refBillList').innerHTML=rows.map(billRow).join('')||'<div class="empty">No matching bills.</div>'};
-    input.oninput=draw;tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));t.classList.add('active');draw()});draw();
+    const input=$('#billSearch'),tabs=[...document.querySelectorAll('#refBillTabs button')];let visible=20;
+    const draw=()=>{const f=document.querySelector('#refBillTabs .active')?.dataset.filter||'open',q=input.value.toLowerCase().trim();const rows=bills.filter(b=>(f==='all'||(f==='open'?b.status!=='closed':b.status==='closed'))&&`${b.bill_no} ${b.name} ${b.mobile} ${b.place}`.toLowerCase().includes(q)),target=$('#refBillList');target.innerHTML=(rows.slice(0,visible).map(billRow).join('')||'<div class="empty">No matching bills.</div>')+(visible<rows.length?'<div class="load-more-wrap"><button class="sa-btn outline" id="refBillsMore">Load more</button></div>':'');$('#refBillsMore')?.addEventListener('click',()=>{visible+=20;draw()})};
+    input.oninput=()=>{visible=20;draw()};tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));t.classList.add('active');visible=20;draw()});draw();
   };
 
   renderCustomer=async function(mobile){

@@ -19,9 +19,8 @@
   }
 
   renderPrintNextCycle=async function(no){
-    const raw=await DB.get('bills',no);
-    if(!raw){toast('Bill not found','danger');return}
-    const b=hydrateBill(raw);
+    const b=await hydratedBillByNo(no);
+    if(!b){toast('Bill not found','danger');return}
     const idx=(b.current_cycle_index||0)+1;
     const snap=snapshotForCycle(b,idx);
     const br=calcRent(snap.qty,snap.wood,b.rates);

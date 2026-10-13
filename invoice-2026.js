@@ -29,9 +29,9 @@
   SA.rentalInvoiceRows=materialRows;
   SA.rentalInvoiceDate=dateLabel;
   renderPrintInvoice=async function(no,mode='invoice',selectedIndex){
-    const raw=await DB.get('bills',no);
-    if(!raw){toast('Bill not found','danger');return}
-    const b=hydrateBill(raw),cycles=b.cycles||[];
+    const b=await hydratedBillByNo(no);
+    if(!b){toast('Bill not found','danger');return}
+    const cycles=b.cycles||[];
     const cycle=cycles.find(c=>c.index===Number(selectedIndex))||cycles[cycles.length-1];
     const snap=cycle||{snapshot_qty:b.base_qty,snapshot_wood:b.base_wood_maps};
     const br=calcRent(snap.snapshot_qty,snap.snapshot_wood,b.rates);

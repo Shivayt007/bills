@@ -11,8 +11,8 @@ android {
         applicationId 'com.satraders.billing'
         minSdk 26
         targetSdk 35
-        versionCode 7
-        versionName '1.6.0'
+        versionCode 8
+        versionName '1.7.0'
     }
 
     buildTypes {
@@ -31,35 +31,28 @@ android {
 def webAssetNames = [
         'index.html',
         'firebase-db.js',
-        'app.css',
         'app.js',
-        'ui-2026.css',
         'ui-2026.js',
-        'ui-global.css',
-        'ui-fixes.css',
         'ui-fixes.js',
         'reference-ui.js',
-        'invoice-2026.css',
         'invoice-2026.js',
         'next-cycle-2026.js',
-        'premium-theme.css',
         'invoice-share.js',
         'notifications-2026.js',
+        'app.bundle.min.css',
         'vendor/html2canvas.min.js'
 ]
 
+def repositoryWebRoot = rootProject.projectDir.parentFile
+def webAssetSource = new File(repositoryWebRoot, 'app.js').exists() ? repositoryWebRoot : file('src/main/assets')
 def generatedWebAssets = layout.buildDirectory.dir('generated/satraders-assets')
 
-// Package the exact checked-out source, with no mutable remote download.
 tasks.register('syncWebAssets', Copy) {
-    from(rootProject.projectDir.parentFile) {
-        webAssetNames.each { name -> include(name) }
-    }
+    from(webAssetSource) { webAssetNames.each { name -> include(name) } }
     into(generatedWebAssets)
 }
 
-android.sourceSets.main.assets.srcDir(generatedWebAssets)
-
+android.sourceSets.main.assets.setSrcDirs([generatedWebAssets])
 tasks.named('preBuild').configure { dependsOn('syncWebAssets') }
 
 dependencies {
@@ -70,4 +63,3 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:33.16.0')
     implementation 'com.google.firebase:firebase-firestore'
 }
-

@@ -14,8 +14,8 @@
     return `<div class="ux-cycle-list">${arr.map(c=>`<div class="ux-cycle-card"><div class="ux-cycle-card-head"><strong>Cycle #${i(c.index)}</strong><span>${money(c.total)}</span></div><div class="ux-cycle-dates">${esc(c.start_date||'-')} → ${esc(c.end_date||'-')}</div><div class="ux-cycle-money"><div><small>Rent</small><b>${money(c.rent)}</b></div><div><small>Transport</small><b>${money(c.transport)}</b></div><div><small>Total</small><b>${money(c.total)}</b></div></div></div>`).join('')}</div>`;
   }
   renderBill=async function(id){
-    const raw=await DB.get('bills',id); if(!raw){shell(`<div class="sa-alert danger">Bill not found.</div>`);return}
-    const b=hydrateBill(raw), due=n(b.total_due),paid=n(b.total_paid),pending=n(b.pending),progress=pct(paid,due),cycle=Math.max(i(b.current_cycle_index,1),1);
+    const b=await hydratedBillByNo(id); if(!b){shell(`<div class="sa-alert danger">Bill not found.</div>`);return}
+    const due=n(b.total_due),paid=n(b.total_paid),pending=n(b.pending),progress=pct(paid,due),cycle=Math.max(i(b.current_cycle_index,1),1);
     const materials=MATERIALS.map(([k,l])=>`<div class="ux-material-row"><strong>${esc(l)}</strong><span class="ux-qty ${nonneg(b.balance_qty?.[k])>0?'has':''}">${nonneg(b.balance_qty?.[k])}</span></div>`).join('');
     const lastCycle=b.cycles?.[b.cycles.length-1];const currentRent=n(lastCycle?.rent,0);
     const pays=(b.payments||[]).slice().reverse().map(p=>`<div class="ux-material-row"><span>${esc(p.payment_date||p.date||'-')}<small style="display:block;color:var(--ux-muted)">${esc([p.cycle_index?`Cycle #${p.cycle_index}`:'Cycle not recorded',p.method,p.note].filter(Boolean).join(' · '))}</small></span><strong>${money(p.amount)}</strong></div>`).join('')||'<div class="empty">No payments recorded.</div>';
