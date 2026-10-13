@@ -16,7 +16,7 @@
       staging.style.cssText='position:fixed;left:-10000px;top:0;width:390px;pointer-events:none;';
       staging.setAttribute('aria-hidden','true');
       const copy=source.cloneNode(true);
-      copy.querySelectorAll('.no-print,.invoice-toolbar,.invoice-actions,button,script').forEach(node=>node.remove());
+      copy.querySelectorAll('.no-print,.invoice-toolbar,.invoice-actions,.invoice-terms,[data-share-exclude],button,script').forEach(node=>node.remove());
       copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
       copy.querySelectorAll('details').forEach(node=>node.open=true);
       copy.removeAttribute('id');copy.classList.add('invoice-image-copy');
@@ -27,7 +27,7 @@
       const canvas=await html2canvas(copy,{backgroundColor:'#ffffff',scale,logging:false,useCORS:false,allowTaint:false,scrollX:0,scrollY:0,width:390,height,windowWidth:390});
       const data=canvas.toDataURL('image/png');
       if(data.length>16*1024*1024)throw new Error('Image is too large. Use Print / Save PDF.');
-      const no=(source.querySelector('.invoice-no')?.textContent||'Invoice').trim().replace(/[^a-zA-Z0-9_-]+/g,'-').slice(0,60);
+      const no=(source.dataset.shareName||source.querySelector('.invoice-no')?.textContent||'Invoice').trim().replace(/[^a-zA-Z0-9_-]+/g,'-').slice(0,60);
       const filename='SA-Traders-'+no+'.png';
       if(window.Android?.shareInvoiceImage){
         const result=Android.shareInvoiceImage(data,filename);

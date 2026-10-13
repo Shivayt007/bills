@@ -451,3 +451,67 @@ h1 { font-size:26px; letter-spacing:-.8px; } h2 { font-size:20px; } h3 { font-si
 .invoice-image-copy .invoice-cycle-dates,.invoice-image-copy .invoice-cycle-dates strong,.invoice-image-copy .invoice-terms-body { color:#171B26!important; }
 .invoice-image-copy .invoice-terms-body { display:block!important; border-color:#DFE2EA; }
 @media print { .invoice-actions .share-image { display:none!important; } }
+
+/* v1.3: green and gold rental stationery; independent of the dark app shell. */
+.payment-cycle-field { margin-bottom:18px; }
+.payment-cycle-hint { font-size:11px; color:var(--app-muted); line-height:1.5; margin:7px 0 0; }
+.rent-invoice { --rent-green:#075849; --rent-deep:#063C33; --rent-gold:#FFE04A; --rent-ink:#142824; --rent-muted:#526C65; --rent-line:#DAE7E2; --rent-pale:#EFF6F3; }
+.rent-invoice .invoice-sheet { border-radius:20px; border-color:var(--rent-line); color:var(--rent-ink); background:#fff; }
+.rent-brand { position:relative; overflow:hidden; background:linear-gradient(115deg,var(--rent-deep),var(--rent-green)); padding:19px 16px 16px; color:#fff; }
+.rent-brand-name { font:900 28px/1.15 system-ui,sans-serif; letter-spacing:-1px; position:relative; z-index:1; }
+.rent-brand-name span { color:var(--rent-gold); }
+.rent-brand-tag { font:700 7px/1.7 system-ui,sans-serif; letter-spacing:1px; margin:6px 0 10px; }
+.rent-brand p { font:400 9px/1.6 system-ui,sans-serif; max-width:270px; margin:0; position:relative; z-index:1; color:#fff; }
+.rent-brand p b { font-size:12px; letter-spacing:.4px; }
+.rent-scaffold { position:absolute; width:96px; height:110px; right:-13px; top:7px; color:#BCDECF; opacity:.13; }
+.rent-invoice .invoice-body { padding:14px; }
+.rent-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:14px; }
+.rent-heading h2 { font:900 25px/1.1 system-ui,sans-serif; letter-spacing:-.8px; margin:0; color:var(--rent-ink); }
+.rent-heading h2 span { color:var(--rent-green); }
+.rent-heading small { display:block; font-size:7px; letter-spacing:.7px; color:var(--rent-muted); margin-top:5px; }
+.rent-invoice .invoice-no { font-size:12px; color:var(--rent-ink)!important; background:var(--rent-pale)!important; border:0; border-radius:10px; padding:9px; margin:0; text-align:left; }
+.rent-invoice .invoice-no span { display:block; font-size:8px; margin-top:4px; color:var(--rent-muted); font-weight:500; }
+.rent-invoice .invoice-customer { display:grid; grid-template-columns:1.25fr 1fr; gap:9px; padding:11px; border:1px solid var(--rent-line); border-radius:12px; }
+.rent-invoice .invoice-field span { font-size:9px; color:var(--rent-muted); font-weight:500; text-transform:none; }
+.rent-invoice .invoice-field strong { font-size:12px; color:var(--rent-ink); line-height:1.35; }
+.rent-place { grid-column:1/-1; display:flex; align-items:baseline; gap:8px; }
+.rent-period { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:11px; margin:10px 0 12px; background:var(--rent-pale); border-left:3px solid var(--rent-green); border-radius:8px; color:var(--rent-ink); }
+.rent-period small { font-size:7px; letter-spacing:.7px; color:var(--rent-muted); display:block; margin-bottom:3px; }
+.rent-period strong { display:block; font-size:11px; }
+.rent-period>div:first-child strong { font-size:14px; }
+.rent-period span { font-size:8px; display:block; color:var(--rent-muted); margin-top:3px; }
+.rent-invoice .rent-materials { border-radius:9px; overflow:hidden; margin:0; }
+.rent-invoice .rent-materials th { background:var(--rent-green)!important; color:#fff!important; font-size:8px; letter-spacing:0; text-transform:none; padding:10px 3px; border:0; }
+.rent-invoice .rent-materials td { background:#fff; color:var(--rent-ink); font-size:10px; padding:11px 3px; border-bottom:1px solid var(--rent-line); overflow-wrap:anywhere; }
+.rent-invoice .rent-materials th:nth-child(1),.rent-invoice .rent-materials td:nth-child(1) { width:7%; text-align:center; }
+.rent-invoice .rent-materials th:nth-child(2),.rent-invoice .rent-materials td:nth-child(2) { width:30%; text-align:left; }
+.rent-invoice .rent-materials th:nth-child(3),.rent-invoice .rent-materials td:nth-child(3) { width:12%; text-align:center; display:table-cell; }
+.rent-invoice .rent-materials th:nth-child(4),.rent-invoice .rent-materials td:nth-child(4) { width:23%; text-align:right; }
+.rent-invoice .rent-materials th:nth-child(5),.rent-invoice .rent-materials td:nth-child(5) { width:28%; text-align:right; padding-right:7px; }
+.rent-cycle-totals { background:var(--rent-pale); padding:9px 11px; margin:11px 0; border-radius:10px; }
+.rent-cycle-totals>div,.rent-receipts>div { display:flex; justify-content:space-between; gap:12px; padding:4px 0; font-size:10px; color:var(--rent-ink); }
+.rent-cycle-totals .rent-paid { color:var(--rent-green); border-top:1px solid var(--rent-line); margin-top:4px; padding-top:8px; font-weight:700; }
+.rent-receipts { border-bottom:1px solid var(--rent-line); padding:0 1px 9px; }
+.rent-receipts h3 { font-size:10px; color:var(--rent-green); margin:0 0 4px; }
+.rent-receipts>div { font-size:9px; }
+.rent-unassigned { font-size:9px; line-height:1.5; color:var(--rent-muted); margin:8px 0; }
+.rent-account-title { font-size:8px; letter-spacing:.6px; color:var(--rent-muted); margin:13px 0 7px; font-weight:800; }
+.rent-account { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+.rent-account>div { padding:8px 5px; background:var(--rent-pale); border-radius:8px; min-width:0; }
+.rent-account span { display:block; font-size:8px; color:var(--rent-muted); }
+.rent-account strong { display:block; margin-top:4px; color:var(--rent-ink); font-size:11px; overflow-wrap:anywhere; }
+.rent-account>div:nth-child(2) strong { color:var(--rent-green); }
+.rent-invoice .invoice-total { background:var(--rent-green)!important; padding:7px 7px 7px 11px; border-radius:10px; gap:6px; }
+.rent-invoice .invoice-total span { font-size:12px; }
+.rent-invoice .invoice-total small { display:block; font-size:7px; margin-top:4px; font-weight:400; }
+.rent-invoice .invoice-total strong { background:var(--rent-gold); color:var(--rent-ink)!important; font:900 21px/1.2 system-ui,sans-serif; padding:10px 9px; border-radius:8px; overflow-wrap:anywhere; }
+.rent-words { margin-top:8px; padding:10px; background:var(--rent-pale); border-radius:9px; }
+.rent-words span { display:block; font-size:8px; color:var(--rent-muted); }
+.rent-words strong { display:block; font-size:10px; line-height:1.5; color:var(--rent-deep); margin-top:3px; }
+.rent-signatures { display:flex; justify-content:space-between; gap:25px; padding:32px 4px 4px; }
+.rent-signatures span { flex:1; text-align:center; border-top:1px dotted var(--rent-muted); padding-top:7px; font-size:8px; color:var(--rent-muted); }
+.rent-cycle-select { display:block; font-size:11px; color:var(--app-muted); margin:0 0 12px; }
+.rent-cycle-select select { margin-top:6px; }
+.invoice-image-stage .rent-invoice.invoice-image-copy { padding:10px!important; }
+.rent-invoice.invoice-image-copy .invoice-sheet { border-radius:18px; }
+@media print { .rent-brand,.rent-invoice .invoice-total,.rent-invoice .rent-materials th,.rent-invoice .invoice-total strong { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .rent-invoice .invoice-sheet { break-inside:auto; } .rent-invoice tr,.rent-period,.rent-account,.rent-signatures { break-inside:avoid; } }
