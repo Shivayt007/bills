@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // This app currently uses an on-device app lock, not Firebase Authentication.
+    // Replace this temporary rule with authenticated access before production use.
+    match /sa_traders/business/{store}/{document} {
+      allow read, write: if true;
+    }
+  }
+}

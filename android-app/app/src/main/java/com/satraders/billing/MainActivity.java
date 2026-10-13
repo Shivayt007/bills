@@ -73,6 +73,7 @@ public class MainActivity extends Activity {
         });
         webView.setWebChromeClient(new WebChromeClient());
         webView.addJavascriptInterface(new AndroidBridge(this), "Android");
+        webView.addJavascriptInterface(new FirebaseBridge(this, webView), "FirebaseDB");
         BillingReminderWorker.restoreSchedule(this);
 
         if (savedInstanceState == null) {
