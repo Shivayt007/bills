@@ -10,8 +10,8 @@ android {
         applicationId 'com.satraders.billing'
         minSdk 26
         targetSdk 35
-        versionCode 5
-        versionName '1.4.0'
+        versionCode 6
+        versionName '1.5.0'
     }
 
     buildTypes {
@@ -29,6 +29,7 @@ android {
 
 def webAssetNames = [
         'index.html',
+        'cloud-api.js',
         'app.css',
         'app.js',
         'ui-2026.css',

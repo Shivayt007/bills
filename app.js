@@ -70,43 +70,11 @@ function statusBadge(s){ return `<span class="sa-badge ${s==='open'?'open':'clos
 function setBusy(btn,on,label='Saving…'){ if(!btn)return; if(on){btn.dataset.old=btn.innerHTML;btn.disabled=true;btn.innerHTML=label}else{btn.disabled=false;btn.innerHTML=btn.dataset.old||btn.innerHTML} }
 
 // =========================================================
-// INDEXEDDB — local, offline, empty business data on first use
+// MONGODB API — online-only business data
 // =========================================================
-const DB_NAME='sa_traders_offline';
-const DB_VERSION=3;
-const STORES=['bills','customers','customBills','slips','challans','inventory','users','settings'];
-let dbPromise=null;
-function openDb(){
-  if(dbPromise) return dbPromise;
-  dbPromise=new Promise((resolve,reject)=>{
-    const req=indexedDB.open(DB_NAME,DB_VERSION);
-    req.onupgradeneeded=()=>{
-      const db=req.result;
-      const defs={
-        bills:'bill_no',customers:'mobile',customBills:'bill_no',slips:'slip_no',challans:'challan_no',
-        inventory:'item',users:'username',settings:'key'
-      };
-      for(const [name,keyPath] of Object.entries(defs)) if(!db.objectStoreNames.contains(name)) db.createObjectStore(name,{keyPath});
-    };
-    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
-  });
-  return dbPromise;
-}
-async function idb(store,mode,work){
-  const db=await openDb(); return new Promise((resolve,reject)=>{
-    const tx=db.transaction(store,mode); const os=tx.objectStore(store); let result;
-    try{ result=work(os); }catch(e){reject(e);return;}
-    tx.oncomplete=()=>{ if(result && typeof result==='object' && 'result' in result) resolve(result.result); else resolve(result); }; tx.onerror=()=>reject(tx.error); tx.onabort=()=>reject(tx.error||new Error('DB transaction aborted'));
-  });
-}
-const DB={
-  async get(store,key){return idb(store,'readonly',os=>os.get(key))},
-  async all(store){return idb(store,'readonly',os=>os.getAll())},
-  async put(store,obj){return idb(store,'readwrite',os=>os.put(obj))},
-  async del(store,key){return idb(store,'readwrite',os=>os.delete(key))},
-  async clear(store){return idb(store,'readwrite',os=>os.clear())},
-  async count(store){return idb(store,'readonly',os=>os.count())}
-};
+const STORES=['bills','customers','customBills','slips','challans','inventory','settings'];
+if(!window.SACloud) throw new Error('Cloud API client failed to load');
+const DB=window.SACloud.DB;
 async function setting(key,def=null){ const x=await DB.get('settings',key); return x?x.value:def; }
 async function setSetting(key,value){ await DB.put('settings',{key,value}); }
 async function nextSeq(key){ const v=i(await setting(key,0))+1; await setSetting(key,v); return v; }
@@ -116,7 +84,6 @@ async function nextAvailableBillNo(){
   while(used.has(String(x)))x++; return String(x);
 }
 async function seedDb(){
-  if(await DB.count('users')===0){ await DB.put('users',{username:'admin',password:'shiva',role:'admin',created_at:nowIso()}); }
   const defaults={terms_invoice:DEFAULT_TERMS,custom_rules:DEFAULT_CUSTOM_RULES,custom_terms:DEFAULT_CUSTOM_TERMS};
   for(const [k,v] of Object.entries(defaults)) if(await setting(k,null)===null) await setSetting(k,v);
   for(const [item] of MATERIALS){ if(!await DB.get('inventory',item)) await DB.put('inventory',{item,stock_qty:0}); }
@@ -187,7 +154,7 @@ function isAdmin(){return userRole()==='admin'}
 function routeParts(){ const h=(location.hash||'#/login').replace(/^#\/?/,''); return h.split('/').filter(Boolean).map(decodeURIComponent); }
 SA.go=(path)=>{ location.hash='#/'+path.replace(/^\//,''); };
 SA.back=()=>{ if(history.length>1) history.back(); else SA.go('dashboard'); };
-SA.logout=()=>{ sessionStorage.removeItem('sa_user'); currentUser=null; SA.go('login'); };
+SA.logout=()=>{ SACloud.logout(); currentUser=null; SA.go('login'); };
 function requireAuth(){ if(!currentUser){SA.go('login');return false} return true; }
 function roleGuard(){ if(!isAdmin()){ toast('Admin access required','danger'); SA.go('dashboard'); return false;} return true; }
 
@@ -195,7 +162,7 @@ function topbar(active=''){
   if(!currentUser) return '';
   const nav=[['home','Home'],['dashboard','Dashboard'],['custom','Custom Bill'],['reports','Reports'],['inventory','Inventory'],['slips','Slips'],['admin','Admin']];
   return `<header class="sa-topbar no-print"><div class="container">
-    <a class="sa-brand" href="#/home"><div class="sa-brand-icon">SA</div><div class="sa-brand-text">S.A Traders<small>Billing System · Offline</small></div></a>
+    <a class="sa-brand" href="#/home"><div class="sa-brand-icon">SA</div><div class="sa-brand-text">S.A Traders<small>Billing System · MongoDB Cloud</small></div></a>
     <button class="sa-mobile-toggle" onclick="SA.toggleNav()">☰</button>
     <div class="sa-nav-wrap" id="navWrap"><nav class="sa-nav">${nav.map(([k,l])=>`<a class="${active===k?'active':''}" href="#/${k}">${l}</a>`).join('')}</nav><span class="sa-user-pill"><strong>${esc(currentUser.username)}</strong> · ${esc(currentUser.role)}</span><button class="sa-logout-btn" onclick="SA.logout()">Logout</button></div>
   </div></header>`;
@@ -206,7 +173,13 @@ function printShell(html){ $('#app').innerHTML=`<main class="print-sheet">${html
 function headerBlock(title,sub='',actions=''){return `<div class="sa-card mb-3"><div class="hero"><div class="customer-line"><div><h2>${esc(title)}</h2>${sub?`<p>${esc(sub)}</p>`:''}</div><div class="actions no-print">${actions}</div></div></div></div>`}
 
 window.addEventListener('hashchange',renderRoute);
-window.addEventListener('DOMContentLoaded',async()=>{ await openDb(); await seedDb(); const u=sessionStorage.getItem('sa_user'); if(u){try{currentUser=JSON.parse(u)}catch(_e){}} if(!location.hash) SA.go(currentUser?'dashboard':'login'); else renderRoute(); });
+window.addEventListener('DOMContentLoaded',async()=>{
+  if(SACloud.hasToken()){
+    try{currentUser=await SACloud.me();sessionStorage.setItem('sa_user',JSON.stringify(currentUser));await seedDb()}
+    catch(_e){SACloud.logout();currentUser=null}
+  }
+  if(!location.hash) SA.go(currentUser?'dashboard':'login'); else renderRoute();
+});
 
 async function renderRoute(){
   const p=routeParts(), page=p[0]||'login';
@@ -223,7 +196,11 @@ async function renderRoute(){
       'print-custom':()=>renderPrintCustom(p[1]),'print-slip':()=>renderSlipView(p[1],true),'print-challan':()=>renderChallanView(p[1],true),'print-material-rent':()=>renderMaterialRentReport(true),'print-customer-materials':()=>renderCustomerMaterials(p[1],true)
     };
     const fn=routes[page]; if(!fn){shell(`<div class="sa-alert danger">Page not found.</div>`);return} await fn();
-  }catch(e){ console.error(e); shell(`<div class="sa-alert danger"><strong>App error:</strong> ${esc(e.message||e)}</div><button class="sa-btn primary" onclick="SA.go('dashboard')">Back to Dashboard</button>`); }
+  }catch(e){
+    console.error(e);
+    if(e.status===401||String(e.message).includes('session expired')){SACloud.logout();currentUser=null;toast('Session expired. Sign in again.','danger');SA.go('login');return}
+    shell(`<div class="sa-alert danger"><strong>Connection error:</strong> ${esc(e.message||e)}</div><button class="sa-btn primary" onclick="renderRoute()">Retry</button>`);
+  }
 }
 
 // =========================================================
@@ -231,10 +208,10 @@ async function renderRoute(){
 // =========================================================
 async function renderLogin(){
   if(currentUser){SA.go('dashboard');return}
-  $('#app').innerHTML=`<div class="login-wrap"><div class="login-card"><div class="login-logo">SA</div><h1>S.A Traders</h1><p>Professional Scaffolding Billing · Offline Android</p>
-    <form id="loginForm"><div class="field mb-3"><label class="sa-label">Username</label><input class="sa-input" name="username" value="admin" autocomplete="username" required></div><div class="field mb-3"><label class="sa-label">Password</label><input class="sa-input" name="password" type="password" autocomplete="current-password" required></div><button class="sa-btn gold lg w-100" type="submit">Sign In</button></form>
-    <div class="sa-alert info mt-3"><span>Default local login: <b>admin</b> / <b>shiva</b>. Change it in Admin → Users.</span></div></div></div>`;
-  $('#loginForm').onsubmit=async ev=>{ev.preventDefault();const f=formObj(ev.target);const u=await DB.get('users',f.username.trim());if(!u||u.password!==f.password){toast('Invalid username or password','danger');return}currentUser={username:u.username,role:u.role};sessionStorage.setItem('sa_user',JSON.stringify(currentUser));SA.go('dashboard')};
+  $('#app').innerHTML=`<div class="login-wrap"><div class="login-card"><div class="login-logo">SA</div><h1>S.A Traders</h1><p>Secure MongoDB online billing</p>
+    <form id="loginForm"><div class="field mb-3"><label class="sa-label">Username</label><input class="sa-input" name="username" autocomplete="username" required></div><div class="field mb-3"><label class="sa-label">Password</label><input class="sa-input" name="password" type="password" autocomplete="current-password" required></div><button class="sa-btn gold lg w-100" type="submit">Sign In</button></form>
+    <div class="sa-alert info mt-3"><span>Internet connection is required. Data is saved securely through the S.A Traders API.</span></div></div></div>`;
+  $('#loginForm').onsubmit=async ev=>{ev.preventDefault();const form=ev.target,btn=form.querySelector('button[type=submit]'),f=formObj(form);setBusy(btn,true,'Connecting…');try{currentUser=await SACloud.login(f.username.trim(),f.password);sessionStorage.setItem('sa_user',JSON.stringify(currentUser));await seedDb();SA.go('dashboard')}catch(e){toast(e.message||'Login failed','danger')}finally{setBusy(btn,false)}};
 }
 async function renderHome(){
   if(!requireAuth())return;
@@ -401,26 +378,16 @@ SA.quickPayment=async(billNo,isCustom=false)=>{
       const note=form.elements.note.value.trim(),allowDuplicate=form.elements.duplicate.checked;
       const submit=form.querySelector('[type=submit]');SA.paymentSaving=true;setBusy(submit,true);
       try {
-        // Check and append in one transaction so rapid taps cannot lose or duplicate a write.
-        const db=await openDb();
-        await new Promise((resolve,reject)=>{
-          const tx=db.transaction(store,'readwrite'),os=tx.objectStore(store),req=os.get(billNo);
-          let problem=null;
-          req.onsuccess=()=>{
-            const b=req.result;
-            if(!b){problem=new Error('This bill no longer exists.');tx.abort();return}
-            b.payments=b.payments||[];
-            const duplicate=b.payments.some(p=>round2(p.amount)===round2(val)&&(p.payment_date||p.date)===date);
-            if(duplicate&&!allowDuplicate){problem=new Error('A payment with this date and amount already exists. Check below to record it again.');problem.duplicate=true;tx.abort();return}
-            const freshCycle=isCustom?null:hydrateBill(b).cycles.find(c=>c.index===cycleIndex);
-            if(!isCustom&&(!freshCycle||freshCycle.start_date!==selectedCycle.start_date||freshCycle.end_date!==selectedCycle.end_date)){problem=new Error('The rental cycle changed. Reopen payment and choose its cycle again.');tx.abort();return}
-            b.payments.push({payment_id:uid('pay'),amount:round2(val),payment_date:date,note,method,...(freshCycle?{cycle_index:freshCycle.index,cycle_start_date:freshCycle.start_date,cycle_end_date:freshCycle.end_date}:{}),created_by:currentUser.username,created_at:nowIso()});
-            os.put(b);
-          };
-          tx.oncomplete=resolve;
-          tx.onabort=()=>reject(problem||tx.error||new Error('Payment could not be saved. Please retry.'));
-          tx.onerror=()=>reject(problem||tx.error||new Error('Payment could not be saved. Please retry.'));
-        });
+        // Re-read from MongoDB before saving to catch duplicates and cycle changes.
+        const b=await DB.get(store,billNo);
+        if(!b)throw new Error('This bill no longer exists.');
+        b.payments=b.payments||[];
+        const duplicate=b.payments.some(p=>round2(p.amount)===round2(val)&&(p.payment_date||p.date)===date);
+        if(duplicate&&!allowDuplicate){const problem=new Error('A payment with this date and amount already exists. Check below to record it again.');problem.duplicate=true;throw problem}
+        const freshCycle=isCustom?null:hydrateBill(b).cycles.find(c=>c.index===cycleIndex);
+        if(!isCustom&&(!freshCycle||freshCycle.start_date!==selectedCycle.start_date||freshCycle.end_date!==selectedCycle.end_date))throw new Error('The rental cycle changed. Reopen payment and choose its cycle again.');
+        b.payments.push({payment_id:uid('pay'),amount:round2(val),payment_date:date,note,method,...(freshCycle?{cycle_index:freshCycle.index,cycle_start_date:freshCycle.start_date,cycle_end_date:freshCycle.end_date}:{}),created_by:currentUser.username,created_at:nowIso()});
+        await DB.put(store,b);
         SA.paymentSaving=false;SA.closeModal();toast('Payment recorded');await renderRoute();
       } catch(e) {
         fail(e.message||'Payment could not be saved. Please retry.');
@@ -535,19 +502,17 @@ async function renderChallanView(no,print=false){const c=await DB.get('challans'
 // =========================================================
 // ADMIN / USERS / TERMS / BACKUP
 // =========================================================
-async function renderAdmin(){if(!roleGuard())return;shell(`${headerBlock('Administration','Users, terms, backup and local maintenance')}<div class="quick-grid"><div class="quick-card"><h3>Users</h3><p>Create local users and change passwords / roles.</p><button class="sa-btn primary mt-3" onclick="SA.go('admin-users')">Manage Users</button></div><div class="quick-card"><h3>Invoice Terms</h3><p>Edit the terms printed on invoices.</p><button class="sa-btn primary mt-3" onclick="SA.go('admin-terms')">Edit Terms</button></div><div class="quick-card"><h3>Backup & Restore</h3><p>Export every local record to JSON and restore it later.</p><button class="sa-btn gold mt-3" onclick="SA.go('admin-backup')">Backup</button></div><div class="quick-card"><h3>Inventory</h3><p>Maintain master stock and available quantity.</p><button class="sa-btn outline mt-3" onclick="SA.go('inventory')">Inventory</button></div><div class="quick-card"><h3>Material Tracker</h3><p>Compare issued, returned and currently held materials.</p><button class="sa-btn outline mt-3" onclick="SA.go('materials')">Open Tracker</button></div><div class="quick-card"><h3>Legacy Import</h3><p>Backup restore also accepts the app's exported JSON format.</p><button class="sa-btn outline mt-3" onclick="SA.go('admin-backup')">Import JSON</button></div></div>`,'admin');}
-async function renderAdminUsers(){if(!roleGuard())return;const users=await DB.all('users');shell(`${headerBlock('Users','Local offline application users')}<div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Add User</h3></div><div class="sa-card-body"><form id="addUser" class="form-grid"><div><label class="sa-label">Username</label><input class="sa-input" name="username" required></div><div><label class="sa-label">Password</label><input class="sa-input" type="password" name="password" required></div><div><label class="sa-label">Role</label><select class="sa-input" name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></div><div style="align-self:end"><button class="sa-btn gold w-100" type="submit">Add User</button></div></form></div></div><div class="sa-card"><div class="sa-card-header"><h3 class="sa-card-title">Existing Users</h3></div><div class="sa-card-body p-0"><table class="sa-table"><thead><tr><th>Username</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead><tbody>${users.map(u=>`<tr><td class="fw-800">${esc(u.username)}</td><td>${esc(u.role)}</td><td>${esc(String(u.created_at||'').slice(0,10))}</td><td class="actions"><button class="sa-btn outline sm" onclick="SA.changePassword('${esc(u.username)}')">Password</button>${u.username!=='admin'?`<button class="sa-btn danger sm" onclick="SA.deleteUser('${esc(u.username)}')">Delete</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`,'admin');$('#addUser').onsubmit=async ev=>{ev.preventDefault();const f=formObj(ev.target),name=f.username.trim();if(await DB.get('users',name)){toast('Username already exists','danger');return}await DB.put('users',{username:name,password:f.password,role:f.role,created_at:nowIso()});toast('User created');renderAdminUsers();};}
-SA.changePassword=async username=>{if(!roleGuard())return;const p=promptValue(`New password for ${username}`);if(!p)return;const u=await DB.get('users',username);if(!u)return;u.password=p;await DB.put('users',u);toast('Password changed');};
-SA.deleteUser=async username=>{if(!roleGuard()||!confirmAction(`Delete user ${username}?`))return;await DB.del('users',username);toast('User deleted','warning');renderAdminUsers();};
+async function renderAdmin(){if(!roleGuard())return;shell(`${headerBlock('Administration','Cloud users, terms, backups and MongoDB maintenance')}<div class="quick-grid"><div class="quick-card"><h3>Users</h3><p>Create secure API users for this business.</p><button class="sa-btn primary mt-3" onclick="SA.go('admin-users')">Add User</button></div><div class="quick-card"><h3>Invoice Terms</h3><p>Edit the terms printed on invoices.</p><button class="sa-btn primary mt-3" onclick="SA.go('admin-terms')">Edit Terms</button></div><div class="quick-card"><h3>Backup & Restore</h3><p>Export MongoDB records or import an older APK backup.</p><button class="sa-btn gold mt-3" onclick="SA.go('admin-backup')">Backup</button></div><div class="quick-card"><h3>Inventory</h3><p>Maintain master stock and available quantity.</p><button class="sa-btn outline mt-3" onclick="SA.go('inventory')">Inventory</button></div><div class="quick-card"><h3>Material Tracker</h3><p>Compare issued, returned and currently held materials.</p><button class="sa-btn outline mt-3" onclick="SA.go('materials')">Open Tracker</button></div><div class="quick-card"><h3>Cloud Status</h3><p>Connected to the S.A Traders MongoDB API.</p><button class="sa-btn outline mt-3" onclick="renderRoute()">Refresh</button></div></div>`,'admin');}
+async function renderAdminUsers(){if(!roleGuard())return;shell(`${headerBlock('Cloud Users','Create a MongoDB API login')}<div class="sa-alert info mb-3">For security, the API does not return passwords or a user list. New users can sign in immediately after creation.</div><div class="sa-card"><div class="sa-card-header"><h3 class="sa-card-title">Add User</h3></div><div class="sa-card-body"><form id="addUser" class="form-grid"><div><label class="sa-label">Username</label><input class="sa-input" name="username" minlength="3" required></div><div><label class="sa-label">Password</label><input class="sa-input" type="password" name="password" minlength="8" required></div><div><label class="sa-label">Role</label><select class="sa-input" name="role"><option value="staff">Staff</option><option value="admin">Admin</option></select></div><div style="align-self:end"><button class="sa-btn gold w-100" type="submit">Create User</button></div></form></div></div>`,'admin');$('#addUser').onsubmit=async ev=>{ev.preventDefault();const form=ev.target,btn=form.querySelector('button[type=submit]'),f=formObj(form);setBusy(btn,true);try{await SACloud.createUser(f.username.trim(),f.password,f.role);toast('Cloud user created');form.reset()}catch(e){toast(e.message||'Could not create user','danger')}finally{setBusy(btn,false)}};}
 async function renderAdminTerms(){if(!roleGuard())return;const terms=await setting('terms_invoice',DEFAULT_TERMS),rules=await setting('custom_rules',DEFAULT_CUSTOM_RULES),ct=await setting('custom_terms',DEFAULT_CUSTOM_TERMS);shell(`${headerBlock('Terms & Conditions','Printed invoice and custom bill terms')}<div class="sa-card"><div class="sa-card-body"><form id="termsForm"><div class="mb-3"><label class="sa-label">Invoice Terms</label><textarea class="sa-input" name="terms" rows="8">${esc(terms)}</textarea></div><div class="form-grid two"><div><label class="sa-label">Custom Bill Rules</label><textarea class="sa-input" name="rules" rows="8">${esc(rules)}</textarea></div><div><label class="sa-label">Custom Bill Terms</label><textarea class="sa-input" name="custom_terms" rows="8">${esc(ct)}</textarea></div></div><button class="sa-btn gold lg mt-3" type="submit">Save Terms</button></form></div></div>`,'admin');$('#termsForm').onsubmit=async ev=>{ev.preventDefault();const f=formObj(ev.target);await setSetting('terms_invoice',f.terms);await setSetting('custom_rules',f.rules);await setSetting('custom_terms',f.custom_terms);toast('Terms saved');};}
-async function fullBackup(){const data={schema:'sa-traders-offline-v1',exported_at:nowIso(),business:BUSINESS,data:{}};for(const s of STORES)data.data[s]=await DB.all(s);return data;}
-async function renderAdminBackup(){if(!roleGuard())return;const counts={};for(const s of STORES)counts[s]=await DB.count(s);shell(`${headerBlock('Backup & Restore','Protect local billing records before changing phones or clearing app data')}<div class="sa-alert warning">This app stores business data locally on this phone. Create backups regularly.</div><div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Current Data</h3></div><div class="sa-card-body"><div class="summary-strip"><div class="summary-box"><div class="label">Bills</div><div class="value">${counts.bills}</div></div><div class="summary-box"><div class="label">Customers</div><div class="value">${counts.customers}</div></div><div class="summary-box"><div class="label">Custom Bills</div><div class="value">${counts.customBills}</div></div><div class="summary-box"><div class="label">Slips</div><div class="value">${counts.slips}</div></div></div></div></div><div class="quick-grid"><div class="quick-card"><h3>Download Backup</h3><p>Exports all bills, customers, payments, inventory, slips and settings as JSON.</p><div class="actions mt-3"><button class="sa-btn gold" onclick="SA.exportBackup()">Download JSON</button><button class="sa-btn outline" onclick="SA.shareBackup()">Share Backup</button></div></div><div class="quick-card"><h3>Restore Backup</h3><p>Choose a backup JSON. Existing local data will be replaced after confirmation.</p><button class="sa-btn primary mt-3" onclick="SA.importBackup()">Choose Backup</button></div><div class="quick-card"><h3>Reset Business Data</h3><p>Clears bills, customers, slips and custom bills. Users/settings remain.</p><button class="sa-btn danger mt-3" onclick="SA.resetData()">Reset Data</button></div></div>`,'admin');}
+async function fullBackup(){const data={schema:'sa-traders-cloud-v1',exported_at:nowIso(),business:BUSINESS,data:{}};for(const s of STORES)data.data[s]=await DB.all(s);return data;}
+async function renderAdminBackup(){if(!roleGuard())return;const counts={};for(const s of STORES)counts[s]=await DB.count(s);shell(`${headerBlock('Backup & Restore','Export MongoDB data or import an older APK backup')}<div class="sa-alert info">Business data is stored in MongoDB through the S.A Traders API. JSON export gives you an additional portable backup.</div><div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">MongoDB Data</h3></div><div class="sa-card-body"><div class="summary-strip"><div class="summary-box"><div class="label">Bills</div><div class="value">${counts.bills}</div></div><div class="summary-box"><div class="label">Customers</div><div class="value">${counts.customers}</div></div><div class="summary-box"><div class="label">Custom Bills</div><div class="value">${counts.customBills}</div></div><div class="summary-box"><div class="label">Slips</div><div class="value">${counts.slips}</div></div></div></div></div><div class="quick-grid"><div class="quick-card"><h3>Download Backup</h3><p>Exports all MongoDB bills, customers, payments, inventory, slips and settings as JSON.</p><div class="actions mt-3"><button class="sa-btn gold" onclick="SA.exportBackup()">Download JSON</button><button class="sa-btn outline" onclick="SA.shareBackup()">Share Backup</button></div></div><div class="quick-card"><h3>Import Existing Data</h3><p>Choose a backup from an older APK and upload its records to MongoDB.</p><button class="sa-btn primary mt-3" onclick="SA.importBackup()">Choose Backup</button></div><div class="quick-card"><h3>Reset MongoDB Data</h3><p>Permanently clears bills, customers, slips and custom bills from MongoDB.</p><button class="sa-btn danger mt-3" onclick="SA.resetData()">Reset Data</button></div></div>`,'admin');}
 SA.exportBackup=async()=>{const data=await fullBackup();exportText(`sa-traders-backup-${today()}.json`,'application/json',JSON.stringify(data,null,2));};
 SA.shareBackup=async()=>{const data=await fullBackup(),text=JSON.stringify(data,null,2);if(window.Android?.shareText)Android.shareText(`S.A Traders Backup ${today()}`,'application/json',text);else exportText(`sa-traders-backup-${today()}.json`,'application/json',text);};
 SA.importBackup=()=>{if(window.Android?.importBackup){Android.importBackup()}else{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=async()=>{const txt=await inp.files[0].text();await restoreBackupText(txt)};inp.click();}};
 SA.receiveBackupBase64=async b64=>{try{const txt=decodeURIComponent(escape(atob(b64)));await restoreBackupText(txt)}catch(e){toast('Backup read failed: '+e.message,'danger')}};
-async function restoreBackupText(txt){try{const obj=JSON.parse(txt);if(!obj.data)throw new Error('Not an S.A Traders backup');if(!confirmAction('Restore this backup? Existing local data will be replaced.'))return;for(const s of STORES){await DB.clear(s);for(const row of (obj.data[s]||[]))await DB.put(s,row)}await seedDb();toast('Backup restored successfully');SA.go('dashboard')}catch(e){toast('Restore failed: '+e.message,'danger')}}
-SA.resetData=async()=>{if(!roleGuard()||!confirmAction('Delete ALL bills, customers, custom bills, slips and challans from this phone?'))return;for(const s of ['bills','customers','customBills','slips','challans'])await DB.clear(s);toast('Business data reset','warning');SA.go('dashboard');};
+async function restoreBackupText(txt){try{const obj=JSON.parse(txt),data=obj.data||obj.stores;if(!data)throw new Error('Not an S.A Traders backup');if(!confirmAction('Replace MongoDB business data with this backup?'))return;for(const s of STORES){await DB.clear(s);for(const row of (data[s]||[]))await DB.put(s,row)}await seedDb();toast('Backup uploaded to MongoDB');SA.go('dashboard')}catch(e){toast('Restore failed: '+e.message,'danger')}}
+SA.resetData=async()=>{if(!roleGuard()||!confirmAction('Permanently delete ALL bills, customers, custom bills, slips and challans from MongoDB?'))return;for(const s of ['bills','customers','customBills','slips','challans'])await DB.clear(s);toast('MongoDB business data reset','warning');SA.go('dashboard');};
 function exportText(filename,mime,text){if(window.Android?.exportText)Android.exportText(filename,mime,text);else{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:mime}));a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}}
 
 // =========================================================
@@ -569,5 +534,5 @@ async function renderPrintInvoice(no,mode='invoice'){const raw=await DB.get('bil
 async function renderPrintNextCycle(no){const raw=await DB.get('bills',no);if(!raw){toast('Bill not found','danger');return}const b=hydrateBill(raw),idx=(b.current_cycle_index||0)+1,snap=snapshotForCycle(b,idx),br=calcRent(snap.qty,snap.wood,b.rates),start=parseDate(b.start_date),days=Math.max(i(b.cycle_days,30),1),cs=addDays(start,(idx-1)*days),ce=addDays(cs,days-1);printShell(`${printHeader(`Next Cycle Bill ${b.bill_no}`)}${customerInfoTable(b)}<div class="sa-card mb-3"><div class="sa-card-header"><div><h3 class="sa-card-title">Cycle #${idx}</h3><div class="sa-card-subtitle">${ymd(cs)} to ${ymd(ce)}</div></div><div class="money-big">${money(br.rent_total)}</div></div><div class="sa-card-body p-0"><table class="sa-table"><thead><tr><th>Material</th><th>Qty</th><th>Amount</th></tr></thead><tbody>${br.lines_materials.map(x=>`<tr><td>${x.label}</td><td>${x.qty}</td><td>${money(x.amount)}</td></tr>`).join('')}${WOODS.map(([k,l])=>{const w=br.wood_totals[k];return`<tr><td>${l} · ${esc(w.text)}</td><td>${w.total_feet} ft</td><td>${money(w.amount)}</td></tr>`}).join('')}</tbody></table></div></div><div class="sa-alert info">Transport/loading/unloading are applied only in the first cycle, matching the original billing rules.</div>${printActions(`${BUSINESS.name} - Next Cycle ${b.bill_no}`)}`);}
 async function renderPrintCustom(no){const raw=await DB.get('customBills',no);if(!raw){toast('Custom bill not found','danger');return}const {bill:b,breakdown:br,calc}=hydrateCustom(raw);printShell(`${printHeader(`Custom Shop Bill ${b.bill_no}`)}${customerInfoTable(b)}<div class="sa-card mb-3"><div class="sa-card-body p-0"><table class="sa-table"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>Material Rent</td><td>${money(calc.material_total)}</td></tr><tr><td>Wood Material</td><td>${money(calc.wood_total)}</td></tr><tr><td>Transport</td><td>${money(calc.transport_vehicle_total)}</td></tr><tr><td>Loading</td><td>${money(calc.loading)}</td></tr><tr><td>Unloading</td><td>${money(calc.unloading)}</td></tr><tr><td>Advance (Material + Wood)</td><td>${money(calc.advance_amount)}</td></tr><tr><td class="fw-900">Grand Total</td><td class="fw-900">${money(calc.grand_total)}</td></tr><tr><td>Paid</td><td>${money(b.total_paid)}</td></tr><tr><td class="text-red fw-900">Pending</td><td class="text-red fw-900">${money(b.pending)}</td></tr></tbody></table></div></div><div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Rules</h3></div><div class="sa-card-body small">${textToHtml(b.print_rules||DEFAULT_CUSTOM_RULES)}</div></div><div class="sa-card invoice-terms"><div class="sa-card-header"><h3 class="sa-card-title">Terms & Conditions</h3></div><div class="sa-card-body small">${textToHtml(b.terms_conditions||DEFAULT_CUSTOM_TERMS)}</div></div>${printActions(`${BUSINESS.name} - Custom Bill ${b.bill_no}`)}`);}
 
-// End of offline port.
+// End of online MongoDB API port.
 

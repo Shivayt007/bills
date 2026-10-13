@@ -8,6 +8,7 @@ on:
       - '.github/workflows/build-apk.yml'
       - 'android-app/**'
       - 'index.html'
+      - 'cloud-api.js'
       - 'app.css'
       - 'app.js'
       - 'ui-2026.css'
