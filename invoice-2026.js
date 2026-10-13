@@ -5,13 +5,13 @@
     const rows=[];
     for(const x of br.lines_materials||[]){
       if(Number(x.qty)<=0)continue;
-      rows.push([esc(x.label),Number(x.qty),money(x.rate),money(x.amount)]);
+      rows.push([esc(x.label),Number(x.qty),money(x.amount)]);
     }
     for(const [k,label] of WOODS){
       const w=br.wood_totals?.[k];if(!w||Number(w.total_feet)<=0)continue;
-      rows.push([esc(label)+(w.text&&w.text!=='0'?`<small class="sub">${esc(w.text)}</small>`:''),`${Number(w.total_feet)} ft`,money(w.rate),money(w.amount)]);
+      rows.push([esc(label)+(w.text&&w.text!=='0'?`<small class="sub">${esc(w.text)}</small>`:''),`${Number(w.total_feet)} ft`,money(w.amount)]);
     }
-    return rows.map((r,n)=>`<tr><td>${n+1}</td>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')||'<tr><td colspan="5">No materials in this cycle</td></tr>';
+    return rows.map((r,n)=>`<tr><td>${n+1}</td>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')||'<tr><td colspan="4">No materials in this cycle</td></tr>';
   }
   function paymentCycle(b,p){
     // Never infer an old payment's cycle from its collection date.
@@ -42,7 +42,7 @@
     const title=`Invoice #${b.bill_no} · Cycle #${cycle?.index||'—'}`;
     const allCycles=cycles.length>1;
     printShell(`<div class="invoice-page rent-invoice" data-share-name="${esc(title)}">
-      <div class="invoice-toolbar no-print"><button class="invoice-circle" aria-label="Go back" onclick="SA.back()">‹</button><h1>Rent invoice</h1><button class="invoice-circle" aria-label="Share invoice image" onclick="SA.shareInvoiceImage(this)">↗</button></div>
+      <div class="invoice-toolbar no-print"><button class="invoice-circle" aria-label="Go back" onclick="SA.back()">‹</button><h1>Rent bill</h1><button class="invoice-circle" aria-label="Share invoice to customer WhatsApp" onclick="SA.shareInvoiceWhatsApp(this,'${esc(b.mobile||'')}')">↗</button></div>
       ${allCycles?`<label class="rent-cycle-select no-print">Invoice for rental cycle<select class="sa-input" id="invoiceCycle">${cycles.map(c=>`<option value="${c.index}" ${c.index===cycle?.index?'selected':''}>Cycle #${c.index} · ${dateLabel(c.start_date)} to ${dateLabel(c.end_date)}</option>`).join('')}</select></label>`:''}
       <section class="invoice-sheet">
         ${SA.rentalInvoiceBrand()}
@@ -50,7 +50,7 @@
           <div class="rent-heading"><div><h2>RENT <span>BILL</span></h2><small>MATERIAL RENTAL SERVICES</small></div><div class="invoice-no">Bill #${esc(b.bill_no)}<span>Issued ${dateLabel(b.start_date)}</span></div></div>
           <div class="invoice-customer"><div class="invoice-field"><span>Customer name</span><strong>${esc(b.name||'—')}</strong></div><div class="invoice-field"><span>Mobile no.</span><strong>${esc(b.mobile||'—')}</strong></div><div class="invoice-field rent-place"><span>Site / Place</span><strong>${esc(b.place||'—')}</strong></div></div>
           <div class="rent-period"><div><small>RENTAL CYCLE</small><strong>Cycle #${cycle?.index||'—'}</strong></div><div><strong>${dateLabel(cycle?.start_date||b.start_date)} to ${dateLabel(cycle?.end_date)}</strong><span>${i(b.cycle_days)} days · materials and rent below</span></div></div>
-          <table class="invoice-materials rent-materials"><thead><tr><th>#</th><th>Material</th><th>Qty</th><th>Rate ₹</th><th>Amount ₹</th></tr></thead><tbody>${materialRows(br)}</tbody></table>
+          <table class="invoice-materials rent-materials"><thead><tr><th>#</th><th>Material</th><th>Qty</th><th>Amount ₹</th></tr></thead><tbody>${materialRows(br)}</tbody></table>
           <div class="rent-cycle-totals"><div><span>Rent · Cycle #${cycle?.index||'—'}</span><strong>${money(br.rent_total)}</strong></div>${Number(cycle?.transport)>0?`<div><span>Transport / handling</span><strong>${money(cycle.transport)}</strong></div>`:''}${Number(cycle?.rent)>br.rent_total?`<div><span>Other cycle charges / deposit</span><strong>${money(round2(cycle.rent-br.rent_total))}</strong></div>`:''}<div><span>Cycle charges</span><strong>${money(cycle?.total||0)}</strong></div><div class="rent-paid"><span>Paid for Cycle #${cycle?.index||'—'}</span><strong>${money(paid)}</strong></div></div>
           ${assigned.length?`<div class="rent-receipts"><h3>Payments · Cycle #${cycle.index}</h3>${assigned.map(p=>`<div><span>${esc(dateLabel(p.payment_date||p.date))}${p.method?` · ${esc(p.method)}`:''}</span><strong>${money(p.amount)}</strong></div>`).join('')}</div>`:''}
           ${unassigned!==0?`<p class="rent-unassigned">${money(unassigned)} in payments: cycle not recorded. Included in total paid below.</p>`:''}
@@ -62,7 +62,7 @@
         </div>
       </section>
       <details class="invoice-terms" data-share-exclude><summary>Terms &amp; Conditions</summary><div class="invoice-terms-body">${textToHtml(terms)}</div></details>
-      <div class="invoice-actions no-print"><button class="print" onclick="SA.printNow(document.title)">Print / Save PDF</button><button class="share-image" onclick="SA.shareInvoiceImage(this)">Share image</button></div>
+      <div class="invoice-actions no-print"><button class="share-image" onclick="SA.shareInvoiceWhatsApp(this,'${esc(b.mobile||'')}')">WhatsApp customer</button><button class="print" onclick="SA.printNow(document.title)">Print / PDF</button></div>
     </div>`);
     document.title=BUSINESS.name+' - '+title;
     const selector=document.getElementById('invoiceCycle');

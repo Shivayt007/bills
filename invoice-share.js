@@ -1,7 +1,7 @@
 /* Local PNG export + Android Sharesheet. No network service or automatic sending. */
 (function(){
   let sharing=false;
-  SA.shareInvoiceImage=async function(button){
+  async function shareInvoice(button,mobile=''){
     if(sharing)return;
     const source=document.querySelector('.invoice-page')||document.querySelector('.print-sheet');
     if(!source){toast('Open an invoice first.','warning');return}
@@ -29,7 +29,10 @@
       if(data.length>16*1024*1024)throw new Error('Image is too large. Use Print / Save PDF.');
       const no=(source.dataset.shareName||source.querySelector('.invoice-no')?.textContent||'Invoice').trim().replace(/[^a-zA-Z0-9_-]+/g,'-').slice(0,60);
       const filename='SA-Traders-'+no+'.png';
-      if(window.Android?.shareInvoiceImage){
+      if(mobile&&window.Android?.shareInvoiceToWhatsApp){
+        const result=Android.shareInvoiceToWhatsApp(data,filename,String(mobile));
+        if(result!=='ok')throw new Error(result||'Could not open WhatsApp.');
+      } else if(window.Android?.shareInvoiceImage){
         const result=Android.shareInvoiceImage(data,filename);
         if(result!=='ok')throw new Error(result||'Could not open sharing.');
       } else {
@@ -47,5 +50,15 @@
       }
     } catch(e){if(e.name!=='AbortError')toast(e.message||'Could not share invoice. Try Print / Save PDF.','danger');}
     finally {staging?.remove();sharing=false;if(button){button.disabled=false;button.innerHTML=previous;}}
+  }
+  SA.shareInvoiceImage=button=>shareInvoice(button,'');
+  SA.shareInvoiceWhatsApp=(button,mobile)=>shareInvoice(button,mobile);
+  SA.openCustomerWhatsApp=mobile=>{
+    if(window.Android?.openWhatsAppChat){const result=Android.openWhatsAppChat(String(mobile));if(result!=='ok')toast(result,'danger');return}
+    window.open(`https://wa.me/${String(mobile).replace(/\D/g,'')}`,'_blank');
+  };
+  SA.callCustomer=mobile=>{
+    if(window.Android?.callCustomer){Android.callCustomer(String(mobile));return}
+    location.href=`tel:${String(mobile).replace(/[^0-9+]/g,'')}`;
   };
 })();

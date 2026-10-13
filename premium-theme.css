@@ -452,6 +452,126 @@ h1 { font-size:26px; letter-spacing:-.8px; } h2 { font-size:20px; } h3 { font-si
 .invoice-image-copy .invoice-terms-body { display:block!important; border-color:#DFE2EA; }
 @media print { .invoice-actions .share-image { display:none!important; } }
 
+/* v1.4 reference design: warm paper surfaces, yellow actions, compact native rows. */
+:root {
+  --app-bg:#FFF9EF; --app-card:#FFFCF6; --app-raised:#F5EDDC; --app-border:#DED5C4;
+  --app-text:#201E19; --app-muted:#746E61; --app-violet:#FFC107; --app-violet-end:#E6A900;
+  --app-violet-soft:#FFF1B8; --app-lime:#FFC107; --app-lime-soft:#FFF1B8;
+  --app-coral:#B95545; --app-coral-soft:#F9E2DC; --app-on-accent:#1D1A12;
+  --ux-bg:#FFF9EF; --ux-card:#FFFCF6; --ux-text:#201E19; --ux-muted:#746E61;
+  --ux-border:#DED5C4; --ux-primary:#FFC107; --ux-primary-2:#E6A900; --ux-lime:#FFC107;
+}
+html,body { background:var(--app-bg)!important; color:var(--app-text)!important; color-scheme:light; }
+body::before { display:none!important; }
+.page,.ux-topbar,.ux-bottom,.ux-menu,.modal { background:var(--app-bg)!important; }
+.ux-topbar { border-bottom:0!important; }
+.ux-brand .ux-logo,.ux-dashboard-head .logo,.login-logo { background:#FFC107!important; color:#211C0D!important; border:0!important; box-shadow:none!important; }
+.ux-brand strong,.ux-shop strong,.ux-dashboard-head strong,.ux-detail-head h2,.ux-menu h1 { color:var(--app-text)!important; }
+.ux-brand small,.ux-shop span { color:var(--app-muted)!important; }
+.ux-brand small::first-letter,.ux-shop span::first-letter { color:#35A45B; }
+.ux-icon-btn { background:transparent!important; color:var(--app-text)!important; border:0!important; box-shadow:none!important; }
+.ux-bottom { border-top:1px solid var(--app-border)!important; box-shadow:0 -8px 22px rgba(72,57,30,.07)!important; }
+.ux-bottom button { color:var(--app-muted)!important; }
+.ux-bottom button.active,.ux-bottom button.active b { color:#7A5B00!important; }
+.ux-bottom button.active::before { background:#FFC107!important; }
+.ux-bottom .plus { background:#29261F!important; color:#FFC107!important; border-color:#29261F!important; }
+.ux-hero { background:#FFD04A!important; color:#241F13!important; border:0!important; box-shadow:none!important; }
+.ux-hero::before,.ux-hero::after { opacity:.08!important; background:#6D5200!important; }
+.ux-hero .label,.ux-hero-stats span { color:#6A561E!important; }
+.ux-hero .amount,.ux-hero-stats strong { color:#211D12!important; }
+.ux-ring { background:#FFFBF2!important; color:#5C4800!important; border-color:rgba(80,62,0,.14)!important; }
+.ux-quick button,.ux-bill-card,.ux-section,.sa-card,.quick-card,.bill-card,.modal-card { background:var(--app-card)!important; border-color:var(--app-border)!important; color:var(--app-text)!important; box-shadow:none!important; }
+.ux-quick .ico { background:#FFF1B8!important; color:#624A00!important; border-color:#F1D56E!important; }
+.ux-quick button:first-child .ico { background:#FFC107!important; color:#201B0C!important; }
+.ux-tabs { background:#F5EDDC!important; border-color:var(--app-border)!important; }
+.ux-tabs button { color:var(--app-muted)!important; }
+.ux-tabs button.active { background:#FFE79A!important; color:#5E4700!important; box-shadow:none!important; }
+.sa-input,.payment-amount input,select.sa-input,textarea.sa-input { background:#FFFCF6!important; color:var(--app-text)!important; border-color:#CFC5B3!important; }
+.sa-input:focus,.payment-amount input:focus { border-color:#C28D00!important; box-shadow:0 0 0 2px rgba(255,193,7,.18)!important; }
+.sa-label,.section-title,.form-section-head { color:#655F53!important; }
+.sa-btn.gold,.sa-btn.primary,.ux-paybar .pay,.ref-fab,.ref-sticky-save .sa-btn,.invoice-actions .print { background:#FFC107!important; color:#211B0B!important; border-color:#FFC107!important; box-shadow:none!important; }
+.sa-btn.outline,.ux-outline,.invoice-actions .share-image { background:#FFFCF6!important; color:#4A4231!important; border-color:#CFC5B3!important; }
+.ux-summary { background:#FFF6DA!important; border-color:#E8D48D!important; color:var(--app-text)!important; }
+.ux-summary .due,.ux-summary-stats strong { color:var(--app-text)!important; }
+.ux-summary .bar { background:#E7D9B1!important; }
+.ux-summary .bar i,.ux-progress i { background:#FFC107!important; }
+.ux-summary-stats .pending,.text-red { color:#B24F3C!important; }
+.ux-detail-person,.ux-action-scroll { border-color:var(--app-border)!important; }
+.ux-avatar { background:#FFD54F!important; color:#2C230B!important; }
+.ux-pill,.sa-badge.open { background:#FFF0A8!important; color:#6B5200!important; border-color:#EED36D!important; }
+.sa-badge.closed { background:#E3F3E3!important; color:#2F7140!important; }
+.ux-material-row,.ux-cycle-card,.sa-table th,.sa-table td { border-color:var(--app-border)!important; color:var(--app-text)!important; }
+.payment-modal .modal-card { background:#FFFCF6!important; border-radius:26px 26px 0 0!important; }
+.payment-modal .modal-head,.payment-submit { background:#FFFCF6!important; }
+.payment-modal .modal-card::before { content:""; display:block; width:34px; height:4px; border-radius:9px; background:#CEC4B1; margin:-6px auto 10px; }
+.payment-segments { background:#F5EDDC!important; border-color:#CFC5B3!important; }
+.payment-segments input:checked+span { background:#FFE18A!important; color:#513E00!important; }
+.payment-amount { color:var(--app-text)!important; font-size:32px!important; }
+.payment-amount input { font-size:32px!important; }
+.payment-remaining { color:#9D4B3B!important; }
+.login-wrap.ref-login { min-height:100dvh; padding:calc(52px + env(safe-area-inset-top)) 18px calc(20px + env(safe-area-inset-bottom)); background:linear-gradient(#FFF9EF 70%,#F6EEDC)!important; }
+.ref-login .login-card { width:100%; max-width:390px; min-height:calc(100dvh - 90px); display:flex; flex-direction:column; justify-content:center; background:transparent!important; border:0!important; box-shadow:none!important; padding:24px 10px!important; }
+.ref-login .login-logo { width:64px!important; height:64px!important; border-radius:17px!important; font-size:22px!important; margin:0 auto 22px!important; }
+.ref-login h1 { font-size:26px!important; color:var(--app-text)!important; margin-bottom:4px!important; }
+.ref-login p { color:var(--app-muted)!important; margin:0 0 40px!important; }
+.ref-login .sa-btn { border-radius:14px!important; margin-top:6px; }
+.ref-login-foot { margin-top:auto; padding-top:50px; text-align:center; color:#8C8577; }
+.ref-page-head { display:flex; align-items:center; justify-content:space-between; min-height:54px; margin-bottom:10px; }
+.ref-page-head>div { display:flex; align-items:center; gap:4px; }
+.ref-page-head h1 { font-size:25px; margin:0; color:var(--app-text); }
+.ref-search { height:48px; display:flex; align-items:center; gap:9px; background:#F3EBD9; border-radius:14px; padding:0 14px; margin-bottom:10px; color:var(--app-muted); }
+.ref-search input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--app-text); font:inherit; }
+.ref-filter { display:flex!important; width:max-content; padding:3px!important; margin:0 0 14px!important; }
+.ref-filter button { min-height:34px!important; padding:0 12px!important; }
+.ref-list { display:grid; gap:0; padding-bottom:84px; }
+.ref-list-row { width:100%; min-height:66px; display:grid; grid-template-columns:40px 1fr auto; gap:11px; align-items:center; text-align:left; background:transparent; border:0; border-bottom:1px solid #E8DFCF; padding:10px 2px; color:var(--app-text); }
+.ref-list-main,.ref-list-money { min-width:0; }
+.ref-list-main strong,.ref-list-money strong { display:block; font-size:13px; color:var(--app-text); }
+.ref-list-main small { display:block; font-size:10px; color:var(--app-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:3px; }
+.ref-list-money { text-align:right; }
+.ref-list-money small { display:inline-block; font-size:9px; color:#9D4B3B; background:#F9E2DC; border-radius:99px; padding:2px 6px; margin-top:4px; }
+.ref-list-money small.paid { color:#317144; background:#E1F2E2; }
+.ref-fab { position:fixed; right:max(18px,calc((100vw - var(--app-width))/2 + 18px)); bottom:calc(85px + var(--app-safe-bottom)); min-height:52px; padding:0 22px; border:0; border-radius:15px; font-weight:800; }
+.ref-customer-hero { text-align:center; padding:8px 0 18px; }
+.ref-customer-avatar { width:58px; height:58px; display:grid; place-items:center; margin:0 auto 10px; border-radius:50%; background:#FFC107; font-size:22px; font-weight:800; }
+.ref-customer-hero h2 { margin:0; font-size:19px; }
+.ref-customer-hero p { margin:4px 0 16px; color:var(--app-muted); font-size:11px; }
+.ref-customer-actions { display:flex; justify-content:center; gap:26px; }
+.ref-customer-actions button { min-width:52px; min-height:54px; border:0; background:transparent; color:var(--app-muted); font-size:9px; }
+.ref-customer-actions b { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; background:#F1E8D4; color:#6C5200; font-size:15px; margin:0 auto 4px; }
+.ref-money-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-bottom:12px; }
+.ref-money-grid>div { background:#F4ECD9; border-radius:9px; padding:10px 8px; min-width:0; }
+.ref-money-grid span { display:block; font-size:9px; color:var(--app-muted); }
+.ref-money-grid strong { display:block; font-size:12px; margin-top:3px; overflow-wrap:anywhere; }
+.ref-money-grid>div:nth-child(2) { background:#E6F4DF; }.ref-money-grid>div:nth-child(2) strong { color:#30713F; }
+.ref-money-grid>div:nth-child(3) { background:#F8E5DC; }.ref-money-grid>div:nth-child(3) strong { color:#A54E3C; }
+.ref-stock-summary>div:first-child { background:#F1EAD9; }.ref-stock-summary>div:nth-child(2) { background:#FFF0B5; }.ref-stock-summary>div:nth-child(3) { background:#DEF2DE; }
+.ref-stock-row { display:grid; grid-template-columns:1fr 80px; gap:6px 10px; padding:10px 0; border-bottom:1px solid var(--app-border); }
+.ref-stock-row strong,.ref-stock-row span { display:block; }.ref-stock-row span { color:var(--app-muted); font-size:9px; margin-top:3px; }
+.ref-stock-row .sa-input { height:40px!important; padding:7px!important; text-align:right; }
+.ref-stock-row i { grid-column:1/-1; height:4px; overflow:hidden; background:#E8DECB; border-radius:9px; }
+.ref-stock-row i b { display:block; height:100%; background:#FFC107; border-radius:9px; }
+.ref-wood-field { display:grid; grid-template-columns:95px 1fr; align-items:center; gap:8px; margin-bottom:10px; font-size:11px; font-weight:700; }
+.ref-sticky-save { position:sticky; bottom:78px; background:linear-gradient(transparent,var(--app-bg) 20%); padding:22px 0 8px; }
+.reminder-toggle { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:6px 0 22px; }
+.reminder-toggle strong,.reminder-toggle small { display:block; }.reminder-toggle small { color:var(--app-muted); font-size:11px; line-height:1.45; margin-top:4px; }
+.reminder-toggle input { width:50px; height:28px; accent-color:#FFC107; flex:none; }
+.reminder-note { color:var(--app-muted); font-size:11px; line-height:1.5; }
+
+/* Yellow rent bill from the supplied reference. */
+.rent-invoice { --rent-green:#FFC107; --rent-deep:#FFC107; --rent-gold:#FFC107; --rent-ink:#201E19; --rent-muted:#6F685A; --rent-line:#DDD3C1; --rent-pale:#F7F0E3; }
+.rent-brand { background:#FFC107!important; color:#201E19!important; }
+.rent-brand-name,.rent-brand p { color:#201E19!important; }.rent-brand-name span { color:#201E19!important; }
+.rent-brand-tag { color:#5E4800!important; }.rent-scaffold { color:#5A4300!important; opacity:.12!important; }
+.rent-invoice .rent-materials th { background:#29261F!important; color:#fff!important; }
+.rent-invoice .invoice-total { background:#29261F!important; }.rent-invoice .invoice-total strong { background:#FFC107!important; }
+.rent-period { border-left-color:#FFC107!important; }.rent-cycle-totals .rent-paid,.rent-receipts h3 { color:#806000!important; }
+.invoice-toolbar h1 { color:var(--app-text)!important; }
+.invoice-actions { background:var(--app-bg)!important; border-color:var(--app-border)!important; }
+.invoice-actions .share-image { color:#5E4700!important; }
+.invoice-terms { background:var(--app-card)!important; border-color:var(--app-border)!important; color:var(--app-text)!important; }
+@media print { html,body,.page { background:#fff!important; } }
+
 /* v1.3: green and gold rental stationery; independent of the dark app shell. */
 .payment-cycle-field { margin-bottom:18px; }
 .payment-cycle-hint { font-size:11px; color:var(--app-muted); line-height:1.5; margin:7px 0 0; }
@@ -483,11 +603,10 @@ h1 { font-size:26px; letter-spacing:-.8px; } h2 { font-size:20px; } h3 { font-si
 .rent-invoice .rent-materials { border-radius:9px; overflow:hidden; margin:0; }
 .rent-invoice .rent-materials th { background:var(--rent-green)!important; color:#fff!important; font-size:8px; letter-spacing:0; text-transform:none; padding:10px 3px; border:0; }
 .rent-invoice .rent-materials td { background:#fff; color:var(--rent-ink); font-size:10px; padding:11px 3px; border-bottom:1px solid var(--rent-line); overflow-wrap:anywhere; }
-.rent-invoice .rent-materials th:nth-child(1),.rent-invoice .rent-materials td:nth-child(1) { width:7%; text-align:center; }
-.rent-invoice .rent-materials th:nth-child(2),.rent-invoice .rent-materials td:nth-child(2) { width:30%; text-align:left; }
-.rent-invoice .rent-materials th:nth-child(3),.rent-invoice .rent-materials td:nth-child(3) { width:12%; text-align:center; display:table-cell; }
-.rent-invoice .rent-materials th:nth-child(4),.rent-invoice .rent-materials td:nth-child(4) { width:23%; text-align:right; }
-.rent-invoice .rent-materials th:nth-child(5),.rent-invoice .rent-materials td:nth-child(5) { width:28%; text-align:right; padding-right:7px; }
+.rent-invoice .rent-materials th:nth-child(1),.rent-invoice .rent-materials td:nth-child(1) { width:8%; text-align:center; }
+.rent-invoice .rent-materials th:nth-child(2),.rent-invoice .rent-materials td:nth-child(2) { width:42%; text-align:left; }
+.rent-invoice .rent-materials th:nth-child(3),.rent-invoice .rent-materials td:nth-child(3) { width:18%; text-align:center; display:table-cell; }
+.rent-invoice .rent-materials th:nth-child(4),.rent-invoice .rent-materials td:nth-child(4) { width:32%; text-align:right; padding-right:7px; }
 .rent-cycle-totals { background:var(--rent-pale); padding:9px 11px; margin:11px 0; border-radius:10px; }
 .rent-cycle-totals>div,.rent-receipts>div { display:flex; justify-content:space-between; gap:12px; padding:4px 0; font-size:10px; color:var(--rent-ink); }
 .rent-cycle-totals .rent-paid { color:var(--rent-green); border-top:1px solid var(--rent-line); margin-top:4px; padding-top:8px; font-weight:700; }
@@ -515,3 +634,15 @@ h1 { font-size:26px; letter-spacing:-.8px; } h2 { font-size:20px; } h3 { font-si
 .invoice-image-stage .rent-invoice.invoice-image-copy { padding:10px!important; }
 .rent-invoice.invoice-image-copy .invoice-sheet { border-radius:18px; }
 @media print { .rent-brand,.rent-invoice .invoice-total,.rent-invoice .rent-materials th,.rent-invoice .invoice-total strong { -webkit-print-color-adjust:exact; print-color-adjust:exact; } .rent-invoice .invoice-sheet { break-inside:auto; } .rent-invoice tr,.rent-period,.rent-account,.rent-signatures { break-inside:avoid; } }
+
+/* Final invoice palette follows the yellow reference. */
+.rent-invoice { --rent-green:#FFC107; --rent-deep:#FFC107; --rent-gold:#FFC107; --rent-ink:#201E19; --rent-muted:#6F685A; --rent-line:#DDD3C1; --rent-pale:#F7F0E3; }
+.rent-brand { background:#FFC107!important; color:#201E19!important; }
+.rent-brand-name,.rent-brand p,.rent-brand-name span { color:#201E19!important; }
+.rent-brand-tag { color:#5E4800!important; }
+.rent-scaffold { color:#5A4300!important; opacity:.12!important; }
+.rent-invoice .rent-materials th { background:#29261F!important; color:#fff!important; }
+.rent-invoice .invoice-total { background:#29261F!important; }
+.rent-invoice .invoice-total strong { background:#FFC107!important; color:#201E19!important; }
+.rent-period { border-left-color:#FFC107!important; }
+.rent-cycle-totals .rent-paid,.rent-receipts h3 { color:#806000!important; }
