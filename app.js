@@ -55,6 +55,8 @@ const dayDiff = (a,b) => Math.floor((b-a)/86400000);
 const sum = arr => round2(arr.reduce((a,b)=>a+n(b),0));
 const formObj = form => Object.fromEntries(new FormData(form).entries());
 const textToHtml = s => esc(s).replace(/\n/g,'<br>');
+const BRAND_LOGO='sa-traders-logo.jpg';
+function brandLogo(className='brand-logo',alt='S.A Traders'){return `<img class="${esc(className)}" src="${BRAND_LOGO}" alt="${esc(alt)}">`;}
 
 function toast(msg,type='success'){
   const stack=$('#toasts'); if(!stack)return;
@@ -163,7 +165,7 @@ function topbar(active=''){
   if(!currentUser) return '';
   const nav=[['home','Home'],['dashboard','Dashboard'],['custom','Custom Bill'],['reports','Reports'],['inventory','Inventory'],['slips','Slips'],['admin','Admin']];
   return `<header class="sa-topbar no-print"><div class="container">
-    <a class="sa-brand" href="#/home"><div class="sa-brand-icon">SA</div><div class="sa-brand-text">S.A Traders<small>Billing System · Firebase</small></div></a>
+    <a class="sa-brand" href="#/home">${brandLogo('sa-brand-logo')}<div class="sa-brand-text">S.A Traders<small>Billing System · Firebase</small></div></a>
     <button class="sa-mobile-toggle" onclick="SA.toggleNav()">☰</button>
     <div class="sa-nav-wrap" id="navWrap"><nav class="sa-nav">${nav.map(([k,l])=>`<a class="${active===k?'active':''}" href="#/${k}">${l}</a>`).join('')}</nav><span class="sa-user-pill"><strong>${esc(currentUser.username)}</strong> · ${esc(currentUser.role)}</span><button class="sa-logout-btn" onclick="SA.logout()">Logout</button></div>
   </div></header>`;
@@ -188,12 +190,13 @@ window.addEventListener('DOMContentLoaded',async()=>{
 });
 
 async function renderRoute(){
+  document.getElementById('brandSplash')?.remove();
   const p=routeParts(), page=p[0]||'login';
   if(page!=='login'&&!currentUser){SA.go('login');return}
   const timer=`render.${page}`;console.time(timer);
   try{
     const routes={
-      login:renderLogin,home:renderHome,dashboard:renderDashboard,bills:renderBills,bill:()=>renderBill(p[1]),edit:()=>renderBillForm(p[1]),
+      login:renderLogin,home:renderHome,dashboard:renderDashboard,about:renderAbout,bills:renderBills,bill:()=>renderBill(p[1]),edit:()=>renderBillForm(p[1]),
       custom:renderCustomList,'custom-new':renderCustomForm,'custom-edit':()=>renderCustomForm(p[1]),'custom-view':()=>renderCustomView(p[1]),
       reports:renderReports,'payment-report':renderPaymentReport,'material-rent-report':renderMaterialRentReport,'customer-materials':()=>renderCustomerMaterials(p[1]),
       customers:renderCustomers,customer:()=>renderCustomer(p[1]),inventory:renderInventory,slips:renderSlips,'slip-new':()=>renderSlipForm(p[1]||'delivery'),'slip-view':()=>renderSlipView(p[1]),
@@ -215,7 +218,7 @@ async function renderRoute(){
 // =========================================================
 async function renderLogin(){
   if(currentUser){SA.go('dashboard');return}
-  $('#app').innerHTML=`<div class="login-wrap"><div class="login-card"><div class="login-logo">SA</div><h1>S.A Traders</h1><p>Firebase cloud billing</p>
+  $('#app').innerHTML=`<div class="login-wrap"><div class="login-card">${brandLogo('login-brand-logo')}<h1>S.A Traders</h1><p>Firebase cloud billing</p>
     <form id="loginForm"><div class="field mb-3"><label class="sa-label">Username</label><input class="sa-input" name="username" value="admin" autocomplete="username" required></div><div class="field mb-3"><label class="sa-label">Password</label><input class="sa-input" name="password" type="password" autocomplete="current-password" required></div><button class="sa-btn gold lg w-100" type="submit">Sign In</button></form>
     <div class="sa-alert info mt-3"><span>Data is stored in Firebase Firestore. App login: admin / shiva.</span></div></div></div>`;
   $('#loginForm').onsubmit=async ev=>{ev.preventDefault();const form=ev.target,btn=form.querySelector('button[type=submit]'),f=formObj(form);setBusy(btn,true,'Connecting…');try{currentUser=await SAFirebase.login(f.username.trim(),f.password);sessionStorage.setItem('sa_user',JSON.stringify(currentUser));loadingShell();await DB.loadAll();await seedDb();setTimeout(()=>SA.syncReminders?.(),0);SA.go('dashboard')}catch(e){toast(e.message||'Login failed','danger')}finally{setBusy(btn,false)}};
@@ -228,6 +231,9 @@ async function renderHome(){
     <div class="quick-card"><h3>Slips & Challans</h3><p>Delivery / return proof documents</p><div class="d-grid mt-3"><button class="sa-btn primary" onclick="SA.go('slip-new/delivery')">Delivery Slip</button><button class="sa-btn outline" onclick="SA.go('slip-new/return')">Return Slip</button><button class="sa-btn outline" onclick="SA.go('challan-new')">Challan</button></div></div>
     <div class="quick-card gold-soft"><h3 style="color:#92400e">Billing Rules</h3><ul class="small" style="color:#92400e;line-height:1.9;padding-left:18px"><li>Cycle-based rent (15/20/30 days)</li><li>Transport only in first cycle</li><li>Advance = refundable deposit</li><li>Returns reduce from next cycle</li></ul></div>
   </div></div></div>`, 'home');
+}
+async function renderAbout(){
+  shell(`<section class="brand-profile"><div class="brand-profile-logo">${brandLogo('about-brand-logo')}</div><h1>S.A Traders</h1><p>Scaffolding &amp; Centring Material Rental</p><div class="brand-profile-details"><div><span>Business address</span><strong>${esc(BUSINESS.address)}</strong></div><div><span>Phone</span><strong>${esc(BUSINESS.phone)}</strong></div><div><span>Signed in as</span><strong>${esc(currentUser?.username||'admin')} · ${esc(currentUser?.role||'Administrator')}</strong></div><div><span>App version</span><strong>1.7.1</strong></div></div></section>`,'');
 }
 
 // =========================================================
@@ -544,7 +550,7 @@ async function renderReturnBill(){shell(`${headerBlock('Return Bill','Standalone
 // =========================================================
 // PRINT VIEWS — invoice / customer / next cycle / custom
 // =========================================================
-function printHeader(title){return `<div class="print-title"><h1>${esc(BUSINESS.name)}</h1><p>${esc(BUSINESS.address)} · ${esc(BUSINESS.phone)}</p><div class="sa-badge gold mt-2">${esc(title)}</div></div>`}
+function printHeader(title){return `<div class="print-title brand-print-title">${brandLogo('print-brand-logo')}<h1>${esc(BUSINESS.name)}</h1><p>${esc(BUSINESS.address)} · ${esc(BUSINESS.phone)}</p><div class="sa-badge gold mt-2">${esc(title)}</div></div>`}
 function printActions(job){return `<div class="actions no-print mt-4" style="justify-content:center"><button class="sa-btn gold lg" onclick="SA.printNow('${esc(job)}')">Print / Save PDF</button><button class="sa-btn outline lg" onclick="SA.shareInvoiceImage(this)">Share image</button><button class="sa-btn outline lg" onclick="SA.back()">Back</button></div>`}
 SA.printNow=job=>{if(window.Android?.printPage)Android.printPage(job);else window.print()};
 function customerInfoTable(b){return `<div class="sa-card mb-3"><div class="sa-card-body"><div class="form-grid three"><div class="info-pair"><span class="k">Bill No</span><span class="v">${esc(b.bill_no)}</span></div><div class="info-pair"><span class="k">Start Date</span><span class="v">${esc(b.start_date||'-')}</span></div><div class="info-pair"><span class="k">Cycle</span><span class="v">${i(b.cycle_days)} Days</span></div><div class="info-pair"><span class="k">Customer</span><span class="v">${esc(b.name||'-')}</span></div><div class="info-pair"><span class="k">Mobile</span><span class="v">${esc(b.mobile||'-')}</span></div><div class="info-pair"><span class="k">Place</span><span class="v">${esc(b.place||'-')}</span></div></div></div></div>`}

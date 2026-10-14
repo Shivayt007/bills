@@ -25,7 +25,7 @@
     if(!Number.isSafeInteger(paise)||paise<0)return '';
     return 'Rupees '+say(Math.floor(paise/100))+(paise%100?' and '+say(paise%100)+' paise':'')+' only';
   }
-  SA.rentalInvoiceBrand=()=>`<header class="rent-brand"><div class="rent-brand-name"><span>S.A</span> TRADERS</div><div class="rent-brand-tag">SCAFFOLDING &amp; CENTRING MATERIAL RENTAL</div><p>${esc(BUSINESS.address)}<br><b>${esc(BUSINESS.phone)}</b></p><svg class="rent-scaffold" viewBox="0 0 90 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v86M38 2v92M64 8v86M84 18v76M6 24h82M6 46h82M6 68h82M6 90h82M12 24l26 22-26 22 26 22M38 24l26 22-26 22 26 22M64 24l20 22-20 22 20 22"/></g></svg></header>`;
+  SA.rentalInvoiceBrand=()=>`<header class="rent-brand"><div class="rent-brand-lockup">${brandLogo('invoice-brand-logo')}<div><div class="rent-brand-name"><span>S.A</span> TRADERS</div><div class="rent-brand-tag">SCAFFOLDING &amp; CENTRING MATERIAL RENTAL</div></div></div><p>${esc(BUSINESS.address)}<br><b>${esc(BUSINESS.phone)}</b></p></header>`;
   SA.rentalInvoiceRows=materialRows;
   SA.rentalInvoiceDate=dateLabel;
   renderPrintInvoice=async function(no,mode='invoice',selectedIndex){

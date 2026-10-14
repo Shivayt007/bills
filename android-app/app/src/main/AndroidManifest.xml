@@ -10,7 +10,9 @@
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@drawable/ic_launcher"
         android:label="S.A Traders"
+        android:roundIcon="@drawable/ic_launcher"
         android:hardwareAccelerated="true"
         android:theme="@style/Theme.SATraders"
         android:usesCleartextTraffic="false">
