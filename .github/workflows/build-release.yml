@@ -70,32 +70,38 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew --no-daemon assembleRelease bundleRelease
+        run: ./gradlew --no-daemon assembleWebsiteRelease bundleFullRelease
 
       - name: Verify APK signature and record checksum
         run: |
-          APK=android-app/app/build/outputs/apk/release/app-release.apk
+          APK=android-app/app/build/outputs/apk/website/release/app-website-release.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | sed -n '1p'
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK"
-          cd android-app/app/build/outputs/apk/release
-          sha256sum app-release.apk > app-release.apk.sha256
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > "$RUNNER_TEMP/website-manifest.txt"
+          if grep -Eq 'BIND_NOTIFICATION_LISTENER_SERVICE|NotificationListenerService|PaymentNotificationService|READ_SMS|RECEIVE_SMS|BIND_ACCESSIBILITY_SERVICE' "$RUNNER_TEMP/website-manifest.txt"; then
+            echo 'Website APK contains unexpected sensitive access'
+            exit 1
+          fi
+          echo 'Verified: website APK has no notification listener, SMS reader, or accessibility service'
+          cd android-app/app/build/outputs/apk/website/release
+          sha256sum app-website-release.apk > app-website-release.apk.sha256
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: S-A-Traders-release-APK
+          name: S-A-Traders-v1.8.1-website-APK
           path: |
-            android-app/app/build/outputs/apk/release/app-release.apk
-            android-app/app/build/outputs/apk/release/app-release.apk.sha256
+            android-app/app/build/outputs/apk/website/release/app-website-release.apk
+            android-app/app/build/outputs/apk/website/release/app-website-release.apk.sha256
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload Play bundle
         uses: actions/upload-artifact@v4
         with:
-          name: S-A-Traders-release-AAB
-          path: android-app/app/build/outputs/bundle/release/app-release.aab
+          name: S-A-Traders-v1.8.1-full-AAB
+          path: android-app/app/build/outputs/bundle/fullRelease/app-full-release.aab
           if-no-files-found: error
           retention-days: 30
 
@@ -103,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: S-A-Traders-release-mapping
-          path: android-app/app/build/outputs/mapping/release/mapping.txt
+          path: android-app/app/build/outputs/mapping/websiteRelease/mapping.txt
           if-no-files-found: error
           retention-days: 30
 

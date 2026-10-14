@@ -118,10 +118,11 @@ public class MainActivity extends Activity {
     private final class AndroidBridge {
         private final Context context;AndroidBridge(Context context){this.context=context;}
         @JavascriptInterface public String consumeNotificationRoute(){String route=pendingRoute;pendingRoute=null;return route==null?"":route;}
-        @JavascriptInterface public String paymentCandidates(){return PaymentNotificationService.readCandidates(context).toString();}
-        @JavascriptInterface public void dismissPaymentCandidate(String id){PaymentNotificationService.dismiss(context,id);}
-        @JavascriptInterface public boolean paymentAccessEnabled(){return androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(getPackageName());}
-        @JavascriptInterface public void openPaymentAccess(){runOnUiThread(()->new AlertDialog.Builder(MainActivity.this).setTitle("Payment detection")
+        @JavascriptInterface public boolean paymentDetectionAvailable(){return BuildConfig.PAYMENT_DETECTION_ENABLED;}
+        @JavascriptInterface public String paymentCandidates(){return BuildConfig.PAYMENT_DETECTION_ENABLED?PaymentNotificationService.readCandidates(context).toString():"[]";}
+        @JavascriptInterface public void dismissPaymentCandidate(String id){if(BuildConfig.PAYMENT_DETECTION_ENABLED)PaymentNotificationService.dismiss(context,id);}
+        @JavascriptInterface public boolean paymentAccessEnabled(){return BuildConfig.PAYMENT_DETECTION_ENABLED && androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(getPackageName());}
+        @JavascriptInterface public void openPaymentAccess(){if(!BuildConfig.PAYMENT_DETECTION_ENABLED)return;runOnUiThread(()->new AlertDialog.Builder(MainActivity.this).setTitle("Payment detection")
             .setMessage("Allow Notification Access in Android settings to detect incoming GPay, Paytm, PhonePe and bank payment alerts. Android grants broad notification access; S.A Traders processes only supported payment sources. Suggestions stay on this phone until you confirm a payment. Notification text is not bank verification.")
             .setPositiveButton("Open settings",(d,w)->{try{startActivity(new Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));}catch(Exception e){Toast.makeText(context,"Notification Access settings unavailable",Toast.LENGTH_LONG).show();}}).setNegativeButton("Cancel",null).show());}
         @JavascriptInterface public String reminderHistory(){return getSharedPreferences("billing_reminders",MODE_PRIVATE).getString("history","[]");}

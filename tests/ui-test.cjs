@@ -17,7 +17,7 @@ try{
   const keys={bills:'bill_no',customBills:'bill_no',customers:'mobile',inventory:'item',settings:'key',slips:'slip_no',challans:'challan_no'};
   window.__calls=[];window.__dismissed=false;
   const candidate={id:'test-detection',source:'Paytm',amount:100,reference:'123456789012',receivedAt:Date.now(),text:'Received ₹100 from Test Customer UPI Ref 123456789012'};
-  window.Android={syncBillReminders(){},reminderHistory:()=>JSON.stringify([{name:'Test Customer',date:today,text:'Bill #101 pending'}]),paymentCandidates:()=>JSON.stringify(window.__dismissed?[]:[candidate]),paymentAccessEnabled:()=>true,consumeNotificationRoute:()=>'',dismissPaymentCandidate:id=>{window.__dismissed=true},exportText:(...a)=>__calls.push(['export',...a]),shareText:(...a)=>__calls.push(['share',...a]),importBackup:()=>__calls.push(['import']),toast(){}};
+  window.Android={paymentDetectionAvailable:()=>true,syncBillReminders(){},reminderHistory:()=>JSON.stringify([{name:'Test Customer',date:today,text:'Bill #101 pending'}]),paymentCandidates:()=>JSON.stringify(window.__dismissed?[]:[candidate]),paymentAccessEnabled:()=>true,consumeNotificationRoute:()=>'',dismissPaymentCandidate:id=>{window.__dismissed=true},exportText:(...a)=>__calls.push(['export',...a]),shareText:(...a)=>__calls.push(['share',...a]),importBackup:()=>__calls.push(['import']),toast(){}};
   function reply(id,data){setTimeout(()=>window.__firebaseResult(id,true,btoa(unescape(encodeURIComponent(JSON.stringify(data))))),0)}
   window.FirebaseDB={all(id,store){reply(id,__records[store]||[])},get(id,store,key){reply(id,__records[store].find(r=>String(r[keys[store]])===String(key))||null)},put(id,store,key,json){const row=JSON.parse(json),index=__records[store].findIndex(r=>String(r[keys[store]])===String(key));if(index<0)__records[store].push(row);else __records[store][index]=row;reply(id,{})},batchPut(id,json){for(const op of JSON.parse(json)){const rows=__records[op.store],index=rows.findIndex(r=>String(r[keys[op.store]])===String(op.key));if(index<0)rows.push(op.document);else rows[index]=op.document}reply(id,{})}};
  });
@@ -41,6 +41,10 @@ try{
  await page.waitForFunction(()=>__calls.length===3);assert.deepEqual(await page.evaluate(()=>__calls.map(x=>x[0])),['export','share','import']);
  await page.evaluate(()=>SA.go('about'));await page.getByText('Developed by Shiva',{exact:true}).waitFor();assert.ok(!(await page.locator('body').innerText()).toLowerCase().includes('offline'));
  await page.setViewportSize({width:1280,height:900});await page.evaluate(()=>SA.go('notifications'));await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.evaluate(()=>{Android.paymentDetectionAvailable=()=>false;SA.renderNotifications()});
+ await page.waitForFunction(()=>!document.querySelector('#detectedItems'));
+ assert.equal(await page.getByRole('button',{name:/Enable payment detection|Manage payment detection/}).count(),0);
+ assert.equal(await page.locator('[data-category]').count(),3);
  assert.deepEqual(errors,[]);console.log('Mobile/desktop notification UI, payment confirmation, cloud save, backup bridge and About passed');
 }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});

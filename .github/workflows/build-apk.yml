@@ -69,12 +69,12 @@ jobs:
           node tests/ui-test.cjs
 
       - name: Build debug APK
-        run: gradle -p android-app assembleDebug --stacktrace
+        run: ./android-app/gradlew -p android-app assembleFullDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: S-A-Traders-Android-APK
-          path: android-app/app/build/outputs/apk/debug/app-debug.apk
+          path: android-app/app/build/outputs/apk/full/debug/app-full-debug.apk
           if-no-files-found: error
 

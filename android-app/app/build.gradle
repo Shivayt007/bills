@@ -11,8 +11,24 @@ android {
         applicationId 'com.satraders.billing'
         minSdk 26
         targetSdk 35
-        versionCode 14
-        versionName '1.8.0'
+        versionCode 15
+        versionName '1.8.1'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    flavorDimensions 'distribution'
+    productFlavors {
+        website {
+            dimension 'distribution'
+            buildConfigField 'boolean', 'PAYMENT_DETECTION_ENABLED', 'false'
+        }
+        full {
+            dimension 'distribution'
+            buildConfigField 'boolean', 'PAYMENT_DETECTION_ENABLED', 'true'
+        }
     }
 
     signingConfigs {
@@ -81,7 +97,7 @@ dependencies {
 
 // Fail before a release build rather than accidentally producing an unsigned APK.
 tasks.configureEach { task ->
-    if (task.name == 'preReleaseBuild') {
+    if (task.name.startsWith('pre') && task.name.endsWith('ReleaseBuild')) {
         task.doFirst {
             ['KEYSTORE_FILE', 'KEYSTORE_PASSWORD', 'KEY_ALIAS', 'KEY_PASSWORD'].each { name ->
                 if (!System.getenv(name)) {
