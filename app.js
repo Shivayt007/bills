@@ -233,7 +233,7 @@ async function renderHome(){
   </div></div></div>`, 'home');
 }
 async function renderAbout(){
-  shell(`<section class="brand-profile"><div class="brand-profile-logo">${brandLogo('about-brand-logo')}</div><h1>S.A Traders</h1><p>Scaffolding &amp; Centring Material Rental</p><div class="brand-profile-details"><div><span>Business address</span><strong>${esc(BUSINESS.address)}</strong></div><div><span>Phone</span><strong>${esc(BUSINESS.phone)}</strong></div><div><span>Signed in as</span><strong>${esc(currentUser?.username||'admin')} · ${esc(currentUser?.role||'Administrator')}</strong></div><div><span>App version</span><strong>1.7.1</strong></div></div></section>`,'');
+  shell(`<section class="brand-profile"><div class="brand-profile-logo">${brandLogo('about-brand-logo')}</div><h1>S.A Traders</h1><p>Scaffolding &amp; Centring Material Rental</p><div class="brand-profile-details"><div><span>Business address</span><strong>${esc(BUSINESS.address)}</strong></div><div><span>Phone</span><strong>${esc(BUSINESS.phone)}</strong></div><div><span>Signed in as</span><strong>${esc(currentUser?.username||'admin')} · ${esc(currentUser?.role||'Administrator')}</strong></div><div><span>App version</span><strong>1.7.2</strong></div></div></section>`,'');
 }
 
 // =========================================================
@@ -423,8 +423,30 @@ SA.quickPayment=async(billNo,isCustom=false)=>{
 };
 
 SA.deletePayment=async(billNo,pid)=>{ if(!roleGuard())return; const reason=promptValue('Reason for deleting this payment'); if(!reason)return; const b=await DB.get('bills',billNo); if(!b)return; const idx=(b.payments||[]).findIndex(p=>p.payment_id===pid); if(idx<0)return; const removed=b.payments.splice(idx,1)[0]; b.payment_audit=b.payment_audit||[]; b.payment_audit.push({action:'deleted',payment_id:pid,amount:removed.amount,payment_date:removed.payment_date,note:removed.note,deleted_by:currentUser.username,deleted_at:nowIso(),reason}); await DB.put('bills',b);toast('Payment deleted','warning');renderRoute(); };
-SA.closeBill=async billNo=>{ if(!roleGuard()||!confirmAction('Close this bill? Rental cycles will stop on today\'s date.'))return; const b=await DB.get('bills',billNo); if(!b)return;b.status='closed';b.closed_at=today();await DB.put('bills',b);toast('Bill closed');renderRoute(); };
-SA.deleteBill=async billNo=>{ if(!roleGuard()||!confirmAction(`Delete bill ${billNo}? This cannot be undone.`))return; await DB.del('bills',billNo);toast('Bill deleted','warning');SA.go('dashboard'); };
+SA.confirmBillAction=async(billNo,action)=>{
+  if(!roleGuard())return;
+  const deleting=action==='delete',verb=deleting?'Delete':'Close';
+  const warning=deleting?'This permanently removes the bill and cannot be undone.':'Rental cycles will stop on today\'s date.';
+  modal(`${verb} bill #${billNo}`,`<form id="billActionForm" class="bill-action-form"><p class="bill-action-warning">${esc(warning)}</p><label class="sa-label" for="billActionPassword">Admin password</label><input class="sa-input" id="billActionPassword" name="password" type="password" autocomplete="current-password" required><label class="bill-action-confirm"><input type="checkbox" name="confirmed" required><span>I confirm that I want to ${verb.toLowerCase()} bill #${esc(billNo)}.</span></label><div id="billActionError" class="payment-error" role="alert" hidden></div><div class="bill-action-buttons"><button class="sa-btn outline lg" type="button" onclick="SA.closeModal()">Cancel</button><button class="sa-btn ${deleting?'danger':'success'} lg" type="submit">${verb} Bill</button></div></form>`);
+  const form=$('#billActionForm'),error=$('#billActionError');
+  form.onsubmit=async ev=>{
+    ev.preventDefault();error.hidden=true;
+    if(!form.elements.confirmed.checked){error.textContent='Confirm the action before continuing.';error.hidden=false;return}
+    const submit=form.querySelector('[type=submit]');setBusy(submit,true,deleting?'Deleting…':'Closing…');
+    try{
+      await SAFirebase.login('admin',form.elements.password.value);
+      const bill=await DB.get('bills',billNo);
+      if(!bill)throw new Error('Bill not found. It may already have been deleted.');
+      if(deleting){await DB.del('bills',billNo)}else{bill.status='closed';bill.closed_at=today();bill.closed_by=currentUser.username;bill.closed_at_iso=nowIso();await DB.put('bills',bill)}
+      SA.closeModal();SA.syncReminders?.();toast(deleting?'Bill deleted':'Bill closed',deleting?'warning':'success');
+      if(deleting)SA.go('dashboard');else await renderRoute();
+    }catch(e){error.textContent=e.message==='Incorrect username or password'?'Incorrect admin password.':(e.message||`${verb} failed. Please retry.`);error.hidden=false}
+    finally{setBusy(submit,false)}
+  };
+  setTimeout(()=>$('#billActionPassword')?.focus(),50);
+};
+SA.closeBill=billNo=>SA.confirmBillAction(billNo,'close');
+SA.deleteBill=billNo=>SA.confirmBillAction(billNo,'delete');
 SA.deleteHistory=async(billNo,type,id)=>{if(!roleGuard()||!confirmAction('Delete this history entry?'))return;const b=await DB.get('bills',billNo);if(!b)return;const key=type==='return'?'return_history':'additional_history',idKey=type==='return'?'rid':'aid';b[key]=(b[key]||[]).filter(x=>x[idKey]!==id);await DB.put('bills',b);toast('Entry deleted','warning');renderRoute();};
 
 function modal(title,body){ const m=$('#modal'); m.innerHTML=`<div class="modal-card"><div class="modal-head"><div class="fw-800">${esc(title)}</div><button class="modal-close" onclick="SA.closeModal()">×</button></div><div class="modal-body">${body}</div></div>`;m.classList.add('show');}
