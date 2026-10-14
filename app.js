@@ -8,8 +8,8 @@ SA.cache=window.SADataCache;
 // =========================================================
 const BUSINESS = {
   name: 'S.A Traders',
-  address: 'Vijayanagar, Gandhi Street, Medavakkam, Chennai',
-  phone: '7904846694'
+  address: 'Vijayanagaram, Gandhi Street, Medavakkam, Chennai',
+  phone: '7904846694 / 9790894776'
 };
 const DEFAULT_RATES = {
   jackey_rate: 65, jackey9_rate: 100, sheet_rate: 35, half_sheet_rate: 30,
@@ -233,7 +233,7 @@ async function renderHome(){
   </div></div></div>`, 'home');
 }
 async function renderAbout(){
-  shell(`<section class="brand-profile"><div class="brand-profile-logo">${brandLogo('about-brand-logo')}</div><h1>S.A Traders</h1><p>Scaffolding &amp; Centring Material Rental</p><div class="brand-profile-details"><div><span>Business address</span><strong>${esc(BUSINESS.address)}</strong></div><div><span>Phone</span><strong>${esc(BUSINESS.phone)}</strong></div><div><span>Signed in as</span><strong>${esc(currentUser?.username||'admin')} · ${esc(currentUser?.role||'Administrator')}</strong></div><div><span>App version</span><strong>1.7.2</strong></div></div></section>`,'');
+  shell(`<section class="brand-profile"><div class="brand-profile-logo">${brandLogo('about-brand-logo')}</div><h1>S.A Traders</h1><p>Scaffolding &amp; Centring Material Rental</p><div class="brand-profile-details"><div><span>Business address</span><strong>${esc(BUSINESS.address)}</strong></div><div><span>Phone</span><strong>${esc(BUSINESS.phone)}</strong></div><div><span>Signed in as</span><strong>${esc(currentUser?.username||'admin')} · ${esc(currentUser?.role||'Administrator')}</strong></div><div><span>App version</span><strong>1.7.4</strong></div></div></section>`,'');
 }
 
 // =========================================================
@@ -557,7 +557,57 @@ SA.exportBackup=async()=>{const data=await fullBackup();exportText(`sa-traders-b
 SA.shareBackup=async()=>{const data=await fullBackup(),text=JSON.stringify(data,null,2);if(window.Android?.shareText)Android.shareText(`S.A Traders Backup ${today()}`,'application/json',text);else exportText(`sa-traders-backup-${today()}.json`,'application/json',text);};
 SA.importBackup=()=>{if(window.Android?.importBackup){Android.importBackup()}else{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=async()=>{try{const file=inp.files?.[0];if(!file)return;await restoreBackupText(await file.text())}catch(e){toast('Backup read failed: '+e.message,'danger')}finally{inp.remove()}};inp.hidden=true;document.body.appendChild(inp);inp.addEventListener('cancel',()=>inp.remove(),{once:true});inp.click();}};
 SA.receiveBackupBase64=async b64=>{try{const txt=decodeURIComponent(escape(atob(b64)));await restoreBackupText(txt)}catch(e){toast('Backup read failed: '+e.message,'danger')}};
-async function restoreBackupText(txt){try{const obj=JSON.parse(txt),data=obj.data||obj.stores;if(!data||typeof data!=='object'||Array.isArray(data)||!STORES.some(s=>Object.hasOwn(data,s)))throw new Error('Not an S.A Traders backup');for(const s of STORES){if(data[s]===undefined)continue;if(!Array.isArray(data[s]))throw new Error('Invalid backup collection: '+s);const keys=new Set();for(const row of data[s]){const key=String(row?.[FIREBASE_KEYS[s]]??'').trim();if(!row||typeof row!=='object'||!key||keys.has(key))throw new Error('Invalid or duplicate record in '+s);keys.add(key)}}if(!confirmAction('Replace Firebase business data with this backup?'))return;for(const s of STORES){if(!Object.hasOwn(data,s))continue;await DB.clear(s);for(const row of data[s])await DB.put(s,row)}await DB.loadAll(true);await seedDb();toast('Backup uploaded to Firebase');SA.go('dashboard')}catch(e){toast('Restore failed: '+e.message,'danger')}}
+function normalizeBackup(obj){
+  if(!obj||typeof obj!=='object'||Array.isArray(obj))throw new Error('Not an S.A Traders backup');
+  const source=obj.data??obj.stores??obj;
+  if(!source||typeof source!=='object'||Array.isArray(source))throw new Error('Not an S.A Traders backup');
+  const data={};
+  for(const store of STORES){
+    const alias=store==='customBills'?'customshop_bills':store;
+    if(Object.hasOwn(source,store))data[store]=structuredClone(source[store]);
+    else if(Object.hasOwn(source,alias))data[store]=structuredClone(source[alias]);
+  }
+  if(!Object.keys(data).length)throw new Error('Not an S.A Traders backup');
+  for(const [store,rows] of Object.entries(data)){
+    if(!Array.isArray(rows))throw new Error('Invalid backup collection: '+store);
+    const keys=new Set();
+    for(const row of rows){
+      const key=String(row?.[FIREBASE_KEYS[store]]??'').trim();
+      if(!row||typeof row!=='object'||Array.isArray(row)||!key||keys.has(key))throw new Error('Invalid or duplicate record in '+store);
+      keys.add(key);
+      if(store==='bills'||store==='customBills'){
+        for(const field of ['payments','return_history','additional_history']){
+          if(row[field]!==undefined&&!Array.isArray(row[field]))throw new Error('Invalid '+field+' in bill '+key);
+        }
+        for(const [index,payment] of (row.payments||[]).entries()){
+          if(!payment||typeof payment!=='object'||Array.isArray(payment))throw new Error('Invalid payment in bill '+key);
+          if(!payment.payment_id)payment.payment_id='legacy-'+encodeURIComponent(key)+'-'+(index+1);
+        }
+      }
+    }
+  }
+  // Old server-only credentials are not used by the Android app.
+  if(obj.app==='sa_traders_v2'&&data.settings)data.settings=data.settings.filter(row=>!['backup_email_from','backup_email_pass','backup_email_to','old_mongo_uri'].includes(row.key));
+  return data;
+}
+async function restoreBackupText(txt){
+  if(SA.restoringBackup){toast('A backup import is already running.','warning');return}
+  try{
+    const data=normalizeBackup(JSON.parse(String(txt).replace(/^\uFEFF/,'')));
+    const records=Object.values(data).reduce((total,rows)=>total+rows.length,0);
+    if(!confirmAction(`Import ${records} records and replace the matching Firebase collections with this backup?`))return;
+    SA.restoringBackup=true;toast('Importing backup…');
+    for(const [store,rows] of Object.entries(data)){
+      await DB.clear(store);
+      for(let offset=0;offset<rows.length;offset+=100){
+        await DB.batch(rows.slice(offset,offset+100).map(document=>({store,document})),{waitForServer:true});
+      }
+    }
+    await DB.loadAll(true);await seedDb();SA.syncReminders?.();
+    toast('Backup uploaded to Firebase');SA.go('dashboard');
+  }catch(e){toast('Restore failed: '+e.message,'danger')}
+  finally{SA.restoringBackup=false}
+}
 SA.resetData=async()=>{if(!roleGuard()||!confirmAction('Permanently delete ALL bills, customers, custom bills, slips and challans from Firebase?'))return;for(const s of ['bills','customers','customBills','slips','challans'])await DB.clear(s);toast('Firebase business data reset','warning');SA.go('dashboard');};
 function exportText(filename,mime,text){if(window.Android?.exportText)Android.exportText(filename,mime,text);else{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:mime}));a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}}
 
