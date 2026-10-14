@@ -3,7 +3,7 @@ name: Build S.A Traders Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, feature/sa-traders-v1.8.0 ]
     paths:
       - '.github/workflows/build-apk.yml'
       - 'android-app/**'
@@ -54,6 +54,19 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
+      - name: Verify reminders, backup compatibility and payment parsing
+        run: |
+          node tests/notifications-test.cjs
+          mkdir -p /tmp/sa-parser-test
+          javac -d /tmp/sa-parser-test android-app/app/src/main/java/com/satraders/billing/PaymentParser.java tests/payment-parser-test.java
+          java -cp /tmp/sa-parser-test PaymentParserTest
+
+      - name: Check mobile and desktop workflows
+        run: |
+          npm install --prefix /tmp/sa-ui playwright
+          /tmp/sa-ui/node_modules/.bin/playwright install --with-deps chromium
+          node tests/ui-test.cjs
 
       - name: Build debug APK
         run: gradle -p android-app assembleDebug --stacktrace

@@ -196,7 +196,7 @@ async function renderRoute(){
   const timer=`render.${page}`;console.time(timer);
   try{
     const routes={
-      login:renderLogin,home:renderHome,dashboard:renderDashboard,about:renderAbout,bills:renderBills,bill:()=>renderBill(p[1]),edit:()=>renderBillForm(p[1]),
+      login:renderLogin,home:renderHome,dashboard:renderDashboard,about:renderAbout,notifications:()=>SA.renderNotifications(),bills:renderBills,bill:()=>renderBill(p[1]),edit:()=>renderBillForm(p[1]),
       custom:renderCustomList,'custom-new':renderCustomForm,'custom-edit':()=>renderCustomForm(p[1]),'custom-view':()=>renderCustomView(p[1]),
       reports:renderReports,'payment-report':renderPaymentReport,'material-rent-report':renderMaterialRentReport,'customer-materials':()=>renderCustomerMaterials(p[1]),
       customers:renderCustomers,customer:()=>renderCustomer(p[1]),inventory:renderInventory,slips:renderSlips,'slip-new':()=>renderSlipForm(p[1]||'delivery'),'slip-view':()=>renderSlipView(p[1]),
@@ -233,7 +233,7 @@ async function renderHome(){
   </div></div></div>`, 'home');
 }
 async function renderAbout(){
-  shell(`<section class="brand-profile"><div class="brand-profile-logo">${brandLogo('about-brand-logo')}</div><h1>S.A Traders</h1><p>Scaffolding &amp; Centring Material Rental</p><div class="brand-profile-details"><div><span>Business address</span><strong>${esc(BUSINESS.address)}</strong></div><div><span>Phone</span><strong>${esc(BUSINESS.phone)}</strong></div><div><span>Signed in as</span><strong>${esc(currentUser?.username||'admin')} · ${esc(currentUser?.role||'Administrator')}</strong></div><div><span>App version</span><strong>1.7.4</strong></div></div></section>`,'');
+  shell(`<section class="brand-profile"><div class="brand-profile-logo">${brandLogo('about-brand-logo')}</div><h1>S.A Traders</h1><p>Scaffolding &amp; Centring Material Rental</p><div class="brand-profile-details"><div><span>Business address</span><strong>${esc(BUSINESS.address)}</strong></div><div><span>Phone</span><strong>${esc(BUSINESS.phone)}</strong></div><div><span>Signed in as</span><strong>${esc(currentUser?.username||'admin')} · ${esc(currentUser?.role||'Administrator')}</strong></div><div><span>App version</span><strong>1.8.0</strong></div><div><span>Developer</span><strong>Developed by Shiva</strong></div></div></section>`,'');
 }
 
 // =========================================================
@@ -347,9 +347,10 @@ async function renderBill(id){
 function historyRow(x,type,billNo){ const items=MATERIALS.filter(([k])=>nonneg(x.items?.[k])>0).map(([k,l])=>`${l}: ${nonneg(x.items[k])}`); const woods=WOODS.filter(([k])=>Object.keys(x.wood?.[k]||{}).length).map(([k,l])=>`${l}: ${mapToText(x.wood[k])}`); const del=isAdmin()?`<button class="sa-btn danger sm" onclick="SA.deleteHistory('${esc(billNo)}','${type}','${esc(x.rid||x.aid)}')">Delete</button>`:''; return `<div class="bill-card"><div class="bill-head"><div><div class="fw-800">${esc(x.date)} · Effective Cycle #${i(x.effective_from_cycle)}</div><div class="small muted">${esc(x.note||'')}</div></div>${del}</div><div class="pill-row mt-2">${[...items,...woods].map(z=>`<span class="sa-badge ${type==='return'?'pending':'open'}">${esc(z)}</span>`).join('')||'<span class="muted">No quantities</span>'}</div></div>`; }
 
 // In-app payment sheet. Uses the existing payment records and billing calculations.
-SA.quickPayment=async(billNo,isCustom=false)=>{
+SA.quickPayment=async(billNo,isCustom=false,suggestion=null)=>{
   if(!currentUser)return;
   try {
+    if(suggestion&&!confirmAction('Review this detected payment and verify the money was received before saving?'))return;
     const store=isCustom?'customBills':'bills';
     const raw=await DB.get(store,billNo);
     if(!raw){toast('Bill not found','danger');return}
@@ -371,6 +372,7 @@ SA.quickPayment=async(billNo,isCustom=false)=>{
       <div class="payment-submit"><button class="sa-btn gold lg w-100" type="submit">Save payment</button></div>
     </form>`);
     const m=$('#modal'),form=$('#paymentForm'),amount=$('#paymentAmount'),error=$('#paymentError');
+    if(suggestion){amount.value=Number(suggestion.amount).toFixed(2);form.elements.method.value=suggestion.source==='Bank'?'Bank':'UPI';form.elements.date.value=ymd(new Date(suggestion.receivedAt));form.elements.note.value=('Detected '+suggestion.source+(suggestion.reference?' · Ref '+suggestion.reference:'')).slice(0,500);}
     m.classList.add('payment-modal');m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-label','Record payment');
     $('#app').inert=true;
     SA.paymentOriginFocus=originFocus;
@@ -405,12 +407,18 @@ SA.quickPayment=async(billNo,isCustom=false)=>{
         const b=await DB.get(store,billNo);
         if(!b)throw new Error('This bill no longer exists.');
         b.payments=b.payments||[];
+        if(suggestion){
+          const known=[...(await DB.all('bills')),...(await DB.all('customBills'))].flatMap(x=>x.payments||[]);
+          if(known.some(p=>p.detected_payment_id===suggestion.id||(suggestion.reference&&p.transaction_reference===suggestion.reference)))throw new Error('This detected transaction is already recorded.');
+        }
         const duplicate=b.payments.some(p=>round2(p.amount)===round2(val)&&(p.payment_date||p.date)===date);
         if(duplicate&&!allowDuplicate){const problem=new Error('A payment with this date and amount already exists. Check below to record it again.');problem.duplicate=true;throw problem}
         const freshCycle=isCustom?null:hydrateBill(b).cycles.find(c=>c.index===cycleIndex);
         if(!isCustom&&(!freshCycle||freshCycle.start_date!==selectedCycle.start_date||freshCycle.end_date!==selectedCycle.end_date))throw new Error('The rental cycle changed. Reopen payment and choose its cycle again.');
-        b.payments.push({payment_id:uid('pay'),amount:round2(val),payment_date:date,note,method,...(freshCycle?{cycle_index:freshCycle.index,cycle_start_date:freshCycle.start_date,cycle_end_date:freshCycle.end_date}:{}),created_by:currentUser.username,created_at:nowIso()});
-        await DB.put(store,b);if(store==='bills')SA.syncReminders?.();
+        b.payments.push({payment_id:uid('pay'),amount:round2(val),payment_date:date,note,method,...(suggestion?{detected_payment_id:suggestion.id,transaction_reference:suggestion.reference||'',payment_source:suggestion.source}:{}),...(freshCycle?{cycle_index:freshCycle.index,cycle_start_date:freshCycle.start_date,cycle_end_date:freshCycle.end_date}:{}),created_by:currentUser.username,created_at:nowIso()});
+        if(suggestion)await DB.batch([{store,document:b}],{waitForServer:true});else await DB.put(store,b);
+        if(suggestion)window.Android?.dismissPaymentCandidate(suggestion.id);
+        if(store==='bills')SA.syncReminders?.();
         SA.paymentSaving=false;SA.closeModal();toast('Payment recorded');await renderRoute();
       } catch(e) {
         fail(e.message||'Payment could not be saved. Please retry.');
@@ -553,8 +561,8 @@ async function renderAdminUsers(){if(!roleGuard())return;shell(`${headerBlock('A
 async function renderAdminTerms(){if(!roleGuard())return;const terms=await setting('terms_invoice',DEFAULT_TERMS),rules=await setting('custom_rules',DEFAULT_CUSTOM_RULES),ct=await setting('custom_terms',DEFAULT_CUSTOM_TERMS);shell(`${headerBlock('Terms & Conditions','Printed invoice and custom bill terms')}<div class="sa-card"><div class="sa-card-body"><form id="termsForm"><div class="mb-3"><label class="sa-label">Invoice Terms</label><textarea class="sa-input" name="terms" rows="8">${esc(terms)}</textarea></div><div class="form-grid two"><div><label class="sa-label">Custom Bill Rules</label><textarea class="sa-input" name="rules" rows="8">${esc(rules)}</textarea></div><div><label class="sa-label">Custom Bill Terms</label><textarea class="sa-input" name="custom_terms" rows="8">${esc(ct)}</textarea></div></div><button class="sa-btn gold lg mt-3" type="submit">Save Terms</button></form></div></div>`,'admin');$('#termsForm').onsubmit=async ev=>{ev.preventDefault();const f=formObj(ev.target);await setSetting('terms_invoice',f.terms);await setSetting('custom_rules',f.rules);await setSetting('custom_terms',f.custom_terms);toast('Terms saved');};}
 async function fullBackup(){const data={schema:'sa-traders-firebase-v1',exported_at:nowIso(),business:BUSINESS,data:{}};for(const s of STORES)data.data[s]=await DB.all(s);return data;}
 async function renderAdminBackup(){if(!roleGuard())return;const counts={};for(const s of STORES)counts[s]=await DB.count(s);shell(`${headerBlock('Backup & Restore','Export Firebase data or import an older APK backup')}<div class="sa-alert info">Business data is stored in Firebase Firestore. JSON export gives you an additional portable backup.</div><div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Firestore Data</h3></div><div class="sa-card-body"><div class="summary-strip"><div class="summary-box"><div class="label">Bills</div><div class="value">${counts.bills}</div></div><div class="summary-box"><div class="label">Customers</div><div class="value">${counts.customers}</div></div><div class="summary-box"><div class="label">Custom Bills</div><div class="value">${counts.customBills}</div></div><div class="summary-box"><div class="label">Slips</div><div class="value">${counts.slips}</div></div></div></div></div><div class="quick-grid"><div class="quick-card"><h3>Download Backup</h3><p>Exports all Firestore bills, customers, payments, inventory, slips and settings as JSON.</p><div class="actions mt-3"><button class="sa-btn gold" onclick="SA.exportBackup()">Download JSON</button><button class="sa-btn outline" onclick="SA.shareBackup()">Share Backup</button></div></div><div class="quick-card"><h3>Import Existing Data</h3><p>Choose a backup from an older APK and upload its records to Firebase.</p><button class="sa-btn primary mt-3" onclick="SA.importBackup()">Choose Backup</button></div><div class="quick-card"><h3>Reset Firebase Data</h3><p>Permanently clears bills, customers, slips and custom bills from Firestore.</p><button class="sa-btn danger mt-3" onclick="SA.resetData()">Reset Data</button></div></div>`,'admin');}
-SA.exportBackup=async()=>{const data=await fullBackup();exportText(`sa-traders-backup-${today()}.json`,'application/json',JSON.stringify(data,null,2));};
-SA.shareBackup=async()=>{const data=await fullBackup(),text=JSON.stringify(data,null,2);if(window.Android?.shareText)Android.shareText(`S.A Traders Backup ${today()}`,'application/json',text);else exportText(`sa-traders-backup-${today()}.json`,'application/json',text);};
+SA.exportBackup=async()=>{try{const data=await fullBackup();exportText(`sa-traders-backup-${today()}.json`,'application/json',JSON.stringify(data,null,2))}catch(e){toast('Backup export failed: '+e.message,'danger')}};
+SA.shareBackup=async()=>{try{const data=await fullBackup(),text=JSON.stringify(data,null,2);if(window.Android?.shareText)Android.shareText(`S.A Traders Backup ${today()}`,'application/json',text);else exportText(`sa-traders-backup-${today()}.json`,'application/json',text)}catch(e){toast('Backup share failed: '+e.message,'danger')}};
 SA.importBackup=()=>{if(window.Android?.importBackup){Android.importBackup()}else{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.onchange=async()=>{try{const file=inp.files?.[0];if(!file)return;await restoreBackupText(await file.text())}catch(e){toast('Backup read failed: '+e.message,'danger')}finally{inp.remove()}};inp.hidden=true;document.body.appendChild(inp);inp.addEventListener('cancel',()=>inp.remove(),{once:true});inp.click();}};
 SA.receiveBackupBase64=async b64=>{try{const txt=decodeURIComponent(escape(atob(b64)));await restoreBackupText(txt)}catch(e){toast('Backup read failed: '+e.message,'danger')}};
 function normalizeBackup(obj){
