@@ -4,7 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 try{
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];
- page.on('pageerror',e=>errors.push(e.message));
+ page.on('pageerror',e=>{errors.push(e.message);console.error('Page error:',e.message)});
  await page.route('https://appassets.androidplatform.net/**',async route=>{
   const relative=new URL(route.request().url()).pathname.replace(/^\/assets\//,'');
   const file=path.join(process.cwd(),relative);if(!fs.existsSync(file)){await route.fulfill({status:404,body:''});return;}
@@ -23,7 +23,7 @@ try{
  });
  page.on('dialog',dialog=>dialog.accept());
  await page.goto('https://appassets.androidplatform.net/assets/index.html#/dashboard');
- await page.getByLabel('Notification history').first().click();
+ await page.locator('button[aria-label="Notification history"]:visible').first().click();
  await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();
  await page.locator('[data-category="today"]').click();assert.match(await page.locator('#reminderItems').innerText(),/Test Customer/);
  await page.locator('[data-category="upcoming"]').click();assert.match(await page.locator('#reminderItems').innerText(),/Upcoming Customer/);

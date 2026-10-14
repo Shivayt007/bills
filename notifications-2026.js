@@ -63,7 +63,7 @@
     const groups=categories(await reminderData()),items=candidates();
     let history=[];try{history=JSON.parse(window.Android?.reminderHistory?.()||'[]')}catch(e){}
     const labels={pending:'Pending / Overdue',today:'Due today',upcoming:'Upcoming · 7 days'};
-    shell(`<div class="ref-page-head"><div><button class="ux-icon-btn" onclick="SA.back()">‹</button><h1>Notifications</h1></div><button class="sa-btn outline" onclick="SA.openNotificationSettings()">Daily reminders</button></div>
+    shell(`<div class="ref-page-head notification-page-head"><div><button class="ux-icon-btn" onclick="SA.back()">‹</button><h1>Notifications</h1></div><button class="sa-btn outline" onclick="SA.openNotificationSettings()">Daily reminders</button></div>
       <div class="notification-tabs">${Object.entries(labels).map(([key,label])=>`<button class="notification-tab ${key}" data-category="${key}">${label}<strong>${groups[key].length}</strong></button>`).join('')}</div>
       <section id="reminderItems" class="notification-list"></section>
       <section class="ux-section"><h3>Detected payments · ${items.length}</h3><button class="sa-btn outline" onclick="window.Android?.openPaymentAccess()">${window.Android?.paymentAccessEnabled?.()?'Manage':'Enable'} payment detection</button><p class="reminder-note">GPay, Paytm, PhonePe and supported bank/message notifications. Verify receipt before saving.</p><div id="detectedItems"></div></section>
