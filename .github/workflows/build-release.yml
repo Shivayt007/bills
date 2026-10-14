@@ -46,6 +46,13 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x android-app/gradlew
 
+      - name: Verify reminders and payment parsing
+        run: |
+          node tests/notifications-test.cjs
+          mkdir -p "$RUNNER_TEMP/parser-test"
+          javac -d "$RUNNER_TEMP/parser-test" android-app/app/src/main/java/com/satraders/billing/PaymentParser.java tests/payment-parser-test.java
+          java -cp "$RUNNER_TEMP/parser-test" PaymentParserTest
+
       - name: Decode release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -69,6 +76,7 @@ jobs:
         run: |
           APK=android-app/app/build/outputs/apk/release/app-release.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | sed -n '1p'
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK"
           cd android-app/app/build/outputs/apk/release
           sha256sum app-release.apk > app-release.apk.sha256
