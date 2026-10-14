@@ -2,6 +2,7 @@ package com.satraders.billing;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.ClipData;
 import android.content.Context;
@@ -15,6 +16,7 @@ import android.print.PrintManager;
 import android.util.Base64;
 import android.view.View;
 import android.webkit.JavascriptInterface;
+import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -30,12 +32,16 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreSettings;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 
 public class MainActivity extends Activity {
     private static final String HOME = "https://appassets.androidplatform.net/assets/index.html";
     private static boolean firestoreConfigured;
     private WebView webView;
+    private static final int IMPORT_BACKUP = 1402;
+    private static final int MAX_BACKUP_BYTES = 20 * 1024 * 1024;
 
     private static synchronized void configureFirestore() {
         if (firestoreConfigured) return;
@@ -54,14 +60,50 @@ public class MainActivity extends Activity {
         WebSettings settings=webView.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);settings.setDatabaseEnabled(true);settings.setCacheMode(WebSettings.LOAD_DEFAULT);settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);settings.setSupportZoom(false);settings.setBuiltInZoomControls(false);settings.setDisplayZoomControls(false);settings.setMediaPlaybackRequiresUserGesture(true);
         WebViewAssetLoader loader=new WebViewAssetLoader.Builder().addPathHandler("/assets/",new WebViewAssetLoader.AssetsPathHandler(this)).build();
         webView.setWebViewClient(new WebViewClientCompat(){@Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view,android.webkit.WebResourceRequest request){return loader.shouldInterceptRequest(request.getUrl());}});
-        webView.setWebChromeClient(new WebChromeClient());webView.addJavascriptInterface(new AndroidBridge(this),"Android");webView.addJavascriptInterface(new FirebaseBridge(this,webView),"FirebaseDB");BillingReminderWorker.restoreSchedule(this);
+        webView.setWebChromeClient(new WebChromeClient(){
+            @Override public boolean onJsConfirm(WebView view,String url,String message,JsResult result){
+                new AlertDialog.Builder(MainActivity.this).setTitle("S.A Traders")
+                    .setMessage(message).setPositiveButton("Confirm",(dialog,which)->result.confirm())
+                    .setNegativeButton("Cancel",(dialog,which)->result.cancel())
+                    .setOnCancelListener(dialog->result.cancel()).show();
+                return true;
+            }
+        });webView.addJavascriptInterface(new AndroidBridge(this),"Android");webView.addJavascriptInterface(new FirebaseBridge(this,webView),"FirebaseDB");BillingReminderWorker.restoreSchedule(this);
         if(savedInstanceState==null)webView.loadUrl(HOME);else webView.restoreState(savedInstanceState);
+    }
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode!=IMPORT_BACKUP||resultCode!=RESULT_OK||data==null||data.getData()==null)return;
+        Uri uri=data.getData();
+        new Thread(()->{
+            try(InputStream input=getContentResolver().openInputStream(uri);
+                ByteArrayOutputStream output=new ByteArrayOutputStream()){
+                if(input==null)throw new IllegalArgumentException("Could not open this backup.");
+                byte[] buffer=new byte[8192];int count;
+                while((count=input.read(buffer))!=-1){
+                    if(output.size()+count>MAX_BACKUP_BYTES)throw new IllegalArgumentException("Backup exceeds the 20 MB limit.");
+                    output.write(buffer,0,count);
+                }
+                if(output.size()==0)throw new IllegalArgumentException("The selected backup is empty.");
+                String base64=Base64.encodeToString(output.toByteArray(),Base64.NO_WRAP);
+                runOnUiThread(()->{if(!isFinishing()&&!isDestroyed())webView.evaluateJavascript("SA.receiveBackupBase64('"+base64+"')",null);});
+            }catch(Exception error){runOnUiThread(()->Toast.makeText(this,"Backup read failed: "+error.getMessage(),Toast.LENGTH_LONG).show());}
+        },"backup-reader").start();
     }
     @Override protected void onSaveInstanceState(Bundle out){webView.saveState(out);super.onSaveInstanceState(out);}
     @Override public void onBackPressed(){if(webView==null){super.onBackPressed();return;}webView.evaluateJavascript("(function(){if(document.querySelector('#modal.show')){SA.closeModal();return true;}if(document.querySelector('#uxMenu.open')){SA.closeMenu();return true;}return false;})()",handled->{if(!"true".equals(handled)){if(webView.canGoBack())webView.goBack();else super.onBackPressed();}});}
 
     private final class AndroidBridge {
         private final Context context;AndroidBridge(Context context){this.context=context;}
+        @JavascriptInterface public void importBackup(){runOnUiThread(()->{
+            try{
+                Intent picker=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                picker.addCategory(Intent.CATEGORY_OPENABLE);
+                // JSON backups are often labelled text/plain or octet-stream by storage providers.
+                picker.setType("*/*");picker.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivityForResult(picker,IMPORT_BACKUP);
+            }catch(Exception error){Toast.makeText(context,"Could not open the file picker.",Toast.LENGTH_LONG).show();}
+        });}
         @JavascriptInterface public void toast(String message){runOnUiThread(()->Toast.makeText(context,message,Toast.LENGTH_SHORT).show());}
         @JavascriptInterface public void printPage(String jobName){runOnUiThread(()->{String name=jobName==null||jobName.trim().isEmpty()?"S.A Traders Invoice":jobName.trim();((PrintManager)getSystemService(Context.PRINT_SERVICE)).print(name,webView.createPrintDocumentAdapter(name),new PrintAttributes.Builder().build());});}
         private String normalizeIndianMobile(String mobile){if(mobile==null)return null;String value=mobile.replaceAll("\\D","");if(value.length()==10)value="91"+value;return value.length()==12&&value.startsWith("91")?value:null;}
