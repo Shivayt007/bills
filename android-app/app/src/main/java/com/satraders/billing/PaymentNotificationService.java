@@ -45,7 +45,7 @@ public class PaymentNotificationService extends NotificationListenerService {
         String body=String.valueOf(e.getCharSequence(Notification.EXTRA_BIG_TEXT,e.getCharSequence(Notification.EXTRA_TEXT,"")));
         String text=title+" "+body;if(text.length()>6000)return;
         // SMS support uses visible message notifications, not inbox access.
-        if(source.equals("SMS")&&!text.toLowerCase(Locale.ROOT).matches("(?s).*(?:\\bupi\\b|\\bacct\\b|\\ba/c\\b|\\baccount\\b).*(?:credited|received).*"))return;
+        if(source.equals("SMS")&&!text.toLowerCase(Locale.ROOT).matches("(?s)(?=.*(?:\\bupi\\b|\\bacct\\b|a/c|\\baccount\\b))(?=.*(?:credited|received)).*"))return;
         double amount=PaymentParser.amount(text);if(amount<=0)return;
         String reference=PaymentParser.reference(text);long now=System.currentTimeMillis();
         JSONObject candidate;
