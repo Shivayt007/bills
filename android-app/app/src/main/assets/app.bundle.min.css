@@ -79,3 +79,13 @@ input,textarea,[contenteditable="true"]{-webkit-user-select:text!important;user-
 @media(min-width:700px){.nt-hero{padding:32px 32px 60px}.nt-body{padding:0 28px}.nt-heading h1{font-size:28px}.nt-tabs{max-width:600px;margin-left:auto;margin-right:auto}.nt-filters{max-width:550px;margin:auto}.nt-card{padding:20px}.nt-customer>strong{font-size:18px}.nt-customer>span{font-size:13px}.nt-amount>strong{font-size:21px}.nt-actions{max-width:460px;margin-left:auto}.nt-tabs>button{font-size:15px}}
 @media(max-width:350px){.nt-body{padding:0 10px}.nt-hero{padding-left:14px;padding-right:14px}.nt-tabs>button{font-size:11px}.nt-tabs span{font-size:10px}.nt-filters{gap:4px}.nt-filters button{font-size:11px;padding:6px 3px}.nt-card{padding:13px 10px}.nt-avatar{width:36px;height:41px}.nt-card-top{gap:7px}.nt-amount>strong{font-size:15px}.nt-customer>strong{font-size:14px}}
 
+/* Override the shared narrow container only inside Notifications. */
+.nt-host .nt-page{width:100%!important;max-width:900px!important;margin-inline:auto!important}
+.nt-host .nt-page>.container{width:100%!important;max-width:none!important}
+.notification-screen,.notification-screen button{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.nt-tabs>button{font-size:12px;font-weight:600!important}
+.nt-filters button{white-space:nowrap;font-size:11px}
+.nt-actions button{font-size:11px;font-weight:600!important}
+.nt-actions button[data-whatsapp]{flex:1.25}
+@media(min-width:700px){.nt-tabs>button{font-size:15px}.nt-filters button{font-size:13px}.nt-actions button{font-size:13px}}
+

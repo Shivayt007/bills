@@ -32,6 +32,9 @@ try{
  await page.locator('[data-category="upcoming"]').click();assert.match(await page.locator('#reminderItems').innerText(),/Upcoming Customer/);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.screenshot({path:'/tmp/sa-notifications-mobile.png',fullPage:true});
+ await page.locator('[data-category="pending"]').click();
+ await page.screenshot({path:'/tmp/sa-notifications-overdue.png',fullPage:true});
+ assert.equal(await page.locator('.nt-actions button').evaluateAll(buttons=>buttons.every(b=>b.scrollWidth<=b.clientWidth)),true);
  await page.getByRole('tab',{name:'History',exact:true}).click();
  assert.match(await page.locator('#notificationHistory').innerText(),/Test Customer/);
  assert.equal(await page.locator('#nt-reminders').isVisible(),false);
@@ -51,6 +54,7 @@ try{
  await page.getByRole('tab',{name:/Reminders/}).click();
  await page.locator('[data-category="pending"]').click();
  await page.screenshot({path:'/tmp/sa-notifications-desktop.png',fullPage:true});
+ assert.ok(await page.locator('.notification-screen').evaluate(el=>el.getBoundingClientRect().width)>700);
  await page.setViewportSize({width:320,height:740});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.getByRole('tab',{name:/Payments/}).click();
