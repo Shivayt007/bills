@@ -80,6 +80,7 @@ input,textarea,[contenteditable="true"]{-webkit-user-select:text!important;user-
 @media(max-width:350px){.nt-body{padding:0 10px}.nt-hero{padding-left:14px;padding-right:14px}.nt-tabs>button{font-size:11px}.nt-tabs span{font-size:10px}.nt-filters{gap:4px}.nt-filters button{font-size:11px;padding:6px 3px}.nt-card{padding:13px 10px}.nt-avatar{width:36px;height:41px}.nt-card-top{gap:7px}.nt-amount>strong{font-size:15px}.nt-customer>strong{font-size:14px}}
 
 /* Override the shared narrow container only inside Notifications. */
+#app.nt-host{max-width:900px}
 .nt-host .nt-page{width:100%!important;max-width:900px!important;margin-inline:auto!important}
 .nt-host .nt-page>.container{width:100%!important;max-width:none!important}
 .notification-screen,.notification-screen button{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
