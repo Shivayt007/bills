@@ -25,10 +25,17 @@ try{
  await page.goto('https://appassets.androidplatform.net/assets/index.html#/dashboard');
  await page.locator('button[aria-label="Notification history"]:visible').first().click();
  await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();
+ assert.equal(await page.locator('[data-category]').count(),3);
+ assert.match(await page.locator('#reminderItems').innerText(),/Upcoming Customer/);
+ assert.ok(!(await page.locator('#reminderItems').innerText()).includes('Test Customer'));
  await page.locator('[data-category="today"]').click();assert.match(await page.locator('#reminderItems').innerText(),/Test Customer/);
  await page.locator('[data-category="upcoming"]').click();assert.match(await page.locator('#reminderItems').innerText(),/Upcoming Customer/);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.screenshot({path:'/tmp/sa-notifications-mobile.png',fullPage:true});
+ await page.getByRole('tab',{name:'History',exact:true}).click();
+ assert.match(await page.locator('#notificationHistory').innerText(),/Test Customer/);
+ assert.equal(await page.locator('#nt-reminders').isVisible(),false);
+ await page.getByRole('tab',{name:/Payments/}).click();
  await page.getByRole('button',{name:'Choose bill',exact:true}).click();
  await page.locator('#detectedSearch').fill('101');await page.locator('#detectedBills button').click();
  await page.locator('#paymentAmount').waitFor();assert.equal(await page.locator('#paymentAmount').inputValue(),'100.00');
@@ -41,10 +48,27 @@ try{
  await page.waitForFunction(()=>__calls.length===3);assert.deepEqual(await page.evaluate(()=>__calls.map(x=>x[0])),['export','share','import']);
  await page.evaluate(()=>SA.go('about'));await page.getByText('Developed by Shiva',{exact:true}).waitFor();assert.ok(!(await page.locator('body').innerText()).toLowerCase().includes('offline'));
  await page.setViewportSize({width:1280,height:900});await page.evaluate(()=>SA.go('notifications'));await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.getByRole('tab',{name:/Reminders/}).click();
+ await page.locator('[data-category="pending"]').click();
+ await page.screenshot({path:'/tmp/sa-notifications-desktop.png',fullPage:true});
+ await page.setViewportSize({width:320,height:740});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.getByRole('tab',{name:/Payments/}).click();
+ await page.getByRole('tab',{name:/History/}).click();
+ await page.getByRole('tab',{name:/Reminders/}).click();
+ await page.getByRole('tab',{name:/Reminders/}).press('ArrowRight');
+ assert.equal(await page.getByRole('tab',{name:/Payments/}).getAttribute('aria-selected'),'true');
  await page.evaluate(()=>{Android.paymentDetectionAvailable=()=>false;SA.renderNotifications()});
  await page.waitForFunction(()=>!document.querySelector('#detectedItems'));
  assert.equal(await page.getByRole('button',{name:/Enable payment detection|Manage payment detection/}).count(),0);
  assert.equal(await page.locator('[data-category]').count(),3);
+ assert.equal(await page.getByRole('tab',{name:/Payments/}).count(),0);
+ assert.equal(await page.locator('#nt-reminders').isVisible(),true);
+ await page.evaluate(()=>SA.go('bills'));
+ await page.getByRole('heading',{name:'Bills',exact:true}).waitFor();
+ assert.equal(await page.locator('#app').evaluate(el=>el.classList.contains('nt-host')),false);
+ assert.equal(await page.locator('.ux-topbar').isVisible(),true);
  assert.deepEqual(errors,[]);console.log('Mobile/desktop notification UI, payment confirmation, cloud save, backup bridge and About passed');
 }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});
+

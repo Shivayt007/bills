@@ -53,6 +53,23 @@ jobs:
           javac -d "$RUNNER_TEMP/parser-test" android-app/app/src/main/java/com/satraders/billing/PaymentParser.java tests/payment-parser-test.java
           java -cp "$RUNNER_TEMP/parser-test" PaymentParserTest
 
+      - name: Verify notification UI on mobile and desktop
+        env:
+          SA_PLAYWRIGHT: ${{ runner.temp }}/sa-ui/node_modules/playwright
+        run: |
+          npm install --prefix "$RUNNER_TEMP/sa-ui" playwright@1.62.1
+          "$RUNNER_TEMP/sa-ui/node_modules/.bin/playwright" install --with-deps chromium
+          node tests/ui-test.cjs
+
+      - name: Upload notification UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-ui-previews
+          path: /tmp/sa-notifications-*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Decode release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -140,3 +157,4 @@ jobs:
       - name: Remove release keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/satraders-release.jks"
+

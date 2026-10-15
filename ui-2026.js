@@ -12,6 +12,7 @@
     return `<nav class="ux-bottom no-print"><button class="${active==='home'?'active':''}" onclick="SA.go('dashboard')"><b>${glyph.home}</b>Home</button><button class="${active==='bills'?'active':''}" onclick="SA.go('bills')"><b>${glyph.bills}</b>Bills</button><button class="plus" onclick="SA.go('edit/new')">+</button><button class="${active==='reports'?'active':''}" onclick="SA.go('reports')"><b>${glyph.reports}</b>Reports</button><button onclick="SA.openMenu()"><b>${glyph.more}</b>More</button></nav>`;
   }
   shell=function(html,active='home'){
+    $('#app').classList.remove('nt-host');
     const mapped=active==='dashboard'?'home':active;
     $('#app').innerHTML=topbar()+`<main class="page"><div class="container">${html}</div></main>`+bottom(mapped);
     window.scrollTo(0,0);
@@ -81,4 +82,5 @@
     <div class="ux-paybar no-print"><button class="pay" onclick="SA.quickPayment('${esc(b.bill_no)}',false)">▤ &nbsp; Record Payment</button><button class="more" onclick="SA.openMenu()">•••</button></div>`, 'bills');
   };
 })();
+
 
