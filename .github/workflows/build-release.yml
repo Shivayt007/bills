@@ -70,7 +70,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew --no-daemon assembleWebsiteRelease bundleFullRelease
+        run: ./gradlew --no-daemon assembleWebsiteRelease assembleFullRelease bundleFullRelease
 
       - name: Verify APK signature and record checksum
         run: |
@@ -90,17 +90,39 @@ jobs:
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: S-A-Traders-v1.8.1-website-APK
+          name: S-A-Traders-v1.8.0-website-APK
           path: |
             android-app/app/build/outputs/apk/website/release/app-website-release.apk
             android-app/app/build/outputs/apk/website/release/app-website-release.apk.sha256
           if-no-files-found: error
           retention-days: 30
 
+      - name: Verify full APK signature and payment detection service
+        run: |
+          APK=android-app/app/build/outputs/apk/full/release/app-full-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | sed -n '1p'
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml > "$RUNNER_TEMP/full-manifest.txt"
+          grep -q 'BIND_NOTIFICATION_LISTENER_SERVICE' "$RUNNER_TEMP/full-manifest.txt"
+          grep -q 'PaymentNotificationService' "$RUNNER_TEMP/full-manifest.txt"
+          echo 'Verified: full APK retains payment notification access'
+          cd android-app/app/build/outputs/apk/full/release
+          sha256sum app-full-release.apk > app-full-release.apk.sha256
+
+      - name: Upload full release APK with payment detection
+        uses: actions/upload-artifact@v4
+        with:
+          name: S-A-Traders-v1.8.0-full-APK
+          path: |
+            android-app/app/build/outputs/apk/full/release/app-full-release.apk
+            android-app/app/build/outputs/apk/full/release/app-full-release.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload Play bundle
         uses: actions/upload-artifact@v4
         with:
-          name: S-A-Traders-v1.8.1-full-AAB
+          name: S-A-Traders-v1.8.0-full-AAB
           path: android-app/app/build/outputs/bundle/fullRelease/app-full-release.aab
           if-no-files-found: error
           retention-days: 30
@@ -109,7 +131,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: S-A-Traders-release-mapping
-          path: android-app/app/build/outputs/mapping/websiteRelease/mapping.txt
+          path: |
+            android-app/app/build/outputs/mapping/websiteRelease/mapping.txt
+            android-app/app/build/outputs/mapping/fullRelease/mapping.txt
           if-no-files-found: error
           retention-days: 30
 
