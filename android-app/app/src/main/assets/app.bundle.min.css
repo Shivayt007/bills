@@ -115,3 +115,10 @@ input,textarea,[contenteditable="true"]{-webkit-user-select:text!important;user-
 .cycle-unassigned span{font-size:11px;line-height:1.5;font-weight:500!important}
 @media(max-width:350px){#billUxTabs button{font-size:10px}.rental-bill-summary .due{font-size:30px!important}.rental-bill-summary .ux-summary-top{gap:8px}.rental-bill-summary .ux-summary-top>div:first-child{padding:10px}.rental-bill-summary .cycle{font-size:11px}}
 
+/* Give the pending balance a full row so currency never breaks into narrow columns. */
+.rental-bill-summary .ux-summary-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rental-bill-summary .ux-summary-stats>div:first-child{grid-row:1;grid-column:1}
+.rental-bill-summary .ux-summary-stats>div:nth-child(3){grid-row:1;grid-column:2}
+.rental-bill-summary .ux-summary-stats>div:nth-child(2){grid-row:2;grid-column:1/-1;padding:10px 12px;background:#fff0ec;border:1px solid #f0cec6;border-radius:13px}
+.rental-bill-summary .ux-summary-stats .pending{font-size:clamp(25px,7.6vw,32px)!important;padding:0;background:transparent;white-space:nowrap;letter-spacing:-.5px}
+

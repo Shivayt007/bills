@@ -94,6 +94,7 @@ try{
  assert.match(await page.locator('.cycle-unassigned').innerText(),/40\.00/);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  assert.ok(await page.locator('.rental-bill-summary .due').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))>=30);
+ assert.equal(await page.locator('.rental-bill-summary .pending').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
  await page.setViewportSize({width:390,height:844});
  await page.screenshot({path:'/tmp/sa-notifications-rental-cycle.png',fullPage:true});
  await page.locator('.rental-cycle-scroll').evaluate(el=>el.scrollLeft=el.scrollWidth);
