@@ -32,29 +32,34 @@
     return `<div class="ux-bill-card" onclick="SA.go('${route}')"><div class="ux-bill-row"><div class="ux-avatar">${initial(b.name)}</div><div class="ux-bill-main"><strong>${esc(b.name||'Unnamed')}</strong><small>Bill #${esc(b.bill_no)} · ${esc(b.mobile||'-')} · ${esc(b.place||'-')}</small></div><div class="ux-bill-money">${money(due)}<small>due</small></div></div><div class="ux-progress"><i style="width:${progress}%"></i></div><div class="ux-bill-foot"><span>${money(paid)} paid · ${money(pending)} left</span><span class="ux-pill">${esc((b.status||'open').replace(/^./,x=>x.toUpperCase()))}${!isCustom&&b.current_cycle_index?` · Cycle #${i(b.current_cycle_index)}`:''}</span></div></div>`;
   }
 
+  SA.pendingCard=(amount,count)=>'<button class="home-pending-card" onclick="SA.openPendingBills()"><span><small>Payment pending</small><strong>'+money(amount)+'</strong><em>'+count+' unpaid bill'+(count===1?'':'s')+'</em></span><b aria-hidden="true">→</b></button>';
+  SA.openPendingBills=()=>{SA.dashboardPending=true;if(routeParts()[0]==='dashboard')renderDashboard();else SA.go('dashboard')};
   renderDashboard=async function(){
     const bills=await allHydratedBills();
     const custom=(await DB.all('customBills')).filter(x=>x.dashboard_visible).map(x=>({bill:hydrateCustom(x).bill,isCustom:true}));
     const wrapped=[...bills.map(b=>({bill:b,isCustom:false})),...custom];
     const active=wrapped.filter(x=>x.bill.status!=='closed');
     const due=sum(active.map(x=>n(x.bill.total_due))),paid=sum(active.map(x=>n(x.bill.total_paid))),pending=sum(active.map(x=>n(x.bill.pending)));
+    const unpaid=active.filter(x=>n(x.bill.pending)>0),initialFilter=SA.dashboardPending?'pending':'open';SA.dashboardPending=false;
     const progress=pct(paid,due);
     shell(`<div class="ux-dashboard-head"><div class="ux-shop">${brandLogo('dashboard-brand-logo')}<div><strong>S.A Traders</strong></div></div><div class="notification-top-actions"><button class="ux-icon-btn" aria-label="Notification history" onclick="SA.go('notifications')">${SA.bellIcon()}</button><button class="ux-icon-btn" onclick="document.getElementById('dashSearch')?.focus()">${glyph.search}</button></div></div>
     <section class="ux-hero"><div class="ux-hero-grid"><div><div class="label">Total due</div><div class="amount">${money(due)}</div></div><div class="ux-ring">${progress}%</div></div><div class="ux-hero-stats"><div><span>Paid</span><strong>${money(paid)}</strong></div><div><span>Pending</span><strong>${money(pending)}</strong></div><div><span>Active bills</span><strong>${active.length}</strong></div></div></section>
+    ${SA.pendingCard(pending,unpaid.length)}
     <div class="ux-quick"><button onclick="SA.go('edit/new')"><span class="ico">▧</span>New Bill</button><button onclick="SA.go('customers')"><span class="ico">♙</span>Customers</button><button onclick="SA.go('reports')"><span class="ico">⌁</span>Reports</button><button onclick="SA.go('inventory')"><span class="ico">◇</span>Inventory</button></div>
-    <div class="ux-tabs" id="dashTabs"><button class="active" data-f="open">Open · ${active.length}</button><button data-f="closed">Closed</button><button data-f="all">All</button></div>
+    <div class="ux-tabs" id="dashTabs"><button class="${initialFilter==='open'?'active':''}" data-f="open">Open · ${active.length}</button><button class="${initialFilter==='pending'?'active':''}" data-f="pending">Pending · ${unpaid.length}</button><button data-f="closed">Closed</button><button data-f="all">All</button></div>
     <input id="dashSearch" class="sa-input mb-3" placeholder="Search bill / customer / mobile" style="width:100%">
     <div class="ux-bill-list" id="uxBillList"></div>`, 'home');
     const search=$('#dashSearch'),tabs=[...document.querySelectorAll('#dashTabs button')];let visible=20;
     async function refresh(filter){
       const q=(search.value||'').toLowerCase().trim();
-      let arr=wrapped.filter(x=>filter==='all'||(filter==='open'?x.bill.status!=='closed':x.bill.status==='closed'));
+      let arr=wrapped.filter(x=>filter==='all'||(filter==='pending'?x.bill.status!=='closed'&&n(x.bill.pending)>0:filter==='open'?x.bill.status!=='closed':x.bill.status==='closed'));
+      if(filter==='pending')arr.sort((a,b)=>n(b.bill.pending)-n(a.bill.pending));
       if(q) arr=arr.filter(x=>`${x.bill.bill_no} ${x.bill.name} ${x.bill.mobile} ${x.bill.place}`.toLowerCase().includes(q));
       $('#uxBillList').innerHTML=(arr.length?arr.slice(0,visible).map(x=>dashCard(x.bill,x.isCustom)).join(''):`<div class="empty">No matching bills.</div>`)+(visible<arr.length?'<div class="load-more-wrap"><button class="sa-btn outline" id="dashMore">Load more</button></div>':'');
       $('#dashMore')?.addEventListener('click',()=>{visible+=20;refresh(filter)});
     }
     tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));t.classList.add('active');visible=20;refresh(t.dataset.f)});
-    search.oninput=()=>{visible=20;refresh(document.querySelector('#dashTabs .active')?.dataset.f||'open')};refresh('open');
+    search.oninput=()=>{visible=20;refresh(document.querySelector('#dashTabs .active')?.dataset.f||'open')};refresh(initialFilter);
   };
 
   function woodMatrix(b){

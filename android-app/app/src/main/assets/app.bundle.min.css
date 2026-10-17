@@ -122,3 +122,19 @@ input,textarea,[contenteditable="true"]{-webkit-user-select:text!important;user-
 .rental-bill-summary .ux-summary-stats>div:nth-child(2){grid-row:2;grid-column:1/-1;padding:10px 12px;background:#fff0ec;border:1px solid #f0cec6;border-radius:13px}
 .rental-bill-summary .ux-summary-stats .pending{font-size:clamp(25px,7.6vw,32px)!important;padding:0;background:transparent;white-space:nowrap;letter-spacing:-.5px}
 
+/* Payment corrections and a direct route to unpaid bills. */
+.home-pending-card{display:flex;align-items:center;justify-content:space-between;width:100%;padding:18px 20px;margin:16px 0;border:1px solid #f0c7bd;border-radius:22px;background:linear-gradient(120deg,#fff4ee,#ffe6de);color:#973723;text-align:left;cursor:pointer;gap:12px}
+.home-pending-card>span{display:grid;gap:3px;min-width:0}
+.home-pending-card small{font-size:13px;color:#974531}
+.home-pending-card strong{font-size:clamp(26px,8vw,36px);line-height:1.2;letter-spacing:-.7px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.home-pending-card em{font-size:11px;color:#9a6250}
+.home-pending-card>b{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:50%;background:#fff8;color:#9b392a;font-size:24px}
+#dashTabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}
+#dashTabs button{min-width:0;white-space:normal;padding:10px 4px;font-size:11px}
+.payment-history-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--app-border)}
+.payment-history-main{min-width:0;flex:1;overflow-wrap:anywhere}
+.payment-history-main small{display:block;font-size:11px;color:var(--app-muted);margin-top:4px}
+.payment-history-value{display:grid;justify-items:end;gap:7px;max-width:48%;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.payment-delete-button{border:1px solid #edc4bc;border-radius:13px;background:#fff0ec;color:#a1372c;min-height:40px;padding:8px 14px;font-size:12px;cursor:pointer}
+.home-pending-card:focus-visible,.payment-delete-button:focus-visible{outline:3px solid #1684d6;outline-offset:3px}
+

@@ -105,6 +105,48 @@ try{
  assert.match(await page.locator('[data-pane="payments"]').innerText(),/Cycle #1/);
  await page.getByRole('button',{name:'Details',exact:true}).click();
  assert.match(await page.locator('[data-pane="details"]').innerText(),/Cycle Table Customer/);
+ // Password-protected payment correction: cancel and wrong password never write.
+ await page.getByRole('button',{name:'Payments',exact:true}).click();
+ await page.locator('.payment-delete-button').first().click();
+ await page.getByRole('button',{name:'Cancel',exact:true}).click();
+ assert.equal(await page.evaluate(()=>__records.bills.find(b=>b.bill_no==='103').payments.length),3);
+ await page.locator('.payment-delete-button').first().click();
+ await page.locator('#deletePaymentPassword').fill('wrong-password');
+ await page.locator('#deletePaymentReason').fill('Wrong amount entered');
+ await page.locator('#deletePaymentForm input[name="confirmed"]').check();
+ await page.getByRole('button',{name:'Delete payment',exact:true}).click();
+ await page.getByText('Incorrect admin password.',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>__records.bills.find(b=>b.bill_no==='103').payments.length),3);
+ await page.locator('#deletePaymentPassword').fill('shiva');
+ await page.getByRole('button',{name:'Delete payment',exact:true}).click();
+ await page.waitForFunction(()=>__records.bills.find(b=>b.bill_no==='103').payments.length===2);
+ await page.waitForFunction(()=>!document.querySelector('#deletePaymentForm'));
+ assert.equal(await page.evaluate(()=>__records.bills.find(b=>b.bill_no==='103').payment_audit[0].payment.amount),40);
+ assert.equal(await page.evaluate(()=>__records.bills.find(b=>b.bill_no==='103').payment_audit[0].reason),'Wrong amount entered');
+ await page.locator('.rental-bill-summary .pending').waitFor();
+ assert.match(await page.locator('.rental-bill-summary .pending').innerText(),/1,750\.00/);
+ // Dashboard card and Pending filter exclude settled bills.
+ await page.evaluate(async()=>{await DB.put('bills',{bill_no:'104',name:'Settled Customer',start_date:today(),cycle_days:30,jackey_qty:1,payments:[{payment_id:'settled',amount:65,payment_date:today()}],status:'open'});SA.go('dashboard')});
+ await page.locator('.home-pending-card').waitFor();
+ await page.waitForTimeout(300);
+ await page.locator('.home-pending-card').click();
+ await page.waitForFunction(()=>document.querySelector('#dashTabs [data-f="pending"]')?.classList.contains('active'));
+ assert.ok(!(await page.locator('#uxBillList').innerText()).includes('Settled Customer'));
+ assert.match(await page.locator('#uxBillList').innerText(),/Cycle Table Customer/);
+ await page.screenshot({path:'/tmp/sa-notifications-payment-pending.png',fullPage:true});
+ await page.evaluate(()=>SA.go('home'));await page.locator('.home-pending-card').waitFor();
+ await page.locator('.home-pending-card').click();
+ await page.waitForFunction(()=>document.querySelector('#dashTabs [data-f="pending"]')?.classList.contains('active'));
+ // Custom bill entries use the same password confirmation and audit.
+ await page.evaluate(async()=>{await DB.put('customBills',{bill_no:'C105',name:'Custom Payment Customer',start_date:today(),jackey_qty:1,payments:[{payment_id:'custom-pay',amount:20,payment_date:today()}]});SA.go('custom-view/C105')});
+ await page.locator('.payment-delete-button').waitFor();await page.waitForTimeout(300);
+ await page.locator('.payment-delete-button').click();
+ await page.locator('#deletePaymentPassword').fill('shiva');
+ await page.locator('#deletePaymentReason').fill('Duplicate custom payment');
+ await page.locator('#deletePaymentForm input[name="confirmed"]').check();
+ await page.getByRole('button',{name:'Delete payment',exact:true}).click();
+ await page.waitForFunction(()=>__records.customBills.find(b=>b.bill_no==='C105').payments.length===0);
+ assert.equal(await page.evaluate(()=>__records.customBills.find(b=>b.bill_no==='C105').payment_audit[0].payment.payment_id),'custom-pay');
  assert.deepEqual(errors,[]);console.log('Mobile/desktop notification UI, payment confirmation, cloud save, backup bridge and About passed');
 }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});
