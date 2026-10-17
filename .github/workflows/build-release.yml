@@ -49,6 +49,7 @@ jobs:
       - name: Verify reminders and payment parsing
         run: |
           node tests/notifications-test.cjs
+          node tests/rental-cycle-test.cjs
           mkdir -p "$RUNNER_TEMP/parser-test"
           javac -d "$RUNNER_TEMP/parser-test" android-app/app/src/main/java/com/satraders/billing/PaymentParser.java tests/payment-parser-test.java
           java -cp "$RUNNER_TEMP/parser-test" PaymentParserTest

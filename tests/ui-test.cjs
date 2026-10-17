@@ -72,6 +72,38 @@ try{
  await page.getByRole('heading',{name:'Bills',exact:true}).waitFor();
  assert.equal(await page.locator('#app').evaluate(el=>el.classList.contains('nt-host')),false);
  assert.equal(await page.locator('.ux-topbar').isVisible(),true);
+ // Rental cycle tab uses stored payment cycle identities and leaves legacy receipts unassigned.
+ await page.evaluate(async()=>{
+   const start=addDays(parseDate(today()),-61),second=addDays(start,30);
+   await DB.put('bills',{bill_no:'103',name:'Cycle Table Customer',mobile:'9000000003',start_date:ymd(start),cycle_days:30,jackey_qty:10,status:'open',payments:[
+     {amount:100,payment_date:today(),cycle_index:1,cycle_start_date:ymd(start),cycle_end_date:ymd(addDays(start,29))},
+     {amount:100,payment_date:today(),cycle_index:2,cycle_start_date:ymd(second),cycle_end_date:ymd(addDays(second,29))},
+     {amount:40,payment_date:today()}
+   ]});
+   SA.go('bill/103');
+ });
+ await page.locator('#billUxTabs').waitFor();
+ await page.waitForTimeout(300);
+ assert.equal(await page.locator('#billUxTabs button').count(),4);
+ await page.getByRole('button',{name:'Rental cycle',exact:true}).click();
+ await page.locator('.rental-cycle-table').waitFor({state:'visible'});
+ assert.equal(await page.locator('.rental-cycle-table tbody tr').count(),3);
+ const row=page.locator('.rental-cycle-table tbody tr').first();
+ assert.match(await row.locator('td').nth(3).innerText(),/100\.00/);
+ assert.match(await row.locator('td').nth(4).innerText(),/550\.00/);
+ assert.match(await page.locator('.cycle-unassigned').innerText(),/40\.00/);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ assert.ok(await page.locator('.rental-bill-summary .due').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))>=30);
+ await page.setViewportSize({width:390,height:844});
+ await page.screenshot({path:'/tmp/sa-notifications-rental-cycle.png',fullPage:true});
+ await page.locator('.rental-cycle-scroll').evaluate(el=>el.scrollLeft=el.scrollWidth);
+ await page.screenshot({path:'/tmp/sa-notifications-rental-payments.png',fullPage:true});
+ await page.getByRole('button',{name:'Materials',exact:true}).click();
+ assert.equal(await page.locator('[data-pane="materials"]').isVisible(),true);
+ await page.getByRole('button',{name:'Payments',exact:true}).click();
+ assert.match(await page.locator('[data-pane="payments"]').innerText(),/Cycle #1/);
+ await page.getByRole('button',{name:'Details',exact:true}).click();
+ assert.match(await page.locator('[data-pane="details"]').innerText(),/Cycle Table Customer/);
  assert.deepEqual(errors,[]);console.log('Mobile/desktop notification UI, payment confirmation, cloud save, backup bridge and About passed');
 }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});
