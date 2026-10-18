@@ -147,6 +147,89 @@ try{
  await page.getByRole('button',{name:'Delete payment',exact:true}).click();
  await page.waitForFunction(()=>__records.customBills.find(b=>b.bill_no==='C105').payments.length===0);
  assert.equal(await page.evaluate(()=>__records.customBills.find(b=>b.bill_no==='C105').payment_audit[0].payment.payment_id),'custom-pay');
+ // Atomic split receipt with two bills, three cycles and customer credit.
+ await page.waitForFunction(()=>!document.querySelector('#deletePaymentForm'));
+ await page.evaluate(async()=>{
+   const old=ymd(addDays(parseDate(today()),-35));
+   await DB.batch([
+    {store:'bills',document:{bill_no:'S201',name:'Split Customer',mobile:'9990000001',start_date:today(),cycle_days:30,jackey_qty:1,payments:[],status:'open'}},
+    {store:'bills',document:{bill_no:'S202',name:'Split Customer',mobile:'9990000001',start_date:old,cycle_days:30,jackey_qty:1,payments:[],status:'open'}}
+   ],{waitForServer:true});
+   window.__splitDone=false;window.__splitFailOnce=true;window.__splitCommits=0;
+   const candidate={id:'split-detection',reference:'SPLITREF123',source:'GPay',amount:150,receivedAt:Date.now(),text:'Received ₹150 from Split Customer'};
+   Android.paymentDetectionAvailable=()=>true;
+   Android.paymentCandidates=()=>JSON.stringify(__splitDone?[]:[candidate]);
+   Android.dismissPaymentCandidate=id=>{if(id==='split-detection')__splitDone=true};
+   FirebaseDB.guardedBatch=(id,json)=>{
+     const ops=JSON.parse(json);window.__lastSplitOps=structuredClone(ops);
+     const reply=(ok,data)=>setTimeout(()=>__firebaseResult(id,ok,btoa(unescape(encodeURIComponent(JSON.stringify(data))))),0);
+     if(__splitFailOnce){__splitFailOnce=false;reply(false,{message:'Simulated save failure'});return}
+     const keyFields={bills:'bill_no',customBills:'bill_no',customers:'mobile',settings:'key'};
+     const stable=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
+     for(const op of ops){const actual=__records[op.store].find(r=>String(r[keyFields[op.store]])===String(op.key))||null;if(stable(actual)!==stable(op.expected)){reply(false,{message:'Records changed or receipt already saved'});return}}
+     for(const op of ops){const rows=__records[op.store],idx=rows.findIndex(r=>String(r[keyFields[op.store]])===String(op.key));if(idx<0)rows.push(op.document);else rows[idx]=op.document}
+     __splitCommits++;reply(true,{written:ops.length});
+   };
+   SA.go('notifications');
+ });
+ await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();
+ await page.getByRole('tab',{name:/Payments/}).click();
+ await page.getByRole('button',{name:'Choose bill',exact:true}).click();
+ await page.getByRole('button',{name:'Split across bills',exact:true}).click();
+ await page.locator('#splitCustomerSearch').fill('9990000001');
+ await page.locator('#splitCustomers button').click();
+ await page.getByRole('button',{name:'Select all bills',exact:true}).click();
+ await page.locator('[aria-label="Allocate S201 cycle 1"]').fill('65');
+ await page.locator('[aria-label="Allocate S202 cycle 1"]').fill('60');
+ await page.locator('[aria-label="Allocate S202 cycle 2"]').fill('50');
+ await page.getByRole('button',{name:'Review split',exact:true}).click();
+ assert.match(await page.locator('#splitPaymentError').innerText(),/exceeds the received/);
+ await page.locator('[aria-label="Allocate S201 cycle 1"]').fill('50');
+ await page.locator('[aria-label="Allocate S202 cycle 1"]').fill('60');
+ await page.locator('[aria-label="Allocate S202 cycle 2"]').fill('20');
+ await page.locator('#splitKeepCredit').check();
+ await page.getByRole('button',{name:'Review split',exact:true}).click();
+ await page.locator('#splitReceiptConfirmed').check();
+ await page.screenshot({path:'/tmp/sa-notifications-split-payment.png',fullPage:true});
+ await page.getByRole('button',{name:'Confirm and save',exact:true}).click();
+ await page.getByText('Simulated save failure',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>__records.bills.find(b=>b.bill_no==='S201').payments.length),0);
+ assert.equal(await page.evaluate(()=>__splitDone),false);
+ await page.getByRole('button',{name:'Confirm and save',exact:true}).click();
+ await page.waitForFunction(()=>__splitDone);
+ assert.equal(await page.evaluate(()=>__splitCommits),1);
+ assert.equal(await page.evaluate(()=>__records.bills.find(b=>b.bill_no==='S201').payments[0].amount),50);
+ assert.equal(await page.evaluate(()=>__records.bills.find(b=>b.bill_no==='S202').payments.reduce((a,p)=>a+p.amount,0)),80);
+ assert.equal(await page.evaluate(()=>__records.customers.find(c=>c.mobile==='9990000001').payment_credit_balance),20);
+ assert.equal(await page.evaluate(()=>__records.settings.filter(s=>s.value?.kind==='split_payment_receipt').length),1);
+ const retry=await page.evaluate(async()=>{try{await DB.guardedBatch(__lastSplitOps);return 'saved twice'}catch(e){return e.message}});
+ assert.match(retry,/already saved|changed/);
+ assert.equal(await page.evaluate(()=>__splitCommits),1);
+ // Individual split payments open the complete receipt for password-confirmed correction.
+ await page.evaluate(()=>SA.go('bill/S201'));await page.locator('#billUxTabs').waitFor();
+ await page.getByRole('button',{name:'Payments',exact:true}).click();
+ await page.getByRole('button',{name:'Manage receipt',exact:true}).click();
+ await page.locator('#splitAdminPassword').fill('wrong');
+ await page.locator('#splitCorrectionReason').fill('Change bill allocation');
+ await page.getByRole('button',{name:'Correct split',exact:true}).click();
+ await page.getByText('Incorrect username or password',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>__splitCommits),1);
+ await page.locator('#splitAdminPassword').fill('shiva');
+ await page.getByRole('button',{name:'Correct split',exact:true}).click();
+ await page.locator('#splitCustomerSearch').fill('9990000001');
+ await page.locator('#splitCustomers button').click();
+ await page.getByRole('button',{name:'Select all bills',exact:true}).click();
+ await page.getByRole('button',{name:'Fill oldest dues first',exact:true}).click();
+ assert.equal(await page.locator('#splitRemaining').innerText(),'₹0.00');
+ await page.getByRole('button',{name:'Review split',exact:true}).click();
+ await page.locator('#splitReceiptConfirmed').check();
+ await page.getByRole('button',{name:'Confirm and save',exact:true}).click();
+ await page.waitForFunction(()=>__splitCommits===2);
+ assert.equal(await page.evaluate(()=>__records.customers.find(c=>c.mobile==='9990000001').payment_credit_balance),0);
+ assert.equal(await page.evaluate(()=>__records.settings.find(s=>s.value?.kind==='split_payment_receipt').value.version),2);
+ assert.equal(await page.evaluate(()=>__records.bills.find(b=>b.bill_no==='S202').payments.reduce((a,p)=>a+p.amount,0)),130);
+ assert.equal(await page.evaluate(()=>__records.bills.find(b=>b.bill_no==='S201').payments[0].amount),20);
+
  assert.deepEqual(errors,[]);console.log('Mobile/desktop notification UI, payment confirmation, cloud save, backup bridge and About passed');
 }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});

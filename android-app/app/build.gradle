@@ -11,7 +11,7 @@ android {
         applicationId 'com.satraders.billing'
         minSdk 26
         targetSdk 35
-        versionCode 19
+        versionCode 20
         versionName '1.8.0'
     }
 
@@ -69,6 +69,7 @@ def webAssetNames = [
         'next-cycle-2026.js',
         'invoice-share.js',
         'notifications-2026.js',
+        'split-payments.js',
         'app.bundle.min.css',
         'sa-traders-logo.jpg',
         'vendor/html2canvas.min.js'

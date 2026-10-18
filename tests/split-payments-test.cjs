@@ -1,0 +1,15 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const context={console,SA:{},window:{},document:{},localStorage:{getItem(){return null}}};
+vm.createContext(context);vm.runInContext(fs.readFileSync('split-payments.js','utf8'),context);
+const cents=context.SA.splitMoneyCents,validate=context.SA.validateSplit;
+assert.equal(cents('1.20'),120);assert.equal(cents(''),0);
+for(const s of ['-1','1.001','NaN','Infinity','1e3'])assert.throws(()=>cents(s));
+const rows=[{billKey:'A',capacity:30000,billPending:30000},{billKey:'B',capacity:40000,billPending:40000}];
+let result=validate('500',rows,['300','200'],false);assert.equal(result.allocated,50000);assert.equal(result.credit,0);
+result=validate('500',rows,['200','200'],true);assert.equal(result.credit,10000);
+assert.throws(()=>validate('500',rows,['200','200'],false));
+assert.throws(()=>validate('500',rows,['301','100'],true));
+assert.throws(()=>validate('500',rows,['300','300'],true));
+assert.throws(()=>validate('500',[{billKey:'A',capacity:30000,billPending:40000},{billKey:'A',capacity:30000,billPending:40000}],['300','200'],true));
+assert.equal(context.SA.splitReceiptKey({reference:' ABC 123 ',id:'1'}),context.SA.splitReceiptKey({reference:'abc123',id:'2'}));
+console.log('Split receipt: paise precision, selected amounts, bill/cycle limits, credit and reference deduplication passed');

@@ -409,6 +409,8 @@ SA.quickPayment=async(billNo,isCustom=false,suggestion=null)=>{
         if(!b)throw new Error('This bill no longer exists.');
         b.payments=b.payments||[];
         if(suggestion){
+          const receipt=await DB.get('settings',SA.splitReceiptKey(suggestion)),alias=await DB.get('settings','payment_receipt:id:'+suggestion.id);
+          if(receipt||alias)throw new Error('This transaction already has a saved receipt. Use Manage receipt to correct its split.');
           const known=[...(await DB.all('bills')),...(await DB.all('customBills'))].flatMap(x=>x.payments||[]);
           if(known.some(p=>p.detected_payment_id===suggestion.id||(suggestion.reference&&p.transaction_reference===suggestion.reference)))throw new Error('This detected transaction is already recorded.');
         }
@@ -434,7 +436,7 @@ SA.quickPayment=async(billNo,isCustom=false,suggestion=null)=>{
 SA.paymentHistoryHtml=(b,isCustom=false)=>(b.payments||[]).map((p,index)=>({p,index})).reverse().map(({p,index})=>{
   const token=encodeURIComponent(JSON.stringify({index,payment:p}));
   return '<div class="payment-history-row"><div class="payment-history-main"><span>'+esc(p.payment_date||p.date||'—')+'</span><small>'+esc([p.cycle_index?'Cycle #'+p.cycle_index:'Cycle not recorded',p.method,p.note].filter(Boolean).join(' · '))+'</small></div><div class="payment-history-value"><strong>'+money(p.amount)+'</strong>'+
-    (isAdmin()?'<button type="button" class="payment-delete-button" data-bill="'+esc(b.bill_no)+'" data-payment="'+esc(p.payment_id||'')+'" data-custom="'+isCustom+'" data-token="'+esc(token)+'" onclick="SA.deletePayment(this.dataset.bill,this.dataset.payment,this.dataset.custom===\'true\',this.dataset.token)" aria-label="Delete payment '+esc(money(p.amount))+'">Delete</button>':'')+'</div></div>';
+    (p.receipt_key?'<button type="button" class="sa-btn outline" data-receipt="'+esc(p.receipt_key)+'" onclick="SA.manageSplitReceipt(this.dataset.receipt)">Manage receipt</button>':isAdmin()?'<button type="button" class="payment-delete-button" data-bill="'+esc(b.bill_no)+'" data-payment="'+esc(p.payment_id||'')+'" data-custom="'+isCustom+'" data-token="'+esc(token)+'" onclick="SA.deletePayment(this.dataset.bill,this.dataset.payment,this.dataset.custom===\'true\',this.dataset.token)" aria-label="Delete payment '+esc(money(p.amount))+'">Delete</button>':'')+'</div></div>';
 }).join('')||'<div class="empty">No payments recorded.</div>';
 SA.deletePayment=async(billNo,pid,isCustom=false,token='')=>{
   if(!roleGuard())return;
@@ -446,6 +448,7 @@ SA.deletePayment=async(billNo,pid,isCustom=false,token='')=>{
   };
   const bill=await DB.get(store,billNo),index=bill?locate(bill):-1;
   if(index<0){toast('Payment changed or was already removed. Reopen the bill.','danger');return}
+  if(bill.payments[index].receipt_key){await SA.manageSplitReceipt(bill.payments[index].receipt_key);return}
   const original=JSON.stringify(bill.payments[index]),entry=bill.payments[index];
   modal('Delete payment', '<form id="deletePaymentForm" class="bill-action-form"><p class="bill-action-warning">Delete '+money(entry.amount)+' from bill #'+esc(billNo)+' dated '+esc(entry.payment_date||entry.date||'—')+'? The paid amount will decrease and the balance will be recalculated.</p><label class="sa-label" for="deletePaymentPassword">Admin password</label><input class="sa-input" id="deletePaymentPassword" name="password" type="password" autocomplete="current-password" required><label class="sa-label" for="deletePaymentReason">Reason</label><input class="sa-input" id="deletePaymentReason" name="reason" placeholder="Incorrect amount or duplicate entry" required maxlength="300"><label class="bill-action-confirm"><input type="checkbox" name="confirmed" required><span>I confirm deletion of this payment.</span></label><div id="deletePaymentError" class="payment-error" role="alert" hidden></div><div class="bill-action-buttons"><button class="sa-btn outline" type="button" onclick="SA.closeModal()">Cancel</button><button class="sa-btn danger" type="submit">Delete payment</button></div></form>');
   const form=$('#deletePaymentForm'),error=$('#deletePaymentError');let saving=false;

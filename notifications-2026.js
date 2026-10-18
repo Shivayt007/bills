@@ -57,7 +57,8 @@
     const rental=(await allHydratedBills()).map(b=>({...b,isCustom:false}));
     const custom=(await DB.all('customBills')).map(b=>({...hydrateCustom(b).bill,isCustom:true}));
     const bills=[...rental,...custom].filter(b=>b.status!=='closed');
-    modal('Assign detected payment',`<p><strong>${money(item.amount)} · ${esc(item.source)}</strong></p><p>${esc(item.text)}</p><label class="sa-label" for="detectedSearch">Search customer, mobile or bill</label><input class="sa-input w-100" id="detectedSearch" placeholder="Search customer / bill"><div id="detectedBills" class="detected-bill-list"></div>`);
+    modal('Assign detected payment',`<p><strong>${money(item.amount)} · ${esc(item.source)}</strong></p><p>${esc(item.text)}</p><button type="button" id="openSplitDetected" class="sa-btn primary w-100">Split across bills</button><label class="sa-label" for="detectedSearch">Search customer, mobile or bill</label><input class="sa-input w-100" id="detectedSearch" placeholder="Search customer / bill"><div id="detectedBills" class="detected-bill-list"></div>`);
+    $('#openSplitDetected').onclick=()=>SA.openSplitDetectedPayment(id);
     const draw=()=>{const q=$('#detectedSearch').value.toLowerCase(),found=bills.filter(b=>`${b.name} ${b.mobile} ${b.bill_no}`.toLowerCase().includes(q));$('#detectedBills').innerHTML=found.map((b,index)=>`<button class="sa-btn outline w-100" data-choice="${index}">${esc(b.name)} · ${b.isCustom?'Custom':'Bill'} #${esc(b.bill_no)} · ${money(b.pending)}</button>`).join('')||'<p>No matching open bills.</p>';$('#detectedBills').querySelectorAll('button').forEach(button=>button.onclick=()=>{const b=found[Number(button.dataset.choice)];SA.closeModal();SA.quickPayment(b.bill_no,b.isCustom,item)})};$('#detectedSearch').oninput=draw;draw();
   };
   let notificationTab='reminders',reminderCategory='pending';

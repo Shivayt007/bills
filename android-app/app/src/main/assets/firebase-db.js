@@ -29,6 +29,7 @@ window.SAFirebase=window.SACloud=(()=>{
   window.__firebaseStoreUpdate=(store,payload)=>{try{replace(store,decode(payload),'server');window.dispatchEvent(new CustomEvent('sa:store-update',{detail:{store}}))}catch(e){console.warn('Firebase cache update failed',e)}};
   const rawAll=async store=>{validateStore(store);const rows=await call('all',store);replace(store,rows,'load');return clone(cache[store])};
   const DB={
+    async guardedBatch(operations){const ops=operations.map(op=>{validateStore(op.store);return{...op,key:recordKey(op.store,op.document)}});if(!bridge().guardedBatch)throw new Error('Install the latest APK to split payments.');await call('guardedBatch',JSON.stringify(ops));for(const op of ops)upsert(op.store,op.document);return true},
     async loadAll(force=false){if(cache.ready&&!force)return cache;if(loading&&!force)return loading;loading=Promise.all(FIREBASE_STORES.map(store=>rawAll(store))).then(()=>{cache.ready=true;return cache}).finally(()=>{loading=null});return loading},
     async refresh(store){validateStore(store);return rawAll(store)},
     async get(store,key){validateStore(store);if(cache[store]!==null){const field=FIREBASE_KEYS[store];return clone(cache[store].find(row=>String(row?.[field])===String(key))||null)}return call('get',store,String(key))},
@@ -46,3 +47,4 @@ window.SAFirebase=window.SACloud=(()=>{
   function logout(){localStorage.removeItem('sa_firebase_app_lock');sessionStorage.removeItem('sa_user')}
   return{DB,cache,login,me,logout,hasToken:()=>localStorage.getItem('sa_firebase_app_lock')==='1',projectId:'sa-traders-billing'};
 })();
+

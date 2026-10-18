@@ -138,3 +138,32 @@ input,textarea,[contenteditable="true"]{-webkit-user-select:text!important;user-
 .payment-delete-button{border:1px solid #edc4bc;border-radius:13px;background:#fff0ec;color:#a1372c;min-height:40px;padding:8px 14px;font-size:12px;cursor:pointer}
 .home-pending-card:focus-visible,.payment-delete-button:focus-visible{outline:3px solid #1684d6;outline-offset:3px}
 
+/* Detected receipt allocation sheet. */
+.split-receipt-header{display:grid;gap:5px;padding:16px;border-radius:18px;background:#e6f3fc;margin-bottom:18px;color:#085d91;overflow-wrap:anywhere}
+.split-receipt-header>strong{font-size:29px;line-height:1.2;font-variant-numeric:tabular-nums}
+.split-receipt-header>span{font-size:12px}
+.split-customers{display:grid;gap:10px;max-height:55vh;overflow:auto;margin-top:12px}
+.split-customers>button{text-align:left;white-space:normal;display:grid;gap:4px;min-height:64px}
+.split-customers small{display:block;font-size:11px;color:var(--app-muted)}
+.split-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.split-tools>button{font-size:11px;flex:1;padding:10px 7px;white-space:normal}
+.split-bill{border:1px solid #d5e3ec;border-radius:16px;margin:12px 0;overflow:hidden}
+.split-bill-heading{display:flex;align-items:center;gap:12px;background:#edf5fa;padding:13px}
+.split-bill-heading input,.split-credit-choice input{width:20px;height:20px;flex:none;accent-color:#1684d6}
+.split-bill-heading span{display:grid;gap:3px}.split-bill-heading small{font-size:11px;color:#667d8a}
+.split-cycle-inputs{padding:0 12px}
+.split-cycle-inputs[hidden]{display:none}
+.split-cycle-row{display:grid;grid-template-columns:minmax(0,1fr) 100px;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid #e4edf2;font-size:12px}
+.split-cycle-row small{display:block;font-size:10px;color:#738490;margin-top:3px}
+.split-cycle-row input{width:100%;min-width:0;text-align:right;font-variant-numeric:tabular-nums}
+.split-credit-choice{display:flex;align-items:flex-start;gap:10px;margin:15px 0;font-size:12px;line-height:1.5}
+.split-note{font-size:11px;color:var(--app-muted)}
+.split-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;background:#edf5fa;padding:12px 8px;border-radius:14px;margin:15px 0;font-variant-numeric:tabular-nums}
+.split-totals>div{min-width:0}.split-totals span{display:block;font-size:10px;color:#617785}.split-totals strong{display:block;font-size:15px;overflow-wrap:anywhere}
+#splitReview,.split-review-list{background:#f3f8fb;border-radius:14px;padding:12px;margin:14px 0}
+#splitReview>div,.split-review-list>div{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:7px 0;border-bottom:1px solid #dce6ec}
+#splitReview h3{font-size:15px;margin:0 0 8px}.split-saved-receipts{margin-top:24px}
+#manageSplitReceipt>.sa-label{display:block;margin-top:14px}
+#manageSplitReceipt>[type=submit]{margin-top:18px;min-height:48px}
+#splitPaymentForm .bill-action-buttons{position:static;margin-top:15px}
+

@@ -106,6 +106,60 @@ final class FirebaseBridge {
         io.execute(() -> { try { JSONArray operations = new JSONArray(operationsJson); if (operations.length() > 450) throw new IllegalArgumentException("Batch is too large."); WriteBatch batch = firestore.batch(); for (int x=0;x<operations.length();x++) { JSONObject op=operations.getJSONObject(x); String store=op.getString("store"),key=op.getString("key"); if (!STORES.contains(store) || key.isEmpty()) throw new IllegalArgumentException("Invalid batch operation."); batch.set(collection(store).document(documentId(key)), toMap(op.getJSONObject("document"))); } batch.commit().addOnSuccessListener(io, ignored -> success(requestId, Collections.singletonMap("written", operations.length()))).addOnFailureListener(io, error -> failure(requestId,error)); } catch (Exception error) { failure(requestId,"Invalid batch: "+error.getMessage()); } });
     }
 
+
+    // Read all guarded documents before any writes; Firestore retries safely on concurrent edits.
+    private static boolean equivalent(Object a, Object b) {
+        if (a == null || b == null) return a == b;
+        if (a instanceof Number && b instanceof Number)
+            return Double.compare(((Number)a).doubleValue(), ((Number)b).doubleValue()) == 0;
+        if (a instanceof Map && b instanceof Map) {
+            Map<?,?> x=(Map<?,?>)a, y=(Map<?,?>)b;
+            if (!x.keySet().equals(y.keySet())) return false;
+            for (Object key:x.keySet()) if (!equivalent(x.get(key),y.get(key))) return false;
+            return true;
+        }
+        if (a instanceof List && b instanceof List) {
+            List<?> x=(List<?>)a, y=(List<?>)b;
+            if (x.size()!=y.size()) return false;
+            for(int i=0;i<x.size();i++) if(!equivalent(x.get(i),y.get(i))) return false;
+            return true;
+        }
+        return a.equals(b);
+    }
+
+    @JavascriptInterface public void guardedBatch(String requestId, String operationsJson) {
+        if (!valid(requestId,"settings")) return;
+        io.execute(() -> {
+            try {
+                JSONArray operations=new JSONArray(operationsJson);
+                if(operations.length()<1 || operations.length()>100) throw new IllegalArgumentException("Select fewer bills in one receipt.");
+                List<com.google.firebase.firestore.DocumentReference> refs=new ArrayList<>();
+                List<Map<String,Object>> documents=new ArrayList<>();
+                List<Object> expected=new ArrayList<>();
+                Set<String> unique=new java.util.HashSet<>();
+                for(int x=0;x<operations.length();x++){
+                    JSONObject op=operations.getJSONObject(x);
+                    String store=op.getString("store"),key=op.getString("key");
+                    if(!STORES.contains(store)||key.isEmpty()||!unique.add(store+":"+key)) throw new IllegalArgumentException("Invalid receipt operation.");
+                    refs.add(collection(store).document(documentId(key)));
+                    documents.add(toMap(op.getJSONObject("document")));
+                    expected.add(op.isNull("expected")?null:toMap(op.getJSONObject("expected")));
+                }
+                firestore.runTransaction(transaction -> {
+                    List<DocumentSnapshot> snapshots=new ArrayList<>();
+                    for(com.google.firebase.firestore.DocumentReference ref:refs) snapshots.add(transaction.get(ref));
+                    for(int x=0;x<refs.size();x++){
+                        Map<String,Object> actual=snapshots.get(x).exists()?snapshots.get(x).getData():null;
+                        if(!equivalent(actual,expected.get(x)))
+                            throw new com.google.firebase.firestore.FirebaseFirestoreException("Records changed or this receipt was already saved. Reopen it and review again.",com.google.firebase.firestore.FirebaseFirestoreException.Code.ABORTED);
+                    }
+                    for(int x=0;x<refs.size();x++) transaction.set(refs.get(x),documents.get(x));
+                    return Collections.singletonMap("written",refs.size());
+                }).addOnSuccessListener(io,result -> success(requestId,result))
+                  .addOnFailureListener(io,error -> failure(requestId,error));
+            }catch(Exception error){failure(requestId,error);}
+        });
+    }
     @JavascriptInterface public void remove(String requestId, String store, String key) { if (!valid(requestId, store) || key == null || key.isEmpty()) return; collection(store).document(documentId(key)).delete().addOnSuccessListener(io, ignored -> success(requestId, Collections.singletonMap("deleted", true))).addOnFailureListener(io, error -> failure(requestId, error)); }
     @JavascriptInterface public void clear(String requestId, String store) { if (!valid(requestId, store)) return; collection(store).get(Source.SERVER).addOnSuccessListener(io, snapshot -> { try { List<com.google.android.gms.tasks.Task<Void>> commits=new ArrayList<>(); WriteBatch batch=firestore.batch(); int count=0,inBatch=0; for(DocumentSnapshot doc:snapshot.getDocuments()){batch.delete(doc.getReference());count++;inBatch++;if(inBatch==450){commits.add(batch.commit());batch=firestore.batch();inBatch=0;}} if(inBatch>0)commits.add(batch.commit()); final int deleted=count; Tasks.whenAll(commits).addOnSuccessListener(io, ignored -> success(requestId,Collections.singletonMap("deleted",deleted))).addOnFailureListener(io,error -> failure(requestId,error)); } catch(Exception error){failure(requestId,error);} }).addOnFailureListener(io,error -> failure(requestId,error)); }
 }
