@@ -2,11 +2,8 @@
 <data-extraction-rules>
     <cloud-backup>
         <include domain="root" path="." />
-        <exclude domain="sharedpref" path="whatsapp_service.xml" />
     </cloud-backup>
     <device-transfer>
         <include domain="root" path="." />
-        <exclude domain="sharedpref" path="whatsapp_service.xml" />
     </device-transfer>
 </data-extraction-rules>
-
