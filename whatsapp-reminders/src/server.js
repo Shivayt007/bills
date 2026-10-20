@@ -1,0 +1,10 @@
+import path from 'node:path';
+import BerryProtocol from 'berryprotocol';
+import QRCode from 'qrcode';
+import {WhatsAppSession} from './whatsapp.js';
+import {createReminderApi} from './api.js';
+const dataDir=path.resolve(process.env.DATA_DIR||'data');
+const session=new WhatsAppSession({BerryProtocol,toDataURL:QRCode.toDataURL,dataDir});
+const server=createReminderApi({session,token:process.env.REMINDER_API_TOKEN,databasePath:path.join(dataDir,'reminders.db')});
+server.listen(Number(process.env.PORT||3000),'0.0.0.0',()=>console.log('S.A Traders WhatsApp reminder service listening'));
+session.link().catch(()=>console.error('WhatsApp connection could not start; retry from app setup.'));

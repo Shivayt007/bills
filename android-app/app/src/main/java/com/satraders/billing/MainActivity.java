@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
     private static final String HOME = "https://appassets.androidplatform.net/assets/index.html";
     private static boolean firestoreConfigured;
     private WebView webView;
+    private WhatsAppBridge whatsappBridge;
     private static final int IMPORT_BACKUP = 1402;
     private static final int EXPORT_BACKUP = 1403;
     private File pendingExport;
@@ -80,7 +81,7 @@ public class MainActivity extends Activity {
                     .setOnCancelListener(dialog->result.cancel()).show();
                 return true;
             }
-        });webView.addJavascriptInterface(new AndroidBridge(this),"Android");webView.addJavascriptInterface(new FirebaseBridge(this,webView),"FirebaseDB");BillingReminderWorker.restoreSchedule(this);
+        });webView.addJavascriptInterface(new AndroidBridge(this),"Android");whatsappBridge=new WhatsAppBridge(this,webView);webView.addJavascriptInterface(whatsappBridge,"WhatsAppService");webView.addJavascriptInterface(new FirebaseBridge(this,webView),"FirebaseDB");BillingReminderWorker.restoreSchedule(this);
         if(savedInstanceState==null)webView.loadUrl(HOME);else webView.restoreState(savedInstanceState);
     }
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
@@ -113,6 +114,7 @@ public class MainActivity extends Activity {
         },"backup-reader").start();
     }
     @Override protected void onSaveInstanceState(Bundle out){webView.saveState(out);if(pendingExport!=null)out.putString("pending_export_path",pendingExport.getAbsolutePath());super.onSaveInstanceState(out);}
+    @Override protected void onDestroy(){if(whatsappBridge!=null)whatsappBridge.close();super.onDestroy();}
     @Override public void onBackPressed(){if(webView==null){super.onBackPressed();return;}webView.evaluateJavascript("(function(){if(document.querySelector('#modal.show')){SA.closeModal();return true;}if(document.querySelector('#uxMenu.open')){SA.closeMenu();return true;}return false;})()",handled->{if(!"true".equals(handled)){if(webView.canGoBack())webView.goBack();else super.onBackPressed();}});}
 
     private final class AndroidBridge {
@@ -164,3 +166,4 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void syncBillReminders(String json,boolean enabled,int days){if(json==null||json.length()>8*1024*1024){toast("Reminder list is too large to sync on this phone.");return;}int interval=days==3?3:days==7?7:1;BillingReminderWorker.saveAndSchedule(context,json,enabled,interval);if(enabled&&android.os.Build.VERSION.SDK_INT>=33&&ContextCompat.checkSelfPermission(MainActivity.this,android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)runOnUiThread(()->ActivityCompat.requestPermissions(MainActivity.this,new String[]{android.Manifest.permission.POST_NOTIFICATIONS},1401));}
     }
 }
+

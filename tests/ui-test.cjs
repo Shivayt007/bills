@@ -32,6 +32,36 @@ try{
  await page.locator('[data-category="upcoming"]').click();assert.match(await page.locator('#reminderItems').innerText(),/Upcoming Customer/);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.screenshot({path:'/tmp/sa-notifications-mobile.png',fullPage:true});
+ // Mock transport only: no live messages leave this UI test.
+ await page.evaluate(()=>{
+   window.__waCalls=[];
+   window.WhatsAppService={config:()=>JSON.stringify({url:'https://reminders.example.test',configured:true}),save:()=> 'ok',request:(id,action,json)=>{__waCalls.push({action,data:JSON.parse(json)});setTimeout(()=>SAWhatsAppResult(id,true,action==='send'?{accepted:true,messageId:'mock-only'}:{status:'CONNECTED',connected:true}),0)}};
+ });
+ await page.getByRole('button',{name:'WhatsApp setup',exact:true}).click();
+ await page.getByText('WhatsApp connected — ready to send reminders.',{exact:true}).waitFor();
+ assert.equal(await page.locator('#waToken').inputValue(),'');
+ await page.locator('.modal-close').click();
+ await page.locator('[data-category="today"]').click();
+ await page.locator('[data-wa-reminder="101"]').click();
+ await page.locator('#waMessage').waitFor();
+ assert.match(await page.locator('#waMessage').inputValue(),/Bill #101/);
+ assert.match(await page.locator('#waReminderForm').innerText(),/919000000001/);
+ assert.equal(await page.evaluate(()=>__waCalls.filter(c=>c.action==='send').length),0);
+ await page.screenshot({path:'/tmp/sa-notifications-whatsapp-preview.png',fullPage:true});
+ await page.getByRole('button',{name:'Send WhatsApp reminder',exact:true}).click();
+ await page.getByText('Reminder submitted to WhatsApp. Delivery and read status are not confirmed.',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>__waCalls.filter(c=>c.action==='send').length),1);
+ assert.equal(await page.evaluate(()=>__records.bills[0].payments.length),0);
+ assert.equal(await page.getByRole('button',{name:'Submitted',exact:true}).isDisabled(),true);
+ await page.locator('.modal-close').click();
+ await page.locator('[data-wa-reminder="101"]').click();
+ await page.locator('#waMessage').waitFor();
+ await page.evaluate(()=>{window.__originalReminderData=SA.reminderData;SA.reminderData=async()=> (await __originalReminderData()).map(row=>row.billNo==='101'?{...row,paid:row.paid+1}:row)});
+ await page.getByRole('button',{name:'Send WhatsApp reminder',exact:true}).click();
+ await page.getByText('Bill details changed. Close this preview and open the reminder again.',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>__waCalls.filter(c=>c.action==='send').length),1);
+ await page.evaluate(()=>{SA.reminderData=__originalReminderData});
+ await page.locator('.modal-close').click();
  await page.locator('[data-category="pending"]').click();
  await page.screenshot({path:'/tmp/sa-notifications-overdue.png',fullPage:true});
  assert.equal(await page.locator('.nt-actions button').evaluateAll(buttons=>buttons.every(b=>b.scrollWidth<=b.clientWidth)),true);
@@ -233,4 +263,5 @@ try{
  assert.deepEqual(errors,[]);console.log('Mobile/desktop notification UI, payment confirmation, cloud save, backup bridge and About passed');
 }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});
+
 

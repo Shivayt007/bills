@@ -167,3 +167,8 @@ input,textarea,[contenteditable="true"]{-webkit-user-select:text!important;user-
 #manageSplitReceipt>[type=submit]{margin-top:18px;min-height:48px}
 #splitPaymentForm .bill-action-buttons{position:static;margin-top:15px}
 
+
+/* Keep all reminder actions readable on narrow phones. */
+.nt-reminder-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.nt-reminder-actions button{min-height:42px;white-space:normal}
+

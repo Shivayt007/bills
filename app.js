@@ -234,7 +234,7 @@ async function renderHome(){
   </div></div></div>`, 'home');
 }
 async function renderAbout(){
-  shell(`<section class="brand-profile"><div class="brand-profile-logo">${brandLogo('about-brand-logo')}</div><h1>S.A Traders</h1><p>Scaffolding &amp; Centring Material Rental</p><div class="brand-profile-details"><div><span>Business address</span><strong>${esc(BUSINESS.address)}</strong></div><div><span>Phone</span><strong>${esc(BUSINESS.phone)}</strong></div><div><span>Signed in as</span><strong>${esc(currentUser?.username||'admin')} · ${esc(currentUser?.role||'Administrator')}</strong></div><div><span>App version</span><strong>1.8.1</strong></div><div><span>Developer</span><strong>Developed by Shiva</strong></div></div></section>`,'');
+  shell(`<section class="brand-profile"><div class="brand-profile-logo">${brandLogo('about-brand-logo')}</div><h1>S.A Traders</h1><p>Scaffolding &amp; Centring Material Rental</p><div class="brand-profile-details"><div><span>Business address</span><strong>${esc(BUSINESS.address)}</strong></div><div><span>Phone</span><strong>${esc(BUSINESS.phone)}</strong></div><div><span>Signed in as</span><strong>${esc(currentUser?.username||'admin')} · ${esc(currentUser?.role||'Administrator')}</strong></div><div><span>App version</span><strong>1.8.2</strong></div><div><span>Developer</span><strong>Developed by Shiva</strong></div></div></section>`,'');
 }
 
 // =========================================================
@@ -681,5 +681,6 @@ async function renderPrintNextCycle(no){const raw=await DB.get('bills',no);if(!r
 async function renderPrintCustom(no){const raw=await DB.get('customBills',no);if(!raw){toast('Custom bill not found','danger');return}const {bill:b,breakdown:br,calc}=hydrateCustom(raw);printShell(`${printHeader(`Custom Shop Bill ${b.bill_no}`)}${customerInfoTable(b)}<div class="sa-card mb-3"><div class="sa-card-body p-0"><table class="sa-table"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody><tr><td>Material Rent</td><td>${money(calc.material_total)}</td></tr><tr><td>Wood Material</td><td>${money(calc.wood_total)}</td></tr><tr><td>Transport</td><td>${money(calc.transport_vehicle_total)}</td></tr><tr><td>Loading</td><td>${money(calc.loading)}</td></tr><tr><td>Unloading</td><td>${money(calc.unloading)}</td></tr><tr><td>Advance (Material + Wood)</td><td>${money(calc.advance_amount)}</td></tr><tr><td class="fw-900">Grand Total</td><td class="fw-900">${money(calc.grand_total)}</td></tr><tr><td>Paid</td><td>${money(b.total_paid)}</td></tr><tr><td class="text-red fw-900">Pending</td><td class="text-red fw-900">${money(b.pending)}</td></tr></tbody></table></div></div><div class="sa-card mb-3"><div class="sa-card-header"><h3 class="sa-card-title">Rules</h3></div><div class="sa-card-body small">${textToHtml(b.print_rules||DEFAULT_CUSTOM_RULES)}</div></div><div class="sa-card invoice-terms"><div class="sa-card-header"><h3 class="sa-card-title">Terms & Conditions</h3></div><div class="sa-card-body small">${textToHtml(b.terms_conditions||DEFAULT_CUSTOM_TERMS)}</div></div>${printActions(`${BUSINESS.name} - Custom Bill ${b.bill_no}`)}`);}
 
 // End of Firebase Firestore port.
+
 
 

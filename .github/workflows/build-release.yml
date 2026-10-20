@@ -46,8 +46,15 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x android-app/gradlew
 
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
       - name: Verify reminders and payment parsing
         run: |
+          node --test whatsapp-reminders/test/*.test.js
+          node tests/whatsapp-reminders-test.cjs
           node tests/notifications-test.cjs
           node tests/rental-cycle-test.cjs
           node tests/split-payments-test.cjs
@@ -109,7 +116,7 @@ jobs:
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: S-A-Traders-v1.8.0-website-APK
+          name: S-A-Traders-v1.8.2-website-APK
           path: |
             android-app/app/build/outputs/apk/website/release/app-website-release.apk
             android-app/app/build/outputs/apk/website/release/app-website-release.apk.sha256
@@ -131,7 +138,7 @@ jobs:
       - name: Upload full release APK with payment detection
         uses: actions/upload-artifact@v4
         with:
-          name: S-A-Traders-v1.8.0-full-APK
+          name: S-A-Traders-v1.8.2-full-APK
           path: |
             android-app/app/build/outputs/apk/full/release/app-full-release.apk
             android-app/app/build/outputs/apk/full/release/app-full-release.apk.sha256
@@ -141,7 +148,7 @@ jobs:
       - name: Upload Play bundle
         uses: actions/upload-artifact@v4
         with:
-          name: S-A-Traders-v1.8.0-full-AAB
+          name: S-A-Traders-v1.8.2-full-AAB
           path: android-app/app/build/outputs/bundle/fullRelease/app-full-release.aab
           if-no-files-found: error
           retention-days: 30
@@ -159,4 +166,5 @@ jobs:
       - name: Remove release keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/satraders-release.jks"
+
 

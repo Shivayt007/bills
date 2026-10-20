@@ -1,0 +1,20 @@
+name: WhatsApp reminder service checks
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['whatsapp-reminders/**', '.github/workflows/whatsapp-reminders.yml']
+permissions:
+  contents: read
+jobs:
+  service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build standalone reminder service
+        run: docker build -t sa-reminders whatsapp-reminders
+      - name: Verify authenticated sends and duplicate protection without WhatsApp traffic
+        run: docker run --rm -v "$PWD/whatsapp-reminders/test:/app/test:ro" sa-reminders node --test test/*.test.js
+      - name: Verify the installed WhatsApp and QR libraries
+        run: docker run --rm sa-reminders node --input-type=module -e "import Berry from 'berryprotocol'; import qr from 'qrcode'; if(typeof Berry !== 'function' || typeof qr.toDataURL !== 'function')process.exit(1); console.log('WhatsApp engine and QR renderer loaded')"

@@ -11,8 +11,8 @@ android {
         applicationId 'com.satraders.billing'
         minSdk 26
         targetSdk 35
-        versionCode 20
-        versionName '1.8.0'
+        versionCode 21
+        versionName '1.8.2'
     }
 
     buildFeatures {
@@ -69,6 +69,7 @@ def webAssetNames = [
         'next-cycle-2026.js',
         'invoice-share.js',
         'notifications-2026.js',
+        'whatsapp-reminders.js',
         'split-payments.js',
         'app.bundle.min.css',
         'sa-traders-logo.jpg',
@@ -111,4 +112,5 @@ tasks.configureEach { task ->
         }
     }
 }
+
 

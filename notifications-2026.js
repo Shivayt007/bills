@@ -75,7 +75,7 @@
     shell('<div class="notification-screen">'+
       '<header class="nt-hero"><div class="nt-heading"><button class="nt-round" aria-label="Back" onclick="SA.back()">←</button><h1>Notifications</h1><button class="nt-round nt-settings" aria-label="Daily reminders" onclick="SA.openNotificationSettings()">⏰</button></div>'+
       '<div class="nt-summary"><div><span>Overdue to collect</span><strong>'+money(sum(overdue.map(row=>row.balance)))+'</strong></div><div><span>Due today / Upcoming</span><strong>'+groups.today.length+' / '+groups.upcoming.length+'</strong></div></div></header>'+
-      '<div class="nt-body"><div class="nt-tabs" role="tablist" aria-label="Notifications">'+
+      '<div class="nt-body"><div class="nt-panel-head"><span>Bill reminders</span>'+(isAdmin()?'<button class="nt-small-button" onclick="SA.openWhatsAppSetup()">WhatsApp setup</button>':'')+'</div><div class="nt-tabs" role="tablist" aria-label="Notifications">'+
       '<button id="nt-tab-reminders" role="tab" data-notification-tab="reminders" aria-controls="nt-reminders">Reminders <span>'+overdue.length+'</span></button>'+
       (paymentDetectionAvailable()?'<button id="nt-tab-payments" role="tab" data-notification-tab="payments" aria-controls="nt-payments">Payments <span class="nt-payment-count">'+items.length+'</span></button>':'')+
       '<button id="nt-tab-history" role="tab" data-notification-tab="history" aria-controls="nt-history">History</button></div>'+
@@ -92,8 +92,8 @@
     const card=row=>{
       const late=daysLate(row),phone=String(row.mobile||'').replace(/[^0-9+]/g,'');
       const dueText=reminderCategory==='pending'?late+' day'+(late===1?'':'s')+' late':reminderCategory==='today'?'Due today':shortDate(row.date);
-      return '<article class="nt-card '+reminderCategory+'"><div class="nt-card-top"><span class="nt-avatar" aria-hidden="true">'+esc(String(row.name||'C').trim().charAt(0).toUpperCase())+'</span><div class="nt-customer"><strong>'+esc(row.name)+'</strong><span>'+(row.isCustom?'Custom':'Bill')+' #'+esc(row.billNo)+' · due '+esc(shortDate(row.date))+'</span></div><div class="nt-amount"><strong>'+money(row.balance)+'</strong><span>'+esc(dueText)+'</span></div></div><div class="nt-actions">'+
-      (phone?'<button data-call="'+esc(phone)+'">☎ Call</button><button data-whatsapp="'+esc(phone)+'">☏ WhatsApp</button>':'')+
+      return '<article class="nt-card '+reminderCategory+'"><div class="nt-card-top"><span class="nt-avatar" aria-hidden="true">'+esc(String(row.name||'C').trim().charAt(0).toUpperCase())+'</span><div class="nt-customer"><strong>'+esc(row.name)+'</strong><span>'+(row.isCustom?'Custom':'Bill')+' #'+esc(row.billNo)+' · due '+esc(shortDate(row.date))+'</span></div><div class="nt-amount"><strong>'+money(row.balance)+'</strong><span>'+esc(dueText)+'</span></div></div><div class="nt-actions nt-reminder-actions">'+
+      (phone?'<button data-call="'+esc(phone)+'">☎ Call</button><button data-whatsapp="'+esc(phone)+'">☏ Chat</button><button data-wa-reminder="'+esc(row.billNo)+'" data-custom="'+row.isCustom+'">Send reminder</button>':'')+
       '<button class="nt-view" data-bill="'+esc(row.billNo)+'" data-custom="'+row.isCustom+'">View bill</button></div></article>';
     };
     const choose=key=>{
@@ -116,6 +116,7 @@
       if(button.dataset.bill)SA.go((button.dataset.custom==='true'?'custom-view/':'bill/')+encodeURIComponent(button.dataset.bill));
       if(button.dataset.call)SA.callCustomer(button.dataset.call);
       if(button.dataset.whatsapp)SA.openCustomerWhatsApp(button.dataset.whatsapp);
+      if(button.dataset.waReminder)SA.openWhatsAppReminder(button.dataset.waReminder,button.dataset.custom==='true',reminderCategory);
     };
     document.querySelectorAll('[data-category]').forEach(el=>el.onclick=()=>choose(el.dataset.category));
     choose(reminderCategory);
@@ -146,4 +147,5 @@
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)resume()});
   window.addEventListener('DOMContentLoaded',()=>setTimeout(resume,2000));
 })();
+
 
