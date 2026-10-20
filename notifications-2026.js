@@ -75,10 +75,11 @@
     shell('<div class="notification-screen">'+
       '<header class="nt-hero"><div class="nt-heading"><button class="nt-round" aria-label="Back" onclick="SA.back()">←</button><h1>Notifications</h1><button class="nt-round nt-settings" aria-label="Daily reminders" onclick="SA.openNotificationSettings()">⏰</button></div>'+
       '<div class="nt-summary"><div><span>Overdue to collect</span><strong>'+money(sum(overdue.map(row=>row.balance)))+'</strong></div><div><span>Due today / Upcoming</span><strong>'+groups.today.length+' / '+groups.upcoming.length+'</strong></div></div></header>'+
-      '<div class="nt-body"><div class="nt-panel-head"><span>Bill reminders</span>'+(isAdmin()?'<button class="nt-small-button" onclick="SA.openWhatsAppSetup()">WhatsApp setup</button>':'')+'</div><div class="nt-tabs" role="tablist" aria-label="Notifications">'+
+      '<div class="nt-body"><div class="nt-tabs" role="tablist" aria-label="Notifications">'+
       '<button id="nt-tab-reminders" role="tab" data-notification-tab="reminders" aria-controls="nt-reminders">Reminders <span>'+overdue.length+'</span></button>'+
       (paymentDetectionAvailable()?'<button id="nt-tab-payments" role="tab" data-notification-tab="payments" aria-controls="nt-payments">Payments <span class="nt-payment-count">'+items.length+'</span></button>':'')+
       '<button id="nt-tab-history" role="tab" data-notification-tab="history" aria-controls="nt-history">History</button></div>'+
+      '<div class="nt-panel-head"><span>Bill reminders</span>'+(isAdmin()?'<button class="nt-small-button" onclick="SA.openWhatsAppSetup()">WhatsApp setup</button>':'')+'</div>'+
       '<section id="nt-reminders" role="tabpanel" aria-labelledby="nt-tab-reminders"><div class="nt-filters" aria-label="Reminder status">'+
       Object.entries(labels).map(([key,label])=>'<button data-category="'+key+'">'+label+' <span>'+viewGroups[key].length+'</span></button>').join('')+
       '</div><div id="reminderItems" class="nt-list"></div></section>'+
