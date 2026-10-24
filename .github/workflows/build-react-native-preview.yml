@@ -1,0 +1,71 @@
+name: Build S.A Traders React Native preview APK
+
+on:
+  push:
+    branches:
+      - feature/react-native-redesign
+    paths:
+      - 'react-native/**'
+      - '.github/workflows/build-react-native-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-preview-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    defaults:
+      run:
+        working-directory: react-native
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Install React Native dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify preview isolation
+        run: npm run check
+
+      - name: Type-check React Native UI
+        run: npm run typecheck
+
+      - name: Generate Android native project
+        env:
+          CI: '1'
+        run: npx expo prebuild --platform android --no-install --clean
+
+      - name: Build standalone release APK
+        env:
+          CI: '1'
+          NODE_ENV: production
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Upload installable preview APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: S-A-Traders-React-Native-Preview-APK
+          path: react-native/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
