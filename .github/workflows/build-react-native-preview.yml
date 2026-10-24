@@ -1,4 +1,4 @@
-name: Build S.A Traders React Native preview APK
+name: Build S.A Traders full-function hybrid React Native APK
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
       - name: Install React Native dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Verify preview isolation
+      - name: Verify Java/JS integration readiness
         run: npm run check
 
       - name: Type-check React Native UI
@@ -58,6 +58,9 @@ jobs:
         env:
           CI: '1'
         run: npx expo prebuild --platform android --no-install --clean
+
+      - name: Integrate every existing Java service and billing asset
+        run: node scripts/integrate-existing-app.cjs
 
       - name: Build standalone release APK
         env:
@@ -71,7 +74,7 @@ jobs:
       - name: Upload installable preview APK
         uses: actions/upload-artifact@v4
         with:
-          name: S-A-Traders-React-Native-Preview-APK
+          name: S-A-Traders-React-Native-Full-Hybrid-APK
           path: react-native/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
