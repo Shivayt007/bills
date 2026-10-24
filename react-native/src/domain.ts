@@ -27,7 +27,7 @@ export type Bill={
 export type Customer={name:string;mobile:string;place:string;created_at?:string};
 export type Note={id:string;customer:string;date:string;notes:string;type:'slip'|'challan'};
 export type Stock={item:string;stock_qty:number;stock_map?:SizeMap};
-export type Data={bills:Bill[];customers:Customer[];inventory:Stock[];notes:Note[]};
+export type Data={bills:Bill[];customers:Customer[];inventory:Stock[];notes:Note[];customBills?:Record<string,unknown>[];slips?:Record<string,unknown>[];challans?:Record<string,unknown>[];settings?:Record<string,unknown>[];backupBusiness?:Record<string,unknown>;backupExtra?:Record<string,unknown>};
 export const EMPTY:Data={bills:[],customers:[],inventory:[],notes:[]};
 export const TODAY=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);};
 export const num=(v:unknown,otherwise=0)=>{const n=Number(v);return Number.isFinite(n)?n:otherwise;};
