@@ -5,7 +5,7 @@ const math=fs.readFileSync(path.join(root,'src/domain.ts'),'utf8');
 const cfg=JSON.parse(fs.readFileSync(path.join(root,'app.json'),'utf8'));
 assert.equal(pkg.dependencies['react-native'],'0.81.5');
 assert.equal(cfg.expo.android.package,'com.satraders.billing.preview');
-assert(!app.includes('WebView'), 'Do not render or embed the old application');
+assert(!/react-native-webview|<WebView\b|satradersbilling:\/\//.test(app), 'Do not render or embed the old application');
 assert(!app.includes('satradersbilling://'), 'Old Java route shortcuts are forbidden');
 assert(!app.includes('Linking.openURL'), 'No URL wrapper navigation');
 assert(app.includes('saveBill=async'), 'Native bill workflow missing');

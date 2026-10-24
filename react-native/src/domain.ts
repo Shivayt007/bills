@@ -35,7 +35,7 @@ export const integer=(v:unknown)=>Math.max(0,Math.trunc(num(v)));
 export const round2=(x:number)=>Math.round((x+Number.EPSILON)*100)/100;
 export const money=(n:number)=>'₹'+round2(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 export const sizes=(raw:unknown):SizeMap=>{
- const map:SizeMap={},s=String(raw??'').replace(/[,\\n+]/g,' '),re=/(\\d+(?:\\.\\d+)?)\s*[x×*]\s*(\\d+(?:\\.\\d+)?)/gi;
+ const map:SizeMap={},s=String(raw??'').replace(/[,\n+]/g,' '),re=/(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)/gi;
  let match:RegExpExecArray|null;while((match=re.exec(s))){const ft=num(match[1]),qty=integer(match[2]);
   if(ft>0&&qty>0)map[String(ft)]=(map[String(ft)]||0)+qty;}
  return map;
