@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "S.A Traders Native",
+    "name": "S.A Traders Native Lab",
     "slug": "sa-traders-native-preview",
     "scheme": "satraderspreview",
-    "version": "1.8.2",
+    "version": "0.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -14,7 +14,8 @@
     },
     "plugins": [],
     "extra": {
-      "hybridMigration": true
+      "nativeOnly": true,
+      "production": false
     }
   }
 }

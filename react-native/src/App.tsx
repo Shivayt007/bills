@@ -1,115 +1,335 @@
-import React, { useCallback, useState } from 'react';
+import React,{useEffect,useMemo,useState} from 'react';
 import {
-  Linking, SafeAreaView, ScrollView, StatusBar, StyleSheet,
-  Text, TouchableOpacity, View,
+ Alert,ActivityIndicator,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,
+ ScrollView,Share,StatusBar,StyleSheet,Text,TextInput,View,
 } from 'react-native';
+import {calculateBill,Customer,Data,EMPTY,invoiceText,makeBill,MATERIALS,money,
+ num,Note,RATES,round2,Stock,TODAY,validateBill,WOODS,Bill} from './domain';
+import {clearLocal,loadLocal,saveLocal} from './localStore';
 
-/**
- * Native React Native launch/navigation shell.
- * Every production business screen is served by the original, unmodified
- * billing web application running inside its original Java Android WebView.
- * Original native Java services and Firebase bridge are bundled by CI.
- * No synthetic demo data and no parallel invoice calculation engine.
- */
-type Entry = { label: string; route: string; icon: string; detail: string };
-const SCREENS: Entry[] = [
-  { label: 'Bills & invoices', route: 'bills', icon: '▤', detail: 'Create, edit, print and share bills' },
-  { label: 'Customers', route: 'customers', icon: '♙', detail: 'Customer records and balances' },
-  { label: 'Inventory', route: 'inventory', icon: '▦', detail: 'Material stock and transactions' },
-  { label: 'Payments', route: 'payment-report', icon: '₹', detail: 'Receipts, splits and payment reports' },
-  { label: 'Custom bills', route: 'custom', icon: '▣', detail: 'Custom invoice workflow' },
-  { label: 'Delivery slips', route: 'slips', icon: '⇆', detail: 'Deliveries, returns and slips' },
-  { label: 'Challans', route: 'challans', icon: '◇', detail: 'Transport and challan records' },
-  { label: 'Reports', route: 'reports', icon: '▥', detail: 'Business performance and reports' },
-  { label: 'Notifications', route: 'notifications', icon: '◉', detail: 'Payments and reminders' },
-  { label: 'Open bills', route: 'open-bills', icon: '▤', detail: 'Active customer bills' },
-  { label: 'Material tracking', route: 'materials', icon: '▦', detail: 'Rented materials and movement' },
-  { label: 'Billing totals', route: 'totals', icon: '∑', detail: 'Reconciled bill totals' },
-  { label: 'Material rent report', route: 'material-rent-report', icon: '▧', detail: 'Rental accounting' },
-  { label: 'Returns', route: 'return-bill', icon: '↩', detail: 'Return billing workflow' },
-  { label: 'Admin & settings', route: 'admin', icon: '⚙', detail: 'Users, terms and backups' },
-  { label: 'Backup & restore', route: 'admin-backup', icon: '☷', detail: 'Export and restore data' },
-];
-function PageTile({ entry, onOpen }: {entry:Entry;onOpen:(route:string)=>void}) {
-  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={entry.label}
-    style={styles.tile} onPress={()=>onOpen(entry.route)} activeOpacity={0.72}>
-    <View style={styles.tileIcon}><Text style={styles.tileGlyph}>{entry.icon}</Text></View>
-    <View style={styles.tileCopy}><Text style={styles.tileTitle}>{entry.label}</Text>
-      <Text style={styles.tileDetail}>{entry.detail}</Text></View>
-    <Text style={styles.chevron}>›</Text>
-  </TouchableOpacity>;
+// Fully native React Native views. No WebView, Java billing screen, or external website.
+// Isolated local test records, NOT connected to production Firestore.
+type Page='dashboard'|'bills'|'customers'|'inventory'|'reports'|'more'|'form'|'detail'|'customer-form'|'stock-form'|'note-form';
+const C={bg:'#F5F7FC',white:'#FFFFFF',ink:'#15293F',sub:'#7A8A9B',line:'#E5EAF1',navy:'#142C45',peach:'#F06B54',light:'#FFF0EB',green:'#16816B'};
+const TABS:ReadonlyArray<[Page,string,string]>=[['dashboard','Home','⌂'],['bills','Bills','▤'],['customers','Clients','♙'],['inventory','Stock','▦'],['more','More','•••']];
+const txt=(v:unknown)=>String(v??'');
+const uid=()=>String(Date.now())+'-'+Math.random().toString(36).slice(2,6);
+function Button({label,onPress,outline=false,disabled=false}:{label:string;onPress:()=>void;outline?:boolean;disabled?:boolean}) {
+ return <Pressable disabled={disabled} accessibilityRole="button" onPress={onPress} style={[s.button,outline&&s.buttonOutline,disabled&&{opacity:.4}]}>
+  <Text style={[s.buttonText,outline&&{color:C.ink}]}>{label}</Text></Pressable>;
 }
-export default function App() {
-  const [error, setError] = useState<string|null>(null);
-  const [filter, setFilter] = useState<'all'|'core'|'more'>('all');
-  const open = useCallback(async (route:string) => {
-    try {
-      setError(null);
-      await Linking.openURL('satradersbilling://open?screen=' + encodeURIComponent(route));
-    } catch (e) {
-      setError('Unable to open the original billing workspace. Check that the integrated Android activity is installed.');
-    }
-  },[]);
-  const shown = filter==='core' ? SCREENS.slice(0,8) : filter==='more' ? SCREENS.slice(8) : SCREENS;
-  return <SafeAreaView style={styles.safe}>
-    <StatusBar backgroundColor="#F5F7FB" barStyle="dark-content" />
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-      <View style={styles.top}><View style={styles.logo}><Text style={styles.logoText}>SA</Text></View>
-        <View style={styles.brand}><Text style={styles.brandName}>S.A Traders</Text>
-          <Text style={styles.brandSub}>BUSINESS WORKSPACE</Text></View>
-        <View style={styles.version}><Text style={styles.versionText}>RN</Text></View>
-      </View>
-      <View style={styles.hero}>
-        <Text style={styles.heroKicker}>YOUR BILLING WORKSPACE</Text>
-        <Text style={styles.heroTitle}>Everything you need, in one place.</Text>
-        <Text style={styles.heroDesc}>The original billing system and Android integrations are preserved inside this React Native app.</Text>
-        <TouchableOpacity accessibilityRole="button" style={styles.heroButton}
-          onPress={()=>open('dashboard')} activeOpacity={0.75}>
-          <Text style={styles.heroButtonText}>Open complete billing app</Text>
-          <Text style={styles.heroArrow}>↗</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.headingRow}><Text style={styles.title}>Workspace</Text>
-        <View style={styles.count}><Text style={styles.countText}>{SCREENS.length} sections</Text></View>
-      </View>
-      <View style={styles.filters}>
-        {([['all','All sections'],['core','Main tools'],['more','More tools']] as const).map(([k,label])=>
-          <TouchableOpacity accessibilityRole="button" key={k} style={[styles.filter,filter===k&&styles.filterActive]}
-            onPress={()=>setFilter(k)}><Text style={[styles.filterText,filter===k&&styles.filterTextActive]}>{label}</Text></TouchableOpacity>)}
-      </View>
-      <View style={styles.tiles}>{shown.map(entry=><PageTile key={entry.route} entry={entry} onOpen={open}/>)}</View>
-      {error&&<Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-      <Text style={styles.footer}>Original S.A Traders engine · Java + HTML/JS + Firestore</Text>
-      <Text style={styles.footerSub}>Separate testing package. Uses the existing live Firestore project; back up data before testing writes.</Text>
-    </ScrollView>
-  </SafeAreaView>;
+function Input({label,value,onChange,numeric=false,placeholder='',multiline=false,locked=false}:{
+ label:string;value:unknown;onChange:(v:string)=>void;numeric?:boolean;placeholder?:string;multiline?:boolean;locked?:boolean}) {
+ return <View style={s.inputWrap}><Text style={s.inputLabel}>{label}</Text>
+  <TextInput accessibilityLabel={label} editable={!locked} value={txt(value)} onChangeText={onChange}
+   keyboardType={numeric?'decimal-pad':'default'} multiline={multiline} placeholder={placeholder}
+   placeholderTextColor="#9EAAB8" style={[s.input,multiline&&{height:85,textAlignVertical:'top'},locked&&{opacity:.5}]}/></View>;
 }
-const styles=StyleSheet.create({
-  safe:{flex:1,backgroundColor:'#F5F7FB'},scroll:{flex:1},content:{paddingHorizontal:18,paddingBottom:35},
-  top:{flexDirection:'row',alignItems:'center',marginTop:20,marginBottom:22,gap:11},
-  logo:{backgroundColor:'#142B45',width:46,height:46,borderRadius:15,justifyContent:'center',alignItems:'center'},
-  logoText:{color:'#FFF',fontWeight:'900',fontSize:15},brand:{flex:1},brandName:{color:'#1B2D40',fontWeight:'900',fontSize:20,letterSpacing:-0.6},
-  brandSub:{color:'#8592A2',fontSize:9,letterSpacing:1.8,fontWeight:'800',marginTop:4},
-  version:{paddingHorizontal:10,paddingVertical:7,backgroundColor:'#E9F4F4',borderRadius:20},versionText:{color:'#178675',fontWeight:'900',fontSize:11},
-  hero:{backgroundColor:'#142B45',borderRadius:25,padding:23},
-  heroKicker:{color:'#E9AC97',fontSize:10,fontWeight:'800',letterSpacing:1.5},
-  heroTitle:{color:'#FFF',fontSize:28,lineHeight:34,fontWeight:'900',letterSpacing:-0.8,marginTop:12},
-  heroDesc:{color:'#B7C7D7',fontSize:13,lineHeight:21,marginTop:11},
-  heroButton:{backgroundColor:'#F06B53',borderRadius:14,padding:16,flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:22},
-  heroButtonText:{color:'white',fontSize:14,fontWeight:'900'},heroArrow:{color:'white',fontSize:22},
-  headingRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginTop:27,marginBottom:14},
-  title:{color:'#1D3045',fontWeight:'900',fontSize:21},count:{backgroundColor:'#E8EDF3',paddingHorizontal:11,paddingVertical:6,borderRadius:20},
-  countText:{fontSize:10,fontWeight:'800',color:'#697B8F'},
-  filters:{flexDirection:'row',gap:9,marginBottom:15},
-  filter:{borderRadius:20,backgroundColor:'white',borderColor:'#E6ECF4',borderWidth:1,paddingHorizontal:13,paddingVertical:8},
-  filterActive:{backgroundColor:'#142B45',borderColor:'#142B45'},
-  filterText:{fontSize:11,fontWeight:'800',color:'#697789'},filterTextActive:{color:'white'},
-  tiles:{borderRadius:19,borderColor:'#E9EEF5',borderWidth:1,overflow:'hidden',backgroundColor:'white'},
-  tile:{paddingVertical:14,paddingHorizontal:14,borderBottomWidth:1,borderBottomColor:'#EDF0F5',flexDirection:'row',alignItems:'center',gap:12},
-  tileIcon:{width:42,height:42,borderRadius:13,backgroundColor:'#FFF1EB',alignItems:'center',justifyContent:'center'},
-  tileGlyph:{fontSize:23,fontWeight:'800',color:'#E96952'},tileCopy:{flex:1},
-  tileTitle:{fontSize:13,fontWeight:'900',color:'#1D3045'},tileDetail:{fontSize:11,color:'#8190A0',marginTop:5},
-  chevron:{fontSize:28,fontWeight:'300',color:'#91A1B1'},
-  error:{marginTop:15,color:'#B00020',fontSize:12},footer:{marginTop:24,textAlign:'center',color:'#8B99AA',fontSize:10,fontWeight:'800'},
-  footerSub:{textAlign:'center',color:'#9DA9B6',fontSize:10,lineHeight:16,marginTop:8}
+function Card({children}:{children:React.ReactNode}){return <View style={s.card}>{children}</View>;}
+function Stat({label,value,accent=false}:{label:string;value:string;accent?:boolean}) {
+ return <View style={[s.stat,accent&&{backgroundColor:C.navy}]}><Text style={[s.statValue,accent&&{color:'white'}]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+  <Text style={[s.statLabel,accent&&{color:'#BCCCD9'}]}>{label}</Text></View>;
+}
+function Head({title,subtitle}:{title:string;subtitle:string}){return <View style={{marginBottom:17}}><Text style={s.heading}>{title}</Text><Text style={s.subtitle}>{subtitle}</Text></View>;}
+export default function App(){
+ const [data,setData]=useState<Data>(EMPTY),[loaded,setLoaded]=useState(false);
+ const [page,setPage]=useState<Page>('dashboard'),[query,setQuery]=useState('');
+ const [selected,setSelected]=useState(''),[draft,setDraft]=useState<Bill>(makeBill());
+ const [customerDraft,setCustomerDraft]=useState<Customer>({name:'',mobile:'',place:''});
+ const [stockDraft,setStockDraft]=useState<Stock>({item:'jackey',stock_qty:0});
+ const [noteDraft,setNoteDraft]=useState<Note>({id:'',customer:'',date:TODAY(),notes:'',type:'slip'});
+ const [amount,setAmount]=useState(''),[paymentNote,setPaymentNote]=useState('');
+ const [changeQty,setChangeQty]=useState(''),[changeKey,setChangeKey]=useState('jackey'),[modal,setModal]=useState<'payment'|'return'|'addition'|null>(null);
+ const [working,setWorking]=useState(false);
+ useEffect(()=>{loadLocal().then(d=>setData(d)).catch(e=>Alert.alert('Local storage error',txt(e))).finally(()=>setLoaded(true));},[]);
+ const update=async(next:Data)=>{
+  setWorking(true);try{await saveLocal(next);setData(next);}
+  catch(e){Alert.alert('Save failed',txt(e));}finally{setWorking(false);}
+ };
+ const navigate=(next:Page)=>{setPage(next);setQuery('');setModal(null);};
+ const openBill=(id:string)=>{setSelected(id);navigate('detail');};
+ const newBill=()=>{setSelected('');setDraft(makeBill());navigate('form');};
+ const editBill=(b:Bill)=>{setSelected(b.bill_no);setDraft({...b});navigate('form');};
+ const selectedBill=data.bills.find(b=>b.bill_no===selected);
+ const totals=useMemo(()=>{
+  const active=data.bills.filter(b=>b.status!=='closed');
+  const t=active.map(b=>calculateBill(b));return {
+   active:active.length,due:round2(t.reduce((v,x)=>v+x.due,0)),
+   paid:round2(t.reduce((v,x)=>v+x.paid,0)),pending:round2(t.reduce((v,x)=>v+x.pending,0))
+  };
+ },[data.bills]);
+ const found=data.bills.filter(b=>(b.bill_no+' '+b.name+' '+b.mobile+' '+b.place).toLowerCase().includes(query.toLowerCase()));
+ const customers=data.customers.filter(c=>(c.name+' '+c.mobile+' '+c.place).toLowerCase().includes(query.toLowerCase()));
+ const saveBill=async()=>{
+  try{
+   const cleaned:Bill={...draft,bill_no:draft.bill_no.trim(),name:draft.name.trim(),cycle_days:num(draft.cycle_days)};
+   validateBill(cleaned,data.bills,selected||undefined);
+   const nextBills=selected?data.bills.map(b=>b.bill_no===selected?cleaned:b):[cleaned,...data.bills];
+   let cust=data.customers;
+   if(cleaned.mobile&&!cust.some(x=>x.mobile===cleaned.mobile))cust=[{mobile:cleaned.mobile,name:cleaned.name,place:cleaned.place},...cust];
+   await update({...data,bills:nextBills,customers:cust});
+   setSelected(cleaned.bill_no);navigate('detail');
+  }catch(e){Alert.alert('Check bill details',txt(e instanceof Error?e.message:e));}
+ };
+ const saveCustomer=async()=>{
+  if(!customerDraft.name.trim()||!customerDraft.mobile.trim()){Alert.alert('Missing details','Customer name and mobile are required');return;}
+  const copy={...customerDraft,name:customerDraft.name.trim(),mobile:customerDraft.mobile.trim()};
+  const idx=data.customers.findIndex(c=>c.mobile===copy.mobile);
+  const rows=idx>=0?data.customers.map(c=>c.mobile===copy.mobile?copy:c):[copy,...data.customers];
+  await update({...data,customers:rows});navigate('customers');
+ };
+ const saveStock=async()=>{
+  if(!stockDraft.item.trim()){Alert.alert('Item is required');return;}
+  const arr=data.inventory.filter(x=>x.item!==stockDraft.item);
+  await update({...data,inventory:[...arr,{...stockDraft,stock_qty:Math.max(0,num(stockDraft.stock_qty))}]});
+  navigate('inventory');
+ };
+ const saveNote=async()=>{
+  if(!noteDraft.customer.trim()){Alert.alert('Customer is required');return;}
+  await update({...data,notes:[{...noteDraft,id:noteDraft.id||uid()},...data.notes.filter(n=>n.id!==noteDraft.id)]});
+  navigate('more');
+ };
+ const recordChange=async()=>{
+  if(!selectedBill)return;
+  const amountValue=num(amount),qtyValue=num(changeQty);
+  if(modal==='payment'){
+   const x=calculateBill(selectedBill);
+   if(!(amountValue>0)||amountValue>x.pending){Alert.alert('Invalid payment','Enter a positive amount no larger than the pending balance.');return;}
+   const b={...selectedBill,payments:[...(selectedBill.payments||[]),{id:uid(),date:TODAY(),amount:round2(amountValue),note:paymentNote}]};
+   await update({...data,bills:data.bills.map(v=>v.bill_no===b.bill_no?b:v)});
+  }else if(modal){
+   if(!Number.isInteger(qtyValue)||qtyValue<=0){Alert.alert('Invalid quantity','Enter a positive whole number.');return;}
+   const hist=modal==='return'?'return_history':'additional_history';
+   const nowCycle=calculateBill(selectedBill).cycles.length;
+   const entry={date:TODAY(),items:{[changeKey]:qtyValue},wood:{},effective_from_cycle:nowCycle+1};
+   const b={...selectedBill,[hist]:[...(selectedBill[hist]||[]),entry]} as Bill;
+   await update({...data,bills:data.bills.map(v=>v.bill_no===b.bill_no?b:v)});
+  }
+  setModal(null);setAmount('');setPaymentNote('');setChangeQty('');
+ };
+ const confirmClose=(b:Bill)=>Alert.alert('Close bill','Close this bill today? Future rental cycles stop accruing.',[
+  {text:'Cancel',style:'cancel'},{text:'Close bill',onPress:()=>{void update({...data,bills:data.bills.map(v=>v.bill_no===b.bill_no?{...v,status:'closed' as const,closed_at:TODAY()}:v)});}}
+ ]);
+ const confirmReset=()=>Alert.alert('Delete all local test records?','This removes only the React Native test app data. Production S.A Traders is not affected.',[
+  {text:'Cancel',style:'cancel'},{text:'Delete local records',style:'destructive',onPress:()=>{void clearLocal().then(()=>setData({bills:[],customers:[],inventory:[],notes:[]})).catch(e=>Alert.alert('Delete failed',txt(e)));}}
+ ]);
+ const formUpdate=(key:string,value:string)=>setDraft(v=>({...v,[key]:value}));
+ if(!loaded)return <SafeAreaView style={s.safe}><ActivityIndicator size="large" style={{flex:1}} color={C.peach}/></SafeAreaView>;
+ return <SafeAreaView style={s.safe}><StatusBar barStyle="dark-content" backgroundColor={C.bg}/>
+ <View style={s.top}><View style={s.logo}><Text style={s.logoText}>SA</Text></View><View style={{flex:1}}>
+  <Text style={s.brandName}>S.A Traders</Text><Text style={s.brandSub}>NATIVE WORKSPACE · LOCAL TEST</Text>
+ </View><View style={s.mode}><Text style={s.modeText}>RN</Text></View></View>
+ <View style={s.banner}><Text style={s.bannerText}>100% REACT NATIVE SCREENS · OFFLINE TEST DATA · NOT LIVE FIRESTORE</Text></View>
+ <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}>
+  <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+   {page==='dashboard'&&<>
+    <View style={s.hero}><Text style={s.heroEyebrow}>YOUR BILLING OVERVIEW</Text>
+     <Text style={s.heroTitle}>Run your business with clarity.</Text>
+     <Text style={s.heroLabel}>Outstanding · local records</Text><Text style={s.heroAmount}>{money(totals.pending)}</Text>
+     <View style={{flexDirection:'row',gap:10,marginTop:14}}><Button label="＋ New invoice" onPress={newBill}/><Button label="View bills →" onPress={()=>navigate('bills')} outline/></View>
+    </View>
+    <View style={s.statGrid}><Stat label="Active invoices" value={txt(totals.active)}/><Stat label="Total billed" value={money(totals.due)}/></View>
+    <View style={s.statGrid}><Stat label="Collected" value={money(totals.paid)}/><Stat label="Customers" value={txt(data.customers.length)}/></View>
+    <Text style={s.section}>Recent invoices</Text>
+    {data.bills.length===0?<Card><Text style={s.empty}>No local invoices yet. Tap New invoice to create your first native bill.</Text></Card>:
+     data.bills.slice(0,6).map(b=><BillTile key={b.bill_no} b={b} onPress={()=>openBill(b.bill_no)}/>)}
+    <Button outline label="View reports →" onPress={()=>navigate('reports')}/>
+   </>}
+   {page==='bills'&&<>
+    <Head title="Invoices" subtitle="Create, search and manage native rental bills."/>
+    <Button label="＋ New rental bill" onPress={newBill}/>
+    <View style={{height:12}}/><Search value={query} onChange={setQuery} placeholder="Bill, customer, mobile or site"/>
+    {found.length===0?<Card><Text style={s.empty}>No matching invoices.</Text></Card>:
+     found.map(b=><BillTile key={b.bill_no} b={b} onPress={()=>openBill(b.bill_no)}/>)}
+   </>}
+   {page==='form'&&<>
+    <Head title={selected?'Edit invoice':'New rental invoice'} subtitle="Native input controls. Stored only on this device."/>
+    <Card><Text style={s.section}>Bill information</Text>
+     <Input label="Bill number" value={draft.bill_no} onChange={x=>formUpdate('bill_no',x)} locked={!!selected}/>
+     <Input label="Start date (YYYY-MM-DD)" value={draft.start_date} onChange={x=>formUpdate('start_date',x)}/>
+     <Text style={s.inputLabel}>Billing cycle</Text><View style={s.choiceRow}>
+      {[15,20,30].map(days=><Pressable key={days} style={[s.choice,num(draft.cycle_days)===days&&s.selectedChoice]} onPress={()=>setDraft(x=>({...x,cycle_days:days}))}>
+       <Text style={[s.choiceText,num(draft.cycle_days)===days&&{color:'white'}]}>{days} days</Text></Pressable>)}</View>
+     <Input label="Advance deposit (₹)" value={draft.advance_amount} numeric onChange={x=>formUpdate('advance_amount',x)}/>
+     <Text style={s.section}>Customer</Text>
+     <Input label="Customer name" value={draft.name} onChange={x=>formUpdate('name',x)}/>
+     <Input label="Mobile" value={draft.mobile} onChange={x=>formUpdate('mobile',x)}/>
+     <Input label="Place / Site" value={draft.place} onChange={x=>formUpdate('place',x)}/>
+     <Text style={s.section}>Materials · Quantity × Rate</Text>
+     {MATERIALS.map(([k,label,q,r])=><View key={k} style={s.materialLine}>
+      <Text style={s.materialName}>{label}</Text><View style={{flex:1}}><Input label="Quantity" value={draft[q]} numeric onChange={x=>formUpdate(q,x)}/></View>
+      <View style={{flex:1}}><Input label="Rate ₹" value={draft[r]} numeric onChange={x=>formUpdate(r,x)}/></View></View>)}
+     <Text style={s.section}>Wood sizes · e.g. 8×5+10×2</Text>
+     {WOODS.map(([k,label,r])=><View key={k}><Text style={s.materialName}>{label}</Text>
+      <Input label="Feet × pieces" value={draft[k]} placeholder="8×5+10×2" onChange={x=>formUpdate(k,x)}/>
+      <Input label="Rate per foot ₹" value={draft[r]} numeric onChange={x=>formUpdate(r,x)}/></View>)}
+     <Text style={s.section}>Transport & handling</Text>
+     {([['transport_up_trips','Up trips'],['transport_up_charge','Up trip charge'],['transport_down_trips','Down trips'],
+      ['transport_down_charge','Down trip charge'],['loading_charge','Loading ₹'],['unloading_charge','Unloading ₹']] as const).map(([k,label])=>
+      <Input key={k} label={label} value={draft[k]} numeric onChange={x=>formUpdate(k,x)}/>)}
+     <View style={s.preview}><Text style={s.inputLabel}>Current accrued total</Text>
+      <Text style={s.previewAmount}>{money(calculateBill(draft).due)}</Text>
+      <Text style={s.note}>Preview recalculates through today; future cycles and returns affect totals.</Text></View>
+     <Button label={working?'Saving…':selected?'Save changes':'Create invoice'} disabled={working} onPress={()=>void saveBill()}/>
+     <View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate(selected?'detail':'bills')}/>
+    </Card>
+   </>}
+   {page==='detail'&&selectedBill&&(()=>{
+    const b=selectedBill,v=calculateBill(b);
+    return <><Head title={'Invoice '+b.bill_no} subtitle={b.name+' · '+b.place}/>
+     <Card><View style={s.pillRow}><Text style={s.section}>Account summary</Text><Text style={[s.status,b.status==='closed'&&{color:C.green}]}>{b.status.toUpperCase()}</Text></View>
+      <Line label="Start date" value={b.start_date}/><Line label="Cycle" value={b.cycle_days+' days'}/>
+      <Line label="Accrued cycles" value={txt(v.cycles.length)}/>
+      <Line label="Total due" value={money(v.due)}/><Line label="Received" value={money(v.paid)}/>
+      <Text style={s.inputLabel}>Pending</Text><Text style={s.bigAmount}>{money(v.pending)}</Text>
+      <Line label="Advance deposit (separate)" value={money(v.advance)}/>
+     </Card>
+     <Text style={s.section}>Actions</Text>
+     <View style={s.actionGrid}><Button label="Edit" onPress={()=>editBill(b)}/><Button outline label="Share summary" onPress={()=>{void Share.share({message:invoiceText(b)});}}/></View>
+     {b.status==='open'&&<><View style={s.actionGrid}>
+      <Button label="Record payment" onPress={()=>{setModal('payment');setAmount('');}}/>
+      <Button outline label="Return items" onPress={()=>{setModal('return');setChangeQty('');}}/>
+     </View><View style={s.actionGrid}><Button outline label="Add materials" onPress={()=>{setModal('addition');setChangeQty('');}}/>
+     <Button outline label="Close bill" onPress={()=>confirmClose(b)}/></View></>}
+     {modal&&<Card><Text style={s.section}>{modal==='payment'?'Record payment':modal==='return'?'Return material':'Add material'}</Text>
+      {modal==='payment'?<><Input label="Received ₹" value={amount} numeric onChange={setAmount}/>
+       <Input label="Payment note" value={paymentNote} onChange={setPaymentNote}/></>:
+       <><Text style={s.inputLabel}>Material</Text><View style={s.choiceRow}>{MATERIALS.map(([k,label])=>
+        <Pressable style={[s.smallChoice,changeKey===k&&s.selectedChoice]} key={k} onPress={()=>setChangeKey(k)}>
+         <Text style={[s.choiceText,changeKey===k&&{color:'white'}]}>{label}</Text></Pressable>)}</View>
+        <Input label="Pieces" value={changeQty} numeric onChange={setChangeQty}/>
+        <Text style={s.note}>Effective from next rental cycle. Wood return/addition not yet migrated.</Text></>}
+      <Button label="Confirm" onPress={()=>void recordChange()}/><View style={{height:7}}/>
+      <Button outline label="Cancel" onPress={()=>setModal(null)}/></Card>}
+     <Text style={s.section}>Rental cycles</Text>
+     {v.cycles.length===0?<Card><Text style={s.empty}>Rental starts in the future or start date is invalid.</Text></Card>:
+      v.cycles.slice().reverse().slice(0,36).map(c=><Card key={c.index}><Line label={'Cycle '+c.index} value={money(c.total)}/>
+       <Text style={s.note}>{c.start_date} — {c.end_date}</Text></Card>)}
+     <Text style={s.section}>Recorded payments</Text>
+     {(b.payments||[]).length===0?<Card><Text style={s.empty}>No payments yet.</Text></Card>:
+      b.payments.map(p=><Card key={p.id}><Line label={p.date} value={money(p.amount)}/><Text style={s.note}>{p.note||'Payment recorded'}</Text></Card>)}
+     <Button outline label="← Back to bills" onPress={()=>navigate('bills')}/>
+    </>;
+   })()}
+   {page==='customers'&&<><Head title="Customers" subtitle="On-device customer directory."/>
+    <Button label="＋ Add customer" onPress={()=>{setCustomerDraft({name:'',mobile:'',place:''});navigate('customer-form');}}/>
+    <View style={{height:12}}/><Search value={query} onChange={setQuery} placeholder="Search name, number, location"/>
+    {customers.length===0?<Card><Text style={s.empty}>No customers yet.</Text></Card>:customers.map(c=>
+     <Pressable key={c.mobile} onPress={()=>{setCustomerDraft(c);navigate('customer-form');}} style={s.row}>
+      <View style={s.avatar}><Text style={s.avatarText}>{c.name.slice(0,1).toUpperCase()}</Text></View>
+      <View style={{flex:1}}><Text style={s.rowTitle}>{c.name}</Text><Text style={s.rowSub}>{c.mobile} · {c.place}</Text></View><Text style={s.chevron}>›</Text>
+     </Pressable>)}</>}
+   {page==='customer-form'&&<><Head title="Customer details" subtitle="Create or update a local customer."/><Card>
+    <Input label="Name" value={customerDraft.name} onChange={v=>setCustomerDraft(x=>({...x,name:v}))}/>
+    <Input label="Mobile" value={customerDraft.mobile} onChange={v=>setCustomerDraft(x=>({...x,mobile:v}))}/>
+    <Input label="Place" value={customerDraft.place} onChange={v=>setCustomerDraft(x=>({...x,place:v}))}/>
+    <Button label="Save customer" onPress={()=>void saveCustomer()}/><View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate('customers')}/>
+   </Card></>}
+   {page==='inventory'&&<><Head title="Inventory" subtitle="Track local master stock. Rented stock estimates from active bills."/>
+    {MATERIALS.map(([k,label,q])=>{
+     const stock=data.inventory.find(x=>x.item===k)?.stock_qty||0;
+     const rented=data.bills.filter(b=>b.status==='open').reduce((sum,b)=>sum+num(b[q]),0);
+     return <Pressable key={k} style={s.row} onPress={()=>{setStockDraft({item:k,stock_qty:stock});navigate('stock-form');}}>
+      <View style={s.avatar}><Text style={s.avatarText}>▦</Text></View>
+      <View style={{flex:1}}><Text style={s.rowTitle}>{label}</Text>
+       <Text style={s.rowSub}>Stock {stock} · Base rented {rented}</Text></View><Text style={s.stockValue}>{stock-rented}</Text>
+     </Pressable>;})}
+    <Text style={s.note}>Available stock is a basic estimate; return/addition and wood balance parity not yet verified.</Text>
+   </>}
+   {page==='stock-form'&&<><Head title="Update stock" subtitle={'Master stock for '+stockDraft.item}/><Card>
+    <Input label="Stock quantity" value={stockDraft.stock_qty} numeric onChange={v=>setStockDraft(x=>({...x,stock_qty:num(v)}))}/>
+    <Button label="Save stock" onPress={()=>void saveStock()}/><View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate('inventory')}/>
+   </Card></>}
+   {page==='reports'&&<><Head title="Reports" subtitle="Native report summaries of local test records."/>
+    <View style={s.statGrid}><Stat label="Active invoices" value={txt(totals.active)}/><Stat label="Total due" value={money(totals.due)}/></View>
+    <View style={s.statGrid}><Stat label="Received" value={money(totals.paid)}/><Stat label="Pending" value={money(totals.pending)}/></View>
+    <Text style={s.section}>Pending invoices</Text>
+    {data.bills.filter(b=>b.status==='open'&&calculateBill(b).pending>0).map(b=><BillTile key={b.bill_no} b={b} onPress={()=>openBill(b.bill_no)}/>)}
+    <Button outline label="Share local report" onPress={()=>{void Share.share({message:
+     'S.A Traders — local test report\nBills: '+data.bills.length+'\nDue: '+money(totals.due)+'\nPaid: '+money(totals.paid)+'\nPending: '+money(totals.pending)
+    });}}/>
+   </>}
+   {page==='more'&&<><Head title="More tools" subtitle="Native workflow tools and migration readiness."/>
+    <Card><Text style={s.section}>Documents · offline</Text>
+     <Button label="＋ Create delivery slip" onPress={()=>{setNoteDraft({id:'',date:TODAY(),customer:'',notes:'',type:'slip'});navigate('note-form');}}/>
+     <View style={{height:8}}/><Button outline label="＋ Create challan" onPress={()=>{setNoteDraft({id:'',date:TODAY(),customer:'',notes:'',type:'challan'});navigate('note-form');}}/>
+    </Card>
+    {data.notes.map(n=><Pressable key={n.id} style={s.row} onPress={()=>{setNoteDraft(n);navigate('note-form');}}>
+      <View style={s.avatar}><Text style={s.avatarText}>▤</Text></View><View style={{flex:1}}><Text style={s.rowTitle}>{n.type.toUpperCase()} · {n.customer}</Text><Text style={s.rowSub}>{n.date} · {n.notes}</Text></View>
+      <Text style={s.chevron}>›</Text>
+    </Pressable>)}
+    <Card><Text style={s.section}>App data</Text>
+     <Button outline label="Export local JSON (share)" onPress={()=>{void Share.share({message:JSON.stringify(data,null,2)});}}/>
+     <View style={{height:8}}/><Button outline label="Clear local test records" onPress={confirmReset}/>
+    </Card>
+    <Card><Text style={s.section}>Not migrated yet</Text>
+     <Text style={s.note}>Live Firestore authentication/sync, complete legacy rental edge cases, native PDF printing, invoice image sharing, payment notification listener, WhatsApp reminder jobs, guarded multi-bill receipts, custom shop billing parity, backup import, wood returns, admin controls.</Text>
+     <Text style={[s.note,{marginTop:9,color:'#A4493E'}]}>These are intentionally unavailable rather than being fake buttons. Do not use this APK for actual business accounting.</Text>
+    </Card>
+    <Button outline label="Open reports" onPress={()=>navigate('reports')}/>
+   </>}
+   {page==='note-form'&&<><Head title={noteDraft.type==='slip'?'Delivery slip':'Challan'} subtitle="Native offline document record"/><Card>
+    <Input label="Customer" value={noteDraft.customer} onChange={v=>setNoteDraft(x=>({...x,customer:v}))}/>
+    <Input label="Date YYYY-MM-DD" value={noteDraft.date} onChange={v=>setNoteDraft(x=>({...x,date:v}))}/>
+    <Input label="Materials / notes" value={noteDraft.notes} multiline onChange={v=>setNoteDraft(x=>({...x,notes:v}))}/>
+    <Button label="Save record" onPress={()=>void saveNote()}/><View style={{height:8}}/>
+    <Button outline label="Share text" onPress={()=>{void Share.share({message:noteDraft.type.toUpperCase()+' · '+noteDraft.customer+'\n'+noteDraft.date+'\n'+noteDraft.notes});}}/>
+    <View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate('more')}/>
+   </Card></>}
+  </ScrollView>
+ </KeyboardAvoidingView>
+ <View style={s.nav}>
+  {TABS.map(([k,label,icon])=><Pressable key={k} accessibilityRole="tab" accessibilityState={{selected:page===k}} onPress={()=>navigate(k)}
+   style={[s.navItem,(page===k||page==='form'&&k==='bills'||page==='detail'&&k==='bills'||page==='customer-form'&&k==='customers'||page==='stock-form'&&k==='inventory'||page==='note-form'&&k==='more')&&s.navOn]}>
+   <Text style={s.navIcon}>{icon}</Text><Text style={s.navText}>{label}</Text></Pressable>)}
+ </View></SafeAreaView>;
+}
+function Search({value,onChange,placeholder}:{value:string;onChange:(v:string)=>void;placeholder:string}){
+ return <TextInput style={s.search} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor="#9EACBC"/>;
+}
+function Line({label,value}:{label:string;value:string}){
+ return <View style={s.line}><Text style={s.lineLabel}>{label}</Text><Text style={s.lineValue}>{value}</Text></View>;
+}
+function BillTile({b,onPress}:{b:Bill;onPress:()=>void}){
+ const v=calculateBill(b);
+ return <Pressable accessibilityRole="button" onPress={onPress} style={s.row}>
+  <View style={s.avatar}><Text style={s.avatarText}>₹</Text></View>
+  <View style={{flex:1}}><Text style={s.rowTitle} numberOfLines={1}>{b.name}</Text><Text style={s.rowSub}>{b.bill_no} · {b.start_date}</Text></View>
+  <View style={{alignItems:'flex-end',gap:6}}><Text style={s.rowValue}>{money(v.pending)}</Text>
+   <Text style={[s.status,b.status==='closed'&&{color:C.green}]}>{b.status.toUpperCase()}</Text></View></Pressable>;
+}
+const s=StyleSheet.create({
+ safe:{flex:1,backgroundColor:C.bg},top:{height:70,flexDirection:'row',alignItems:'center',paddingHorizontal:20,gap:11,backgroundColor:C.white},
+ logo:{height:43,width:43,borderRadius:13,backgroundColor:C.navy,alignItems:'center',justifyContent:'center'},
+ logoText:{color:'white',fontWeight:'900'},brandName:{fontSize:18,fontWeight:'900',color:C.ink},brandSub:{fontSize:9,color:C.sub,letterSpacing:1.5,fontWeight:'800',marginTop:3},
+ mode:{paddingHorizontal:10,paddingVertical:6,borderRadius:15,backgroundColor:'#DFF4E8'},modeText:{color:C.green,fontWeight:'900',fontSize:12},
+ banner:{backgroundColor:'#E7F2FC',padding:8},bannerText:{fontSize:9,color:'#47759A',textAlign:'center',fontWeight:'800',letterSpacing:.5},
+ body:{padding:18,paddingBottom:34},heading:{color:C.ink,fontWeight:'900',fontSize:26,letterSpacing:-.8},subtitle:{color:C.sub,fontSize:12,marginTop:7,lineHeight:18},
+ hero:{backgroundColor:C.navy,borderRadius:24,padding:23,marginBottom:12},heroEyebrow:{fontSize:10,color:'#FBC3AA',letterSpacing:1.4,fontWeight:'900'},
+ heroTitle:{fontSize:28,color:'white',fontWeight:'900',lineHeight:35,marginTop:12},heroLabel:{color:'#B7C8D8',fontSize:11,marginTop:20},
+ heroAmount:{fontSize:31,color:'white',fontWeight:'900',marginTop:6},
+ statGrid:{flexDirection:'row',gap:10,marginBottom:11},stat:{flex:1,borderRadius:17,padding:17,backgroundColor:'white',borderColor:C.line,borderWidth:1},
+ statValue:{fontSize:22,fontWeight:'900',color:C.ink},statLabel:{fontSize:11,color:C.sub,marginTop:7},
+ card:{backgroundColor:'white',borderRadius:17,borderColor:C.line,borderWidth:1,padding:16,marginBottom:12},
+ row:{backgroundColor:'white',padding:14,borderWidth:1,borderColor:C.line,borderRadius:17,marginBottom:9,flexDirection:'row',alignItems:'center',gap:11},
+ avatar:{backgroundColor:C.light,height:43,width:43,borderRadius:14,alignItems:'center',justifyContent:'center'},avatarText:{fontSize:21,fontWeight:'800',color:C.peach},
+ rowTitle:{fontSize:14,fontWeight:'800',color:C.ink},rowSub:{fontSize:11,color:C.sub,marginTop:5},rowValue:{fontSize:13,fontWeight:'900',color:C.ink},stockValue:{fontSize:17,fontWeight:'900',color:C.green},
+ chevron:{fontSize:26,color:C.sub},status:{fontSize:9,fontWeight:'900',color:'#C78031',letterSpacing:.6},
+ section:{fontSize:17,color:C.ink,fontWeight:'900',marginTop:16,marginBottom:11},empty:{padding:13,color:C.sub,textAlign:'center',fontSize:13,lineHeight:19},
+ button:{backgroundColor:C.peach,paddingHorizontal:14,paddingVertical:14,borderRadius:13,alignItems:'center',justifyContent:'center',flex:1},
+ buttonOutline:{backgroundColor:'white',borderWidth:1,borderColor:C.line},buttonText:{color:'white',fontWeight:'900',fontSize:12},
+ inputWrap:{marginBottom:12},inputLabel:{fontSize:11,color:C.ink,fontWeight:'800',marginBottom:7},
+ input:{backgroundColor:'#F7F9FC',color:C.ink,paddingHorizontal:13,paddingVertical:10,borderWidth:1,borderColor:C.line,borderRadius:11,minHeight:45,fontSize:13},
+ search:{borderRadius:13,borderWidth:1,borderColor:C.line,backgroundColor:'white',padding:14,marginBottom:16,fontSize:13,color:C.ink},
+ choiceRow:{flexDirection:'row',gap:8,flexWrap:'wrap',marginBottom:17},choice:{backgroundColor:'#F2F5F8',borderRadius:10,padding:12,flex:1,alignItems:'center'},
+ smallChoice:{backgroundColor:'#F2F5F8',borderRadius:8,padding:9},
+ selectedChoice:{backgroundColor:C.navy},choiceText:{fontSize:11,fontWeight:'800',color:C.ink},
+ materialLine:{flexDirection:'row',gap:8,alignItems:'center'},materialName:{width:85,fontSize:11,fontWeight:'800',color:C.ink},
+ preview:{backgroundColor:'#E9F8F1',borderRadius:12,padding:15,marginBottom:15},previewAmount:{fontSize:24,fontWeight:'900',color:C.green},
+ note:{color:C.sub,fontSize:11,lineHeight:18},bigAmount:{fontWeight:'900',fontSize:28,color:C.peach,marginBottom:10},
+ line:{flexDirection:'row',justifyContent:'space-between',marginVertical:6},lineLabel:{fontSize:12,color:C.sub},lineValue:{fontWeight:'800',fontSize:12,color:C.ink},
+ pillRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},actionGrid:{flexDirection:'row',gap:10,marginBottom:9},
+ nav:{backgroundColor:'white',paddingVertical:9,paddingHorizontal:8,borderTopWidth:1,borderColor:C.line,flexDirection:'row'},
+ navItem:{flex:1,alignItems:'center',borderRadius:11,paddingVertical:6},navOn:{backgroundColor:C.light},
+ navIcon:{fontSize:22,fontWeight:'800',color:C.ink},navText:{fontSize:10,fontWeight:'800',color:C.sub,marginTop:4}
 });

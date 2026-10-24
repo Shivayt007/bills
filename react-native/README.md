@@ -1,45 +1,42 @@
-# S.A Traders — full-function hybrid React Native branch
+# S.A Traders — Native Lab (React Native, no WebView)
 
-This branch combines a **native React Native launcher / navigation interface** with the **existing production Java + Android WebView business engine**. This is an integration migration, **not** a full rewrite of every billing screen into React Native views.
+This branch now runs **real native React Native components** for the UI, using its own TypeScript rental calculations and persistent on-device test data. It does **not** launch the original Java WebView app, show a website, or reuse the old Android Activity.
 
-## Why this approach
-The production S.A Traders 1.8.2 includes rental-cycle invoices, customer workflows, Firebase Firestore synchronization, guarded writes, payment detection, notifications, backups, printing, WhatsApp sharing, slips, challans, and more. Blindly rewriting this mature logic risks changing accounting results.
+## Implemented in React Native
+- Interactive native dashboard based on local invoices and collections
+- Create/edit rental bills with the original material fields and rates, wood size syntax, transport, 15/20/30-day cycles, advance deposit
+- Accrued cycle calculation, basic rental return/addition (material quantity), payment entry, close bill
+- Local customer add/edit and directory search
+- Local master inventory entry and a **rough** rented-stock view
+- Basic on-device reports, local payment history, plain-text invoice sharing
+- Delivery slips and challan local notes, local JSON export through Android share sheet
+- On-device persistence with AsyncStorage 2.2.0
+- Basic static CI checks and TypeScript validation
 
-The GitHub build runs Expo prebuild and then \`scripts/integrate-existing-app.cjs\`, which copies the original Java sources and production web assets into the new Android binary. Native shortcuts open the original Java WebView activity on its existing hash routes. The original JavaScript login/authentication gate and existing buttons remain in place.
+## Deliberately not represented as complete
+Do **not** deploy this build to replace the operational v1.8.2 app. It does **not** yet match every original route, calculation edge case or button. Not migrated: authenticated Firestore synchronization/guarded writes, split receipts, multi-cycle payment allocations, production PDF/image invoice printing, local backup import, notification listener, WhatsApp reminders, native notification routes, advanced custom shop bill rules, wood returns/additions, full admin/roles and parity-verified inventory. The new local storage is not the production database.
 
-## Implementation details
-- React Native 0.81.5 / Expo SDK 54
-- React Native navigation/launch page, ~16 shortcuts, with no fabricated demo bills
-- The full production WebView app and original Java bridge (Firebase, payments, WhatsApp, print/export/backup and background reminders)
-- Same Firestore project and schema; generated Firebase client entry is adapted to preview Android application ID
-- Preview APK ID \`com.satraders.billing.preview\`, distinct from original \`com.satraders.billing\`; it can install alongside production
-- Existing \`main\` branch, Android app, HTML/JS, production signing and Firebase collections are not modified
+**Security:** The original repository Firestore rules allow unauthenticated reads and writes. The earlier client-only app lock is not adequate security for a live production app; implement server-enforced Firebase Authentication and Firestore rules before enabling live data in this new client.
 
-**Data caution:** Because the hybrid version connects to the existing Firestore project, creating/editing/deleting actual bills from the preview can affect real data. Back up your data before using it and do parity tests before production rollout.
+## Build / install
+The application ID is \`com.satraders.billing.preview\` to avoid replacing the production app.
 
-## Build
-\`\`\`
+\`\`\`sh
 cd react-native
 npm install
 npm run check
 npm run typecheck
 npx expo prebuild --platform android --no-install --clean
-node scripts/integrate-existing-app.cjs
 cd android && ./gradlew :app:assembleRelease
 \`\`\`
-The GitHub Action produces an installable release-mode APK using the generated Android signing config. It **does not use the production release signing identity** and does not directly update the existing production installation.
 
-## Migration status
-| Capability | Current approach |
-| --- | --- |
-| All existing web app screens and JS workflows | Bundled from production verbatim |
-| Java Firebase/notification/payment/WhatsApp/print/backup bridge | Bundled into new Android package |
-| React Native home + shortcuts | Native |
-| Full screen-by-screen RN replacement | Not completed |
-| Live device parity testing of all interactions | Not completed |
-| Replacement for production signed APK | No |
+Build workflow: \`.github/workflows/build-react-native-preview.yml\` publishes \`S-A-Traders-Pure-React-Native-Lab-APK\`.
 
-## Before release
-Test login, create/edit/return invoices, custom bills, guarded payments, printing and WhatsApp, offline and online Firestore, file sharing and restore, material movements, notification access, reminders, settings, and app restart. Make backups. Firestore project access restrictions and payment-listener permissions may behave differently under the new package and signing certificate.
-
-This hybrid build prioritizes **preserving functionality** over prematurely claiming a fully native migration.
+## Production migration checklist
+- Port and test EVERY feature/route against \`main\`, including the latest JS overrides.
+- Parity-test real and synthetic rental-cycle scenarios and historical transactions.
+- Add secure user auth and server-side permission rules.
+- Migrate the original Firestore data and audit identifiers safely.
+- Port native services to Expo modules/React Native Android modules.
+- Test real devices, Android 8+ through 16, backup restore, offline/online, and repeatability.
+- Keep release signing and applicationId the same **only after** the app passes parity, security, and upgrade tests.
