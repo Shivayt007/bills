@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/react-native-redesign
+      - feature/native-json-backup-import
     paths:
       - 'react-native/**'
       - '.github/workflows/build-react-native-preview.yml'
