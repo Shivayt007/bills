@@ -6,6 +6,10 @@ import {
 import {calculateBill,Customer,Data,EMPTY,invoiceText,makeBill,MATERIALS,money,
  num,Note,RATES,round2,Stock,TODAY,validateBill,WOODS,Bill} from './domain';
 import {clearLocal,loadLocal,saveLocal} from './localStore';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import {parseLegacyBackup,exportLegacyBackup,mergeBackup} from './legacyBackup';
 
 // Fully native React Native views. No WebView, Java billing screen, or external website.
 // Isolated local test records, NOT connected to production Firestore.
@@ -45,6 +49,35 @@ export default function App(){
  const update=async(next:Data)=>{
   setWorking(true);try{await saveLocal(next);setData(next);}
   catch(e){Alert.alert('Save failed',txt(e));}finally{setWorking(false);}
+ };
+ const importBackup=async()=>{
+  try{
+   const pick=await DocumentPicker.getDocumentAsync({type:['application/json','text/plain','*/*'],copyToCacheDirectory:true});
+   if(pick.canceled||!pick.assets?.length)return;
+   const json=await FileSystem.readAsStringAsync(pick.assets[0].uri);
+   const parsed=parseLegacyBackup(json);
+   Alert.alert('Backup ready for import',parsed.summary+'\\n\\nCurrent records will be backed up before any replacement.',[
+    {text:'Cancel',style:'cancel'},
+    {text:'Merge records',onPress:()=>{void applyBackup(mergeBackup(data,parsed.data));}},
+    {text:'Replace records',style:'destructive',onPress:()=>{void applyBackup(parsed.data);}}
+   ]);
+  }catch(e){Alert.alert('Import failed',txt(e instanceof Error?e.message:e));}
+ };
+ const applyBackup=async(next:Data)=>{
+  try{
+   const safety=FileSystem.documentDirectory+'sa-traders-before-import-'+Date.now()+'.json';
+   await FileSystem.writeAsStringAsync(safety,exportLegacyBackup(data));
+   await saveLocal(next);setData(next);
+   Alert.alert('Import complete','Records loaded. Safety backup saved in app documents. Export a copy before uninstalling.');
+  }catch(e){Alert.alert('Import failed',txt(e));}
+ };
+ const exportBackup=async()=>{
+  try{
+   const uri=FileSystem.cacheDirectory+'sa-traders-backup-'+TODAY()+'.json';
+   await FileSystem.writeAsStringAsync(uri,exportLegacyBackup(data));
+   if(await Sharing.isAvailableAsync())await Sharing.shareAsync(uri,{mimeType:'application/json',dialogTitle:'Save S.A Traders backup'});
+   else Alert.alert('Backup created',uri);
+  }catch(e){Alert.alert('Export failed',txt(e));}
  };
  const navigate=(next:Page)=>{setPage(next);setQuery('');setModal(null);};
  const openBill=(id:string)=>{setSelected(id);navigate('detail');};
@@ -259,11 +292,12 @@ export default function App(){
       <Text style={s.chevron}>›</Text>
     </Pressable>)}
     <Card><Text style={s.section}>App data</Text>
-     <Button outline label="Export local JSON (share)" onPress={()=>{void Share.share({message:JSON.stringify(data,null,2)});}}/>
+     <Button label="Import S.A Traders JSON backup" onPress={()=>{void importBackup();}}/><View style={{height:8}}/>
+     <Button outline label="Export compatible JSON backup" onPress={()=>{void exportBackup();}}/>
      <View style={{height:8}}/><Button outline label="Clear local test records" onPress={confirmReset}/>
     </Card>
     <Card><Text style={s.section}>Not migrated yet</Text>
-     <Text style={s.note}>Live Firestore authentication/sync, complete legacy rental edge cases, native PDF printing, invoice image sharing, payment notification listener, WhatsApp reminder jobs, guarded multi-bill receipts, custom shop billing parity, backup import, wood returns, admin controls.</Text>
+     <Text style={s.note}>Live Firestore authentication/sync, complete legacy rental edge cases, native PDF printing, invoice image sharing, payment notification listener, WhatsApp reminder jobs, guarded multi-bill receipts, custom shop billing parity, wood returns, admin controls.</Text>
      <Text style={[s.note,{marginTop:9,color:'#A4493E'}]}>These are intentionally unavailable rather than being fake buttons. Do not use this APK for actual business accounting.</Text>
     </Card>
     <Button outline label="Open reports" onPress={()=>navigate('reports')}/>
