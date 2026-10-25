@@ -15,4 +15,7 @@ assert(app.includes('saveStock=async'), 'Native inventory workflow missing');
 assert(app.includes('saveNote=async'), 'Native slip/challan workflow missing');
 assert(math.includes('calculateBill'), 'Native rental calculation missing');
 assert(pkg.dependencies['@react-native-async-storage/async-storage']==='2.2.0');
-console.log('Native-only UI and local workflow checks passed.');
+assert(app.includes('Import S.A Traders JSON backup'));
+assert(app.includes('exportBackup=async'));
+assert(fs.existsSync(path.join(root,'src','legacyBackup.ts')));
+console.log('Native-only UI, local workflow and JSON backup checks passed.');

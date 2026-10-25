@@ -15,7 +15,7 @@ export const WOODS:ReadonlyArray<[WoodKey,string,string]>=[
 export const RATES:Record<string,number>={jackey_rate:65,jackey9_rate:100,sheet_rate:35,
  half_sheet_rate:30,span_rate:100,inner3m_rate:60,wood_12_rate:18,wood_9_rate:18,wood_6_rate:15,runner_rate:7};
 export type ItemChange={date:string;items:NumericRecord;wood:Record<string,SizeMap>;effective_from_cycle:number};
-export type Payment={id:string;date:string;amount:number;note?:string};
+export type Payment={id?:string;date?:string;payment_id?:string;payment_date?:string;amount:number;note?:string;method?:string;cycle_index?:number;cycle_start_date?:string;cycle_end_date?:string;receipt_key?:string;[key:string]:unknown};
 export type Bill={
  bill_no:string;name:string;mobile:string;place:string;start_date:string;cycle_days:number;
  advance_amount:number;status:'open'|'closed';calculation_type?:string;closed_at?:string;
@@ -27,7 +27,7 @@ export type Bill={
 export type Customer={name:string;mobile:string;place:string;created_at?:string};
 export type Note={id:string;customer:string;date:string;notes:string;type:'slip'|'challan'};
 export type Stock={item:string;stock_qty:number;stock_map?:SizeMap};
-export type Data={bills:Bill[];customers:Customer[];inventory:Stock[];notes:Note[]};
+export type Data={bills:Bill[];customers:Customer[];inventory:Stock[];notes:Note[];customBills?:Record<string,unknown>[];slips?:Record<string,unknown>[];challans?:Record<string,unknown>[];settings?:Record<string,unknown>[];backupBusiness?:Record<string,unknown>;backupExtra?:Record<string,unknown>};
 export const EMPTY:Data={bills:[],customers:[],inventory:[],notes:[]};
 export const TODAY=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);};
 export const num=(v:unknown,otherwise=0)=>{const n=Number(v);return Number.isFinite(n)?n:otherwise;};

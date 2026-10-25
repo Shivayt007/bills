@@ -6,6 +6,10 @@ import {
 import {calculateBill,Customer,Data,EMPTY,invoiceText,makeBill,MATERIALS,money,
  num,Note,RATES,round2,Stock,TODAY,validateBill,WOODS,Bill} from './domain';
 import {clearLocal,loadLocal,saveLocal} from './localStore';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import {parseLegacyBackup,exportLegacyBackup,mergeBackup} from './legacyBackup';
 import {BillHero,BillCycleDetails,BillMaterialDetails,CustomerMaterialSummary,
  MetricCard,QuantityEditor,QuickAction,SectionHeader,Segments} from './ProfessionalUI';
 import type {BillTab,FormSection} from './ProfessionalUI';
@@ -53,6 +57,47 @@ export default function App(){
  const update=async(next:Data)=>{
   setWorking(true);try{await saveLocal(next);setData(next);}
   catch(e){Alert.alert('Save failed',txt(e));}finally{setWorking(false);}
+ };
+ const importBackup=async()=>{
+  try{
+   const chosen=await DocumentPicker.getDocumentAsync({type:['application/json','text/plain','*/*'],copyToCacheDirectory:true});
+   if(chosen.canceled||!chosen.assets?.length)return;
+   const asset=chosen.assets[0];
+   if(asset.size&&asset.size>15_000_000)throw Error('Backup file exceeds 15 MB');
+   const json=await FileSystem.readAsStringAsync(asset.uri);
+   const parsed=parseLegacyBackup(json);
+   Alert.alert('Preview backup import',parsed.summary+'\n\nChoose Merge to keep existing local records, or Replace to overwrite LOCAL test data. A safety backup will be saved first. This does not write to Firebase.',[
+     {text:'Cancel',style:'cancel'},
+     {text:'Merge local records',onPress:()=>{void applyBackup(mergeBackup(data,parsed.data));}},
+     {text:'Replace local records',style:'destructive',onPress:()=>Alert.alert('Confirm local replacement','All existing local test records will be replaced. Your real Firestore database will not be changed.',[
+       {text:'Cancel',style:'cancel'}, {text:'Replace local records',style:'destructive',onPress:()=>{void applyBackup(parsed.data);}}
+     ])}
+   ]);
+  }catch(e){Alert.alert('Import rejected',txt(e instanceof Error?e.message:e));}
+ };
+ const applyBackup=async(next:Data)=>{
+  if(working){Alert.alert('Operation busy','Complete the current save before importing');return;}
+  setWorking(true);
+  try{
+   const folder=FileSystem.documentDirectory;
+   if(!folder)throw Error('App document storage unavailable');
+   const safety=folder+'sa-traders-before-import-'+Date.now()+'.json';
+   await FileSystem.writeAsStringAsync(safety,exportLegacyBackup(data));
+   await saveLocal(next);
+   setData(next);
+   Alert.alert('Local import completed','All imported values and payment records were preserved for review. A safety copy was saved in app documents; export a separate copy before uninstalling. Imported figures are NOT certified for live billing.');
+  }catch(e){Alert.alert('Import failed',txt(e));}
+  finally{setWorking(false);}
+ };
+ const exportBackup=async()=>{
+  try{
+   const folder=FileSystem.cacheDirectory;
+   if(!folder)throw Error('App cache is unavailable');
+   const uri=folder+'sa-traders-native-backup-'+TODAY()+'.json';
+   await FileSystem.writeAsStringAsync(uri,exportLegacyBackup(data));
+   if(await Sharing.isAvailableAsync())await Sharing.shareAsync(uri,{mimeType:'application/json',dialogTitle:'Save S.A Traders local JSON backup'});
+   else Alert.alert('Backup created',uri);
+  }catch(e){Alert.alert('Backup export failed',txt(e));}
  };
  const navigate=(next:Page)=>{setPage(next);setQuery('');setModal(null);};
  const openBill=(id:string)=>{setSelected(id);setDetailTab('materials');navigate('detail');};
@@ -259,7 +304,7 @@ export default function App(){
        {sameCustomer.map(other=><BillTile key={other.bill_no} b={other} onPress={()=>openBill(other.bill_no)}/>)}</>}
      {detailTab==='payments'&&<><SectionHeader title="Payment history" subtitle="Recorded collections and balances"/>
        {(b.payments||[]).length===0?<Card><Text style={s.empty}>No payments recorded.</Text></Card>:
-        b.payments.map(p=><Card key={p.id}><Line label={p.date} value={money(p.amount)}/>
+        b.payments.map((p,index)=><Card key={p.payment_id||p.id||String(index)}><Line label={p.payment_date||p.date||'Date not recorded'} value={money(p.amount)}/>
          <Text style={s.note}>{p.note||'Payment received'}</Text></Card>)}
        <Card><Line label="Total paid" value={money(v.paid)}/><Line label="Amount pending" value={money(v.pending)}/></Card>
       </>}
@@ -344,7 +389,8 @@ export default function App(){
       <Text style={s.chevron}>›</Text>
     </Pressable>)}
     <Card><Text style={s.section}>App data</Text>
-     <Button outline label="Export local JSON (share)" onPress={()=>{void Share.share({message:JSON.stringify(data,null,2)});}}/>
+     <Button label="Import S.A Traders JSON backup" disabled={working} onPress={()=>{void importBackup();}}/>
+     <View style={{height:8}}/><Button outline label="Export compatible JSON backup" onPress={()=>{void exportBackup();}}/>
      <View style={{height:8}}/><Button outline label="Clear local test records" onPress={confirmReset}/>
     </Card>
     <Card><Text style={s.section}>Not migrated yet</Text>
