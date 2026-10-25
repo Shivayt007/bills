@@ -11,7 +11,7 @@ const array=(v:unknown,name:string):Record<string,unknown>[]=>{
 export function parseLegacyBackup(text:string):{data:Data;summary:string;business?:Record<string,unknown>} {
  let raw:unknown;
  if(text.length>15_000_000)throw Error('Backup exceeds 15 MB safety limit');
- try{raw=JSON.parse(text.replace(/^\\uFEFF/,''));}catch{throw Error('The selected file is not valid JSON');}
+ try{raw=JSON.parse(text.replace(/^\uFEFF/,''));}catch{throw Error('The selected file is not valid JSON');}
  if(!isObject(raw)||raw.schema!==BACKUP_SCHEMA||!isObject(raw.data))throw Error('Unsupported backup format. Expected '+BACKUP_SCHEMA);
  const d=raw.data;
  const bills=array(d.bills,'bills'),customers=array(d.customers,'customers');
@@ -45,7 +45,7 @@ export function parseLegacyBackup(text:string):{data:Data;summary:string;busines
   status:b.status==='closed'?'closed':'open',
  })) as Bill[];
  const data:Data={...EMPTY,bills:normalized,customers:customers as Data['customers'],
-  inventory:inventory as Data['inventory'],notes:[],
+  inventory:inventory as Data['inventory'],notes:Array.isArray(d.nativeNotes)?d.nativeNotes as Data['notes']:[],
   customBills,slips,challans,settings,
   backupBusiness:isObject(raw.business)?raw.business:undefined,
   backupExtra:Object.fromEntries(Object.entries(d).filter(([k])=>!['bills','customers','inventory','customBills','slips','challans','settings'].includes(k)))};
@@ -56,7 +56,7 @@ export function exportLegacyBackup(data:Data):string{
   business:data.backupBusiness||{name:'S.A Traders'},
   data:{...(data.backupExtra||{}),bills:data.bills,customers:data.customers,
    customBills:data.customBills||[],slips:data.slips||[],challans:data.challans||[],
-   inventory:data.inventory,settings:data.settings||[]}};
+   inventory:data.inventory,settings:data.settings||[],nativeNotes:data.notes||[]}};
  return JSON.stringify(payload,null,2);
 }
 export function mergeBackup(current:Data,incoming:Data):Data{

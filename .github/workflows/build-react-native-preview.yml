@@ -54,6 +54,9 @@ jobs:
       - name: Check native rental calculations
         run: node scripts/domain-parity-check.cjs
 
+      - name: Test legacy JSON backup and merge parity
+        run: node scripts/backup-parity-check.cjs
+
       - name: Type-check React Native UI
         run: npm run typecheck
 
