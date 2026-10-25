@@ -10,3 +10,5 @@ export async function loadLocal():Promise<Data>{
 }
 export async function saveLocal(data:Data){await AsyncStorage.setItem(KEY,JSON.stringify(data));}
 export async function clearLocal(){await AsyncStorage.removeItem(KEY);}
+
+export async function rawLocal(){return (await AsyncStorage.getItem(KEY))||'';}

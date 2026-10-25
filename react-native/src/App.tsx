@@ -14,7 +14,7 @@ import {printBill,shareBillPdf,shareCustomerReport} from './invoices';
 import {refreshBackgroundReminders} from './device';
 import {useAdmin} from './admin';
 import {convertCustom,uid as ledgerId} from './ledger';
-import {clearLocal,loadLocal,saveLocal} from './localStore';
+import {clearLocal,loadLocal,saveLocal,rawLocal} from './localStore';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -51,6 +51,7 @@ export default function App(){return <SafeAreaProvider><LedgerApp/></SafeAreaPro
 function LedgerApp(){
  const {authorize,panel:adminPanel,dialog:adminDialog,locked,unlock,ready:adminReady}=useAdmin();
  const mutation=useRef(false);
+ const [loadError,setLoadError]=useState('');
  const [data,setData]=useState<Data>(EMPTY),[loaded,setLoaded]=useState(false);
  const [page,setPage]=useState<Page>('dashboard'),[query,setQuery]=useState('');
  const [formSection,setFormSection]=useState<FormSection>('materials');
@@ -71,7 +72,7 @@ function LedgerApp(){
  const [customerOriginal,setCustomerOriginal]=useState('');
  const [hubTab,setHubTab]=useState('custom');
  useEffect(()=>{const sub=BackHandler.addEventListener('hardwareBackPress',()=>{if(page==='dashboard')return false;setModal(null);setPage(page==='detail'||page==='form'?'bills':page==='customer-detail'?'customers':'dashboard');return true;});return ()=>sub.remove();},[page]);
- useEffect(()=>{loadLocal().then(d=>setData(d)).catch(e=>Alert.alert('Local storage error',txt(e))).finally(()=>setLoaded(true));},[]);
+ useEffect(()=>{loadLocal().then(d=>setData(d)).catch(e=>{setLoadError(txt(e));Alert.alert('Local storage error','Existing data could not be read. Export a recovery copy or import a known backup.');}).finally(()=>setLoaded(true));},[]);
  const update=async(next:Data)=>{
   if(mutation.current)throw Error('A save is already in progress');
   mutation.current=true;setWorking(true);try{await saveLocal(next);setData(next);}
@@ -103,7 +104,7 @@ function LedgerApp(){
    const safety=folder+'sa-traders-before-import-'+Date.now()+'.json';
    await FileSystem.writeAsStringAsync(safety,exportLegacyBackup(data));
    await saveLocal(next);
-   setData(next);
+   setData(next);setLoadError('');
    Alert.alert('Local import completed','All imported values and payment records were preserved for review. A safety copy was saved in app documents; export a separate copy before uninstalling. Imported figures are NOT certified for live billing.');
   }catch(e){Alert.alert('Import failed',txt(e));}
   finally{mutation.current=false;setWorking(false);}
@@ -176,6 +177,7 @@ function LedgerApp(){
  ]);
  const formUpdate=(key:string,value:string)=>setDraft(v=>({...v,[key]:value}));
  if(locked)return <SafeAreaView style={s.safe}>{unlock}</SafeAreaView>;
+ if(loadError)return <SafeAreaView style={s.safe}>{adminDialog}<ScrollView contentContainerStyle={s.body}><Head title="Ledger recovery" subtitle="The saved ledger could not be read. Billing is blocked to protect it."/><Text style={s.note}>{loadError}</Text><Button label="Share raw recovery data" onPress={()=>{void (async()=>{try{const uri=FileSystem.cacheDirectory+'sa-traders-recovery.json';await FileSystem.writeAsStringAsync(uri,await rawLocal());await Sharing.shareAsync(uri,{mimeType:'application/json'});}catch(e){Alert.alert('Recovery export failed',String(e));}})();}}/><Button label="Import a known JSON backup" onPress={()=>void importBackup()}/>{adminPanel}</ScrollView></SafeAreaView>;
  if(!loaded||!adminReady)return <SafeAreaView style={s.safe}><ActivityIndicator size="large" style={{flex:1}} color={C.peach}/></SafeAreaView>;
  return <SafeAreaView style={s.safe}><StatusBar barStyle="dark-content" backgroundColor={C.bg}/>
  {adminDialog}<View style={s.top}><View style={s.logo}><Text style={s.logoText}>SA</Text></View><View style={{flex:1}}>

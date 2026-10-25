@@ -30,7 +30,7 @@ export function parseLegacyBackup(text:string):{data:Data;summary:string;busines
   for(const field of ['payments','return_history','additional_history']){
    if(b[field]!==undefined&&!Array.isArray(b[field]))throw Error('Invalid '+field+' for bill '+b.bill_no);
   }
-  for(const field of ['return_history','additional_history'])for(const h of (b[field] as unknown[]|undefined)||[]){if(!isObject(h)||h.items!==undefined&&!isObject(h.items)||h.wood!==undefined&&!isObject(h.wood))throw Error('Invalid material history in bill '+b.bill_no);}
+  for(const field of ['return_history','additional_history'])for(const h of (b[field] as unknown[]|undefined)||[]){if(!isObject(h)||h.items!==undefined&&!isObject(h.items)||h.wood!==undefined&&!isObject(h.wood))throw Error('Invalid material history in bill '+b.bill_no);if(h.items)for(const q of Object.values(h.items as Record<string,unknown>))if(!Number.isFinite(Number(q))||Number(q)<0||!Number.isInteger(Number(q)))throw Error('Invalid history quantity');if(h.wood)for(const m of Object.values(h.wood as Record<string,unknown>)){if(!isObject(m))throw Error('Invalid history wood map');for(const [ft,q] of Object.entries(m))if(!(Number(ft)>0)||!Number.isInteger(Number(q))||Number(q)<0)throw Error('Invalid history wood quantity');}}
   for(const p of (b.payments as Record<string,unknown>[]|undefined)||[]){
    if(!isObject(p)||!Number.isFinite(Number(p.amount))||Number(p.amount)<0)throw Error('Invalid payment amount in bill '+b.bill_no);
   }
