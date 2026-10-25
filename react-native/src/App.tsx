@@ -224,21 +224,45 @@ export default function App(){
    </>}
    {page==='detail'&&selectedBill&&(()=>{
     const b=selectedBill,v=calculateBill(b);
-    return <><Head title={'Invoice '+b.bill_no} subtitle={b.name+' · '+b.place}/>
-     <Card><View style={s.pillRow}><Text style={s.section}>Account summary</Text><Text style={[s.status,b.status==='closed'&&{color:C.green}]}>{b.status.toUpperCase()}</Text></View>
-      <Line label="Start date" value={b.start_date}/><Line label="Cycle" value={b.cycle_days+' days'}/>
-      <Line label="Accrued cycles" value={txt(v.cycles.length)}/>
-      <Line label="Total due" value={money(v.due)}/><Line label="Received" value={money(v.paid)}/>
-      <Text style={s.inputLabel}>Pending</Text><Text style={s.bigAmount}>{money(v.pending)}</Text>
-      <Line label="Advance deposit (separate)" value={money(v.advance)}/>
-     </Card>
-     <Text style={s.section}>Actions</Text>
-     <View style={s.actionGrid}><Button label="Edit" onPress={()=>editBill(b)}/><Button outline label="Share summary" onPress={()=>{void Share.share({message:invoiceText(b)});}}/></View>
-     {b.status==='open'&&<><View style={s.actionGrid}>
-      <Button label="Record payment" onPress={()=>{setModal('payment');setAmount('');}}/>
-      <Button outline label="Return items" onPress={()=>{setModal('return');setChangeQty('');}}/>
-     </View><View style={s.actionGrid}><Button outline label="Add materials" onPress={()=>{setModal('addition');setChangeQty('');}}/>
-     <Button outline label="Close bill" onPress={()=>confirmClose(b)}/></View></>}
+    const sameCustomer=data.bills.filter(x=>(b.mobile&&x.mobile===b.mobile)||(!b.mobile&&x.name===b.name));
+    return <>
+     <View style={s.billHeader}><Pressable accessibilityRole="button" onPress={()=>navigate('bills')}><Text style={s.billBack}>‹</Text></Pressable>
+      <View style={{flex:1}}><Text style={s.billHeadTitle}>Bill #{b.bill_no}</Text><Text style={s.billHeadSub}>{b.name} · {b.mobile||'No phone'}</Text></View>
+      <View style={s.billStatus}><Text style={s.billStatusText}>{b.status==='open'?'Active':'Closed'}</Text></View>
+     </View>
+     <View style={s.billCustomer}>
+      <View style={s.customerIcon}><Text style={s.customerInitial}>{b.name.slice(0,1).toUpperCase()}</Text></View>
+      <View style={{flex:1}}><Text style={s.billCustomerName}>{b.name}</Text>
+       <Text style={s.billHeadSub}>{b.place||'No site'} · Started {b.start_date}</Text></View>
+     </View>
+     <BillHero bill={b}/>
+     <View style={s.detailActionRow}>
+      {b.status==='open'&&<Button label="＋ Record Payment" onPress={()=>{setModal('payment');setDetailTab('payments');setAmount('');}}/>}
+      <Button outline label="Edit Bill" onPress={()=>editBill(b)}/>
+      <Button outline label="Share" onPress={()=>{void Share.share({message:invoiceText(b)});}}/>
+     </View>
+     <Segments<BillTab> value={detailTab} onChange={setDetailTab}
+      items={[{value:'materials',label:'Materials'},{value:'cycles',label:'Cycles'},{value:'all',label:'All Material'},{value:'payments',label:'Payments'}]}/>
+     {detailTab==='materials'&&<><SectionHeader title="Bill materials" subtitle="Material, quantity, rate and amount"/>
+      <BillMaterialDetails bill={b} showAll/>
+      <Card><Line label="Security advance" value={money(v.advance)}/><Line label="Transport (first cycle)" value={money(v.transport)}/>
+       <Line label="Total received" value={money(v.paid)}/><Line label="Pending amount" value={money(v.pending)}/></Card>
+      {b.status==='open'&&<View style={s.detailActionRow}>
+       <Button outline label="↩ Return Items" onPress={()=>{setModal('return');setChangeQty('');}}/>
+       <Button outline label="＋ Add Material" onPress={()=>{setModal('addition');setChangeQty('');}}/>
+      </View>}
+     </>}
+     {detailTab==='cycles'&&<><SectionHeader title="Rental cycle history" subtitle={b.cycle_days+'-day cycles · individual totals'}/>
+       <BillCycleDetails bill={b}/></>}
+     {detailTab==='all'&&<><SectionHeader title="All materials for customer" subtitle={sameCustomer.length+' related bill(s) · '+b.name}/>
+       <CustomerMaterialSummary bills={sameCustomer}/>
+       {sameCustomer.map(other=><BillTile key={other.bill_no} b={other} onPress={()=>openBill(other.bill_no)}/>)}</>}
+     {detailTab==='payments'&&<><SectionHeader title="Payment history" subtitle="Recorded collections and balances"/>
+       {(b.payments||[]).length===0?<Card><Text style={s.empty}>No payments recorded.</Text></Card>:
+        b.payments.map(p=><Card key={p.id}><Line label={p.date} value={money(p.amount)}/>
+         <Text style={s.note}>{p.note||'Payment received'}</Text></Card>)}
+       <Card><Line label="Total paid" value={money(v.paid)}/><Line label="Amount pending" value={money(v.pending)}/></Card>
+      </>}
      {modal&&<Card><Text style={s.section}>{modal==='payment'?'Record payment':modal==='return'?'Return material':'Add material'}</Text>
       {modal==='payment'?<><Input label="Received ₹" value={amount} numeric onChange={setAmount}/>
        <Input label="Payment note" value={paymentNote} onChange={setPaymentNote}/></>:
@@ -249,24 +273,37 @@ export default function App(){
         <Text style={s.note}>Effective from next rental cycle. Wood return/addition not yet migrated.</Text></>}
       <Button label="Confirm" onPress={()=>void recordChange()}/><View style={{height:7}}/>
       <Button outline label="Cancel" onPress={()=>setModal(null)}/></Card>}
-     <Text style={s.section}>Rental cycles</Text>
-     {v.cycles.length===0?<Card><Text style={s.empty}>Rental starts in the future or start date is invalid.</Text></Card>:
-      v.cycles.slice().reverse().slice(0,36).map(c=><Card key={c.index}><Line label={'Cycle '+c.index} value={money(c.total)}/>
-       <Text style={s.note}>{c.start_date} — {c.end_date}</Text></Card>)}
-     <Text style={s.section}>Recorded payments</Text>
-     {(b.payments||[]).length===0?<Card><Text style={s.empty}>No payments yet.</Text></Card>:
-      b.payments.map(p=><Card key={p.id}><Line label={p.date} value={money(p.amount)}/><Text style={s.note}>{p.note||'Payment recorded'}</Text></Card>)}
-     <Button outline label="← Back to bills" onPress={()=>navigate('bills')}/>
+     
+     {b.status==='open'&&<View style={{marginTop:12}}><Button outline label="Close this bill" onPress={()=>confirmClose(b)}/></View>}
+     <View style={{marginTop:12}}><Button outline label="← All bills" onPress={()=>navigate('bills')}/></View>
     </>;
    })()}
-   {page==='customers'&&<><Head title="Customers" subtitle="On-device customer directory."/>
+   {page==='customers'&&<><Head title="Customers" subtitle="Search customers, bill history and material summaries."/>
     <Button label="＋ Add customer" onPress={()=>{setCustomerDraft({name:'',mobile:'',place:''});navigate('customer-form');}}/>
     <View style={{height:12}}/><Search value={query} onChange={setQuery} placeholder="Search name, number, location"/>
     {customers.length===0?<Card><Text style={s.empty}>No customers yet.</Text></Card>:customers.map(c=>
-     <Pressable key={c.mobile} onPress={()=>{setCustomerDraft(c);navigate('customer-form');}} style={s.row}>
+     <Pressable key={c.mobile} onPress={()=>{setSelectedCustomer(c.mobile);setCustomerTab('history');navigate('customer-detail');}} style={s.row}>
       <View style={s.avatar}><Text style={s.avatarText}>{c.name.slice(0,1).toUpperCase()}</Text></View>
       <View style={{flex:1}}><Text style={s.rowTitle}>{c.name}</Text><Text style={s.rowSub}>{c.mobile} · {c.place}</Text></View><Text style={s.chevron}>›</Text>
      </Pressable>)}</>}
+   {page==='customer-detail'&&(()=>{
+    const c=data.customers.find(x=>x.mobile===selectedCustomer);
+    if(!c)return <Text style={s.empty}>Customer not found.</Text>;
+    const bills=data.bills.filter(b=>b.mobile===c.mobile);
+    const pending=bills.filter(b=>b.status==='open').reduce((sum,b)=>sum+calculateBill(b).pending,0);
+    return <><Head title="Customer details" subtitle={c.name+' · '+c.mobile}/>
+      <Card><View style={s.billCustomer}><View style={s.customerIcon}><Text style={s.customerInitial}>{c.name.slice(0,1).toUpperCase()}</Text></View>
+       <View style={{flex:1}}><Text style={s.billCustomerName}>{c.name}</Text><Text style={s.billHeadSub}>{c.mobile} · {c.place}</Text></View></View>
+       <Line label="Total bills" value={txt(bills.length)}/><Line label="Outstanding" value={money(pending)}/>
+       <Button outline label="Edit customer" onPress={()=>{setCustomerDraft(c);navigate('customer-form');}}/></Card>
+      <Segments items={[{value:'history',label:'Bill history'},{value:'materials',label:'Material summary'}]}
+       value={customerTab} onChange={setCustomerTab}/>
+      {customerTab==='history'&&(bills.length?bills.map(b=><BillTile key={b.bill_no} b={b} onPress={()=>openBill(b.bill_no)}/>):
+       <Card><Text style={s.empty}>No bill history yet.</Text></Card>)}
+      {customerTab==='materials'&&<CustomerMaterialSummary bills={bills}/>}
+      <Button outline label="← Customers" onPress={()=>navigate('customers')}/>
+     </>;
+   })()}
    {page==='customer-form'&&<><Head title="Customer details" subtitle="Create or update a local customer."/><Card>
     <Input label="Name" value={customerDraft.name} onChange={v=>setCustomerDraft(x=>({...x,name:v}))}/>
     <Input label="Mobile" value={customerDraft.mobile} onChange={v=>setCustomerDraft(x=>({...x,mobile:v}))}/>
@@ -328,7 +365,7 @@ export default function App(){
  </KeyboardAvoidingView>
  <View style={s.nav}>
   {TABS.map(([k,label,icon])=><Pressable key={k} accessibilityRole="tab" accessibilityState={{selected:page===k}} onPress={()=>navigate(k)}
-   style={[s.navItem,(page===k||page==='form'&&k==='bills'||page==='detail'&&k==='bills'||page==='customer-form'&&k==='customers'||page==='stock-form'&&k==='inventory'||page==='note-form'&&k==='more')&&s.navOn]}>
+   style={[s.navItem,(page===k||page==='form'&&k==='bills'||page==='detail'&&k==='bills'||page==='customer-detail'&&k==='customers'||page==='customer-form'&&k==='customers'||page==='stock-form'&&k==='inventory'||page==='note-form'&&k==='more')&&s.navOn]}>
    <Text style={s.navIcon}>{icon}</Text><Text style={s.navText}>{label}</Text></Pressable>)}
  </View></SafeAreaView>;
 }
@@ -405,4 +442,13 @@ const s=StyleSheet.create({
  columnLabel:{fontWeight:'900',color:C.sub,fontSize:9},
  fastTotal:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',backgroundColor:'#E6F8EC',borderRadius:14,padding:18,marginVertical:12},
  fastTotalLabel:{fontSize:12,fontWeight:'900',color:C.ink},fastTotalValue:{fontSize:22,fontWeight:'900',color:'#09874F'},
+,
+ billHeader:{flexDirection:'row',alignItems:'center',marginBottom:13,gap:12},
+ billBack:{fontSize:33,fontWeight:'500',color:C.navy},
+ billHeadTitle:{fontSize:20,fontWeight:'900',color:C.ink},billHeadSub:{fontSize:11,color:C.sub,marginTop:4},
+ billCustomer:{flexDirection:'row',alignItems:'center',gap:12,marginVertical:11},
+ billCustomerName:{fontWeight:'900',fontSize:14,color:C.ink},
+ billStatus:{backgroundColor:'#DEF7E6',borderRadius:15,paddingVertical:7,paddingHorizontal:12},
+ billStatusText:{fontWeight:'900',fontSize:10,color:'#098956'},
+ detailActionRow:{flexDirection:'row',gap:7,marginBottom:13},
 });
