@@ -1,42 +1,29 @@
-# S.A Traders — Native Lab (React Native, no WebView)
+# S.A Traders — React Native v0.3.0
 
-This branch now runs **real native React Native components** for the UI, using its own TypeScript rental calculations and persistent on-device test data. It does **not** launch the original Java WebView app, show a website, or reuse the old Android Activity.
+Fully native Expo/React Native Android client, extended from `feature/react-native-redesign` and audited against the original `app.js`. Separate package `com.satraders.billing.preview` keeps the original installed ledger available during acceptance testing. No production credentials are embedded.
 
-## Implemented in React Native
-- Interactive native dashboard based on local invoices and collections
-- Create/edit rental bills with the original material fields and rates, wood size syntax, transport, 15/20/30-day cycles, advance deposit
-- Accrued cycle calculation, basic rental return/addition (material quantity), payment entry, close bill
-- Local customer add/edit and directory search
-- Local master inventory entry and a **rough** rented-stock view
-- Basic on-device reports, local payment history, plain-text invoice sharing
-- Delivery slips and challan local notes, local JSON export through Android share sheet
-- On-device persistence with AsyncStorage 2.2.0
-- Basic static CI checks and TypeScript validation
+## Run and verify
 
-## Deliberately not represented as complete
-Do **not** deploy this build to replace the operational v1.8.2 app. It does **not** yet match every original route, calculation edge case or button. Not migrated: authenticated Firestore synchronization/guarded writes, split receipts, multi-cycle payment allocations, production PDF/image invoice printing, local backup import, notification listener, WhatsApp reminders, native notification routes, advanced custom shop bill rules, wood returns/additions, full admin/roles and parity-verified inventory. The new local storage is not the production database.
+Node 22+, Java 17. `npm ci`, `npm run typecheck`, `npm run check`, `npm test`. `npx expo prebuild --platform android --clean`, then `cd android && ./gradlew :app:assembleRelease`. GitHub Actions builds the standalone APK and uploads it as `S-A-Traders-React-Native-v0.3.0-APK`.
 
-**Security:** The original repository Firestore rules allow unauthenticated reads and writes. The earlier client-only app lock is not adequate security for a live production app; implement server-enforced Firebase Authentication and Firestore rules before enabling live data in this new client.
+## Workflows
 
-## Build / install
-The application ID is \`com.satraders.billing.preview\` to avoid replacing the production app.
+- Rental bills, customers, custom rates, 15/20/30-day inclusive cycles, first-cycle handling, security deposits, material and variable-length wood returns/additions, physical outstanding, bill closure/deletion.
+- Native Custom Shop bills with automatic advance and one-time professional conversion.
+- Cycle-specific Cash/UPI/Bank payments, legacy unassigned payments preserved, intentional duplicate confirmation, visible overpayments, PIN-protected audited payment deletion.
+- Detected payment review and split receipts across customer bills/cycles. Two-step review, integer paise validation, remainder credit, receipt correction and audit. No detected payment is automatically recorded.
+- JSON document picker, import preview, merge/replace, safety copy and full export preserving original collection and nested field names.
+- Standard/cycle/next-cycle/customer/custom PDF generation, native print, Android file sharing including WhatsApp. Next cycle is an estimate, not a saved charge.
+- Android notification listener and original daily WorkManager reminder engine; access and notification permissions are user granted. Recomputed projections sync after local changes. Use More → Reminders to enable. The worker uses the last synced ledger; another device's changes require a cloud pull.
+- Optional Firebase email/password sign-in and explicit pull/publish. Publishing compares touched documents with the last cloud snapshot in a transaction; conflicts abort. At most 400 changed records. Cloud deletions are intentionally disabled. Use a test project and deploy authenticated role rules before live use. No automatic production connection.
+- Existing WhatsApp reminder service setup, status/pairing and message review. Bearer token in SecureStore; API acceptance does not establish delivery. Keep the same request ID after uncertain sends.
 
-\`\`\`sh
-cd react-native
-npm install
-npm run check
-npm run typecheck
-npx expo prebuild --platform android --no-install --clean
-cd android && ./gradlew :app:assembleRelease
-\`\`\`
+## First use
 
-Build workflow: \`.github/workflows/build-react-native-preview.yml\` publishes \`S-A-Traders-Pure-React-Native-Lab-APK\`.
+Set a 6–12 digit admin PIN under More. Import a copy of the existing JSON backup. Reconcile bills, physical quantities, deposits and payments with the original app. Test printing, notification access and reminders on your phone. Export backups before clearing app storage or uninstalling. PIN is device-local and is not a substitute for Firebase security rules.
 
-## Production migration checklist
-- Port and test EVERY feature/route against \`main\`, including the latest JS overrides.
-- Parity-test real and synthetic rental-cycle scenarios and historical transactions.
-- Add secure user auth and server-side permission rules.
-- Migrate the original Firestore data and audit identifiers safely.
-- Port native services to Expo modules/React Native Android modules.
-- Test real devices, Android 8+ through 16, backup restore, offline/online, and repeatability.
-- Keep release signing and applicationId the same **only after** the app passes parity, security, and upgrade tests.
+## Verification boundaries
+
+Automated financial comparisons cover 450 synthetic bills across all cycle lengths (3,166 comparison/assertion checks), including history snapshots, custom totals, conversions, rounding and split receipt operations. This does not certify every historical customer record or device integration. Physical-device notification, pairing, printing, signed upgrade and live Firebase tests remain required.
+
+Current limitations: no immutable archived invoice images; PDFs recalculate from current history. Documents retain editable legacy JSON fields rather than full native delivery/return slip forms. Firebase users/roles are managed server-side, not through the original fixed client-password login. No background live cloud synchronization; pull/publish is explicit. Local backup merge uses incoming fields for matching identifiers—review before import. See `docs/REACT_NATIVE_VERIFICATION_20261025.md` and the baseline source audit for the full risk and parity notes.

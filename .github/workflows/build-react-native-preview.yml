@@ -3,7 +3,7 @@ name: Build genuine React Native S.A Traders APK
 on:
   push:
     branches:
-      - feature/react-native-redesign
+      - feature/react-native-complete-audit-20261025
     paths:
       - 'react-native/**'
       - '.github/workflows/build-react-native-preview.yml'
@@ -46,13 +46,13 @@ jobs:
           /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Install React Native dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Verify Java/JS integration readiness
         run: npm run check
 
       - name: Check native rental calculations
-        run: node scripts/domain-parity-check.cjs
+        run: npm test
 
       - name: Test legacy JSON backup and merge parity
         run: node scripts/backup-parity-check.cjs
@@ -77,7 +77,7 @@ jobs:
       - name: Upload installable preview APK
         uses: actions/upload-artifact@v4
         with:
-          name: S-A-Traders-Pure-React-Native-Lab-APK
+          name: S-A-Traders-React-Native-v0.3.0-APK
           path: react-native/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30

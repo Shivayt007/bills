@@ -1,18 +1,31 @@
 {
   "expo": {
-    "name": "S.A Traders Native Lab",
+    "name": "S.A Traders",
     "slug": "sa-traders-native-preview",
     "scheme": "satraderspreview",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "android": {
       "package": "com.satraders.billing.preview",
-      "versionCode": 22,
+      "versionCode": 31,
       "edgeToEdgeEnabled": true
     },
-    "plugins": [],
+    "plugins": [
+      "expo-secure-store",
+      "expo-notifications",
+      "./plugins/withPaymentDetection.cjs",
+      "expo-build-properties",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ]
+    ],
     "extra": {
       "nativeOnly": true,
       "production": false

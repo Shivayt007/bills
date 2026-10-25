@@ -1,10 +1,16 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useState,useRef} from 'react';
 import {
  Alert,ActivityIndicator,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,
- ScrollView,Share,StatusBar,StyleSheet,Text,TextInput,View,
+ ScrollView,Share,StatusBar,BackHandler,StyleSheet,Text,TextInput,View,
 } from 'react-native';
 import {calculateBill,Customer,Data,EMPTY,invoiceText,makeBill,MATERIALS,money,
- num,Note,RATES,round2,Stock,TODAY,validateBill,WOODS,Bill} from './domain';
+ num,Note,RATES,round2,Stock,TODAY,validateBill,WOODS,Bill,calculateCustom,physicalBalance,mapToText,cyclePaid} from './domain';
+import {OperationsHub} from './OperationsHub';
+import {MaterialChangeForm,PaymentForm,HistoryActions} from './WorkflowForms';
+import {printBill,shareBillPdf,shareCustomerReport} from './invoices';
+import {refreshBackgroundReminders} from './device';
+import {useAdmin} from './admin';
+import {convertCustom,uid as ledgerId} from './ledger';
 import {clearLocal,loadLocal,saveLocal} from './localStore';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -39,6 +45,8 @@ function Stat({label,value,accent=false}:{label:string;value:string;accent?:bool
 }
 function Head({title,subtitle}:{title:string;subtitle:string}){return <View style={{marginBottom:17}}><Text style={s.heading}>{title}</Text><Text style={s.subtitle}>{subtitle}</Text></View>;}
 export default function App(){
+ const {authorize,panel:adminPanel,dialog:adminDialog,locked,unlock,ready:adminReady}=useAdmin();
+ const mutation=useRef(false);
  const [data,setData]=useState<Data>(EMPTY),[loaded,setLoaded]=useState(false);
  const [page,setPage]=useState<Page>('dashboard'),[query,setQuery]=useState('');
  const [formSection,setFormSection]=useState<FormSection>('materials');
@@ -52,11 +60,17 @@ export default function App(){
  const [noteDraft,setNoteDraft]=useState<Note>({id:'',customer:'',date:TODAY(),notes:'',type:'slip'});
  const [amount,setAmount]=useState(''),[paymentNote,setPaymentNote]=useState('');
  const [changeQty,setChangeQty]=useState(''),[changeKey,setChangeKey]=useState('jackey'),[modal,setModal]=useState<'payment'|'return'|'addition'|null>(null);
+ useEffect(()=>{if(loaded)void refreshBackgroundReminders(data).catch(e=>Alert.alert('Reminder refresh failed',String(e)));},[data,loaded]);
  const [working,setWorking]=useState(false);
+ const [customMode,setCustomMode]=useState(false);
+ const [customerOriginal,setCustomerOriginal]=useState('');
+ const [hubTab,setHubTab]=useState('custom');
+ useEffect(()=>{const sub=BackHandler.addEventListener('hardwareBackPress',()=>{if(page==='dashboard')return false;setModal(null);setPage(page==='detail'||page==='form'?'bills':page==='customer-detail'?'customers':'dashboard');return true;});return ()=>sub.remove();},[page]);
  useEffect(()=>{loadLocal().then(d=>setData(d)).catch(e=>Alert.alert('Local storage error',txt(e))).finally(()=>setLoaded(true));},[]);
  const update=async(next:Data)=>{
-  setWorking(true);try{await saveLocal(next);setData(next);}
-  catch(e){Alert.alert('Save failed',txt(e));}finally{setWorking(false);}
+  if(mutation.current)throw Error('A save is already in progress');
+  mutation.current=true;setWorking(true);try{await saveLocal(next);setData(next);}
+  catch(e){Alert.alert('Save failed',txt(e));throw e;}finally{mutation.current=false;setWorking(false);}
  };
  const importBackup=async()=>{
   try{
@@ -76,8 +90,8 @@ export default function App(){
   }catch(e){Alert.alert('Import rejected',txt(e instanceof Error?e.message:e));}
  };
  const applyBackup=async(next:Data)=>{
-  if(working){Alert.alert('Operation busy','Complete the current save before importing');return;}
-  setWorking(true);
+  if(mutation.current||working){Alert.alert('Operation busy','Complete the current save before importing');return;}
+  mutation.current=true;setWorking(true);
   try{
    const folder=FileSystem.documentDirectory;
    if(!folder)throw Error('App document storage unavailable');
@@ -87,7 +101,7 @@ export default function App(){
    setData(next);
    Alert.alert('Local import completed','All imported values and payment records were preserved for review. A safety copy was saved in app documents; export a separate copy before uninstalling. Imported figures are NOT certified for live billing.');
   }catch(e){Alert.alert('Import failed',txt(e));}
-  finally{setWorking(false);}
+  finally{mutation.current=false;setWorking(false);}
  };
  const exportBackup=async()=>{
   try{
@@ -100,14 +114,14 @@ export default function App(){
   }catch(e){Alert.alert('Backup export failed',txt(e));}
  };
  const navigate=(next:Page)=>{setPage(next);setQuery('');setModal(null);};
- const openBill=(id:string)=>{setSelected(id);setDetailTab('materials');navigate('detail');};
- const newBill=()=>{setSelected('');setDraft(makeBill());setFormSection('materials');navigate('form');};
+ const openBill=(id:string)=>{setCustomMode(false);setSelected(id);setDetailTab('materials');navigate('detail');};
+ const newBill=()=>{setCustomMode(false);setSelected('');setDraft(makeBill());setFormSection('materials');navigate('form');};
  const editBill=(b:Bill)=>{setSelected(b.bill_no);setDraft({...b});setFormSection('materials');navigate('form');};
- const selectedBill=data.bills.find(b=>b.bill_no===selected);
+ const selectedBill=(customMode?(data.customBills||[]) as Bill[]:data.bills).find(b=>b.bill_no===selected);
  const totals=useMemo(()=>{
-  const active=data.bills.filter(b=>b.status!=='closed');
+  const active=data.bills;
   const t=active.map(b=>calculateBill(b));return {
-   active:active.length,due:round2(t.reduce((v,x)=>v+x.due,0)),
+   active:active.filter(b=>b.status!=='closed').length,due:round2(t.reduce((v,x)=>v+x.due,0)),
    paid:round2(t.reduce((v,x)=>v+x.paid,0)),pending:round2(t.reduce((v,x)=>v+x.pending,0))
   };
  },[data.bills]);
@@ -117,20 +131,24 @@ export default function App(){
  const saveBill=async()=>{
   try{
    const cleaned:Bill={...draft,bill_no:draft.bill_no.trim(),name:draft.name.trim(),cycle_days:num(draft.cycle_days)};
-   validateBill(cleaned,data.bills,selected||undefined);
-   const nextBills=selected?data.bills.map(b=>b.bill_no===selected?cleaned:b):[cleaned,...data.bills];
+   validateBill(cleaned,customMode?(data.customBills||[]) as Bill[]:data.bills,selected||undefined);
+   if(customMode)cleaned.advance_amount=calculateCustom(cleaned).advance;
+   const rows=customMode?(data.customBills||[]) as Bill[]:data.bills;
+   const nextBills=selected?rows.map(b=>b.bill_no===selected?cleaned:b):[cleaned,...rows];
    let cust=data.customers;
    if(cleaned.mobile&&!cust.some(x=>x.mobile===cleaned.mobile))cust=[{mobile:cleaned.mobile,name:cleaned.name,place:cleaned.place},...cust];
-   await update({...data,bills:nextBills,customers:cust});
+   await update({...data,[customMode?'customBills':'bills']:nextBills,customers:cust});
    setSelected(cleaned.bill_no);navigate('detail');
   }catch(e){Alert.alert('Check bill details',txt(e instanceof Error?e.message:e));}
  };
  const saveCustomer=async()=>{
   if(!customerDraft.name.trim()||!customerDraft.mobile.trim()){Alert.alert('Missing details','Customer name and mobile are required');return;}
   const copy={...customerDraft,name:customerDraft.name.trim(),mobile:customerDraft.mobile.trim()};
-  const idx=data.customers.findIndex(c=>c.mobile===copy.mobile);
-  const rows=idx>=0?data.customers.map(c=>c.mobile===copy.mobile?copy:c):[copy,...data.customers];
-  await update({...data,customers:rows});navigate('customers');
+  const original=customerOriginal||copy.mobile;
+  if(original!==copy.mobile&&data.customers.some(c=>c.mobile===copy.mobile)){Alert.alert('Duplicate mobile','Another customer already uses this mobile');return;}
+  const idx=data.customers.findIndex(c=>c.mobile===original);
+  const rows=idx>=0?data.customers.map(c=>c.mobile===original?copy:c):[copy,...data.customers];
+  await update({...data,customers:rows,bills:data.bills.map(b=>b.mobile===original?{...b,name:copy.name,mobile:copy.mobile,place:copy.place}:b),customBills:(data.customBills||[]).map(b=>b.mobile===original?{...b,name:copy.name,mobile:copy.mobile,place:copy.place}:b)});navigate('customers');
  };
  const saveStock=async()=>{
   if(!stockDraft.item.trim()){Alert.alert('Item is required');return;}
@@ -143,37 +161,20 @@ export default function App(){
   await update({...data,notes:[{...noteDraft,id:noteDraft.id||uid()},...data.notes.filter(n=>n.id!==noteDraft.id)]});
   navigate('more');
  };
- const recordChange=async()=>{
-  if(!selectedBill)return;
-  const amountValue=num(amount),qtyValue=num(changeQty);
-  if(modal==='payment'){
-   const x=calculateBill(selectedBill);
-   if(!(amountValue>0)||amountValue>x.pending){Alert.alert('Invalid payment','Enter a positive amount no larger than the pending balance.');return;}
-   const b={...selectedBill,payments:[...(selectedBill.payments||[]),{id:uid(),date:TODAY(),amount:round2(amountValue),note:paymentNote}]};
-   await update({...data,bills:data.bills.map(v=>v.bill_no===b.bill_no?b:v)});
-  }else if(modal){
-   if(!Number.isInteger(qtyValue)||qtyValue<=0){Alert.alert('Invalid quantity','Enter a positive whole number.');return;}
-   const hist=modal==='return'?'return_history':'additional_history';
-   const nowCycle=calculateBill(selectedBill).cycles.length;
-   const entry={date:TODAY(),items:{[changeKey]:qtyValue},wood:{},effective_from_cycle:nowCycle+1};
-   const b={...selectedBill,[hist]:[...(selectedBill[hist]||[]),entry]} as Bill;
-   await update({...data,bills:data.bills.map(v=>v.bill_no===b.bill_no?b:v)});
-  }
-  setModal(null);setAmount('');setPaymentNote('');setChangeQty('');
- };
- const confirmClose=(b:Bill)=>Alert.alert('Close bill','Close this bill today? Future rental cycles stop accruing.',[
-  {text:'Cancel',style:'cancel'},{text:'Close bill',onPress:()=>{void update({...data,bills:data.bills.map(v=>v.bill_no===b.bill_no?{...v,status:'closed' as const,closed_at:TODAY()}:v)});}}
- ]);
+ const replaceBill=async(b:Bill)=>{const store=customMode?'customBills':'bills';await update({...data,[store]:(data[store]||[]).map(v=>v.bill_no===b.bill_no?b:v)});setModal(null);};
+ const confirmClose=(b:Bill)=>{void authorize('Close bill',async()=>{Alert.alert('Close bill','Future cycles stop today. Advance remains a deposit; no automatic refund is recorded.',[{text:'Cancel',style:'cancel'},{text:'Close bill',onPress:()=>{void replaceBill({...b,status:'closed',closed_at:TODAY()}).catch(()=>{});}}]);});};
+ const confirmDelete=(b:Bill)=>{void authorize('Delete bill',async()=>{if((b.payments||[]).some(p=>p.receipt_key))throw Error('Correct linked split receipts before deleting this bill');Alert.alert('Delete bill '+b.bill_no,'Export a backup first. All bill history will be removed.',[{text:'Cancel',style:'cancel'},{text:'Delete',style:'destructive',onPress:()=>{const store=customMode?'customBills':'bills';void update({...data,[store]:(data[store]||[]).filter(x=>x.bill_no!==b.bill_no)}).then(()=>navigate('bills')).catch(()=>{});}}]);});};
  const confirmReset=()=>Alert.alert('Delete all local test records?','This removes only the React Native test app data. Production S.A Traders is not affected.',[
   {text:'Cancel',style:'cancel'},{text:'Delete local records',style:'destructive',onPress:()=>{void clearLocal().then(()=>setData({bills:[],customers:[],inventory:[],notes:[]})).catch(e=>Alert.alert('Delete failed',txt(e)));}}
  ]);
  const formUpdate=(key:string,value:string)=>setDraft(v=>({...v,[key]:value}));
- if(!loaded)return <SafeAreaView style={s.safe}><ActivityIndicator size="large" style={{flex:1}} color={C.peach}/></SafeAreaView>;
+ if(locked)return <SafeAreaView style={s.safe}>{unlock}</SafeAreaView>;
+ if(!loaded||!adminReady)return <SafeAreaView style={s.safe}><ActivityIndicator size="large" style={{flex:1}} color={C.peach}/></SafeAreaView>;
  return <SafeAreaView style={s.safe}><StatusBar barStyle="dark-content" backgroundColor={C.bg}/>
- <View style={s.top}><View style={s.logo}><Text style={s.logoText}>SA</Text></View><View style={{flex:1}}>
+ {adminDialog}<View style={s.top}><View style={s.logo}><Text style={s.logoText}>SA</Text></View><View style={{flex:1}}>
   <Text style={s.brandName}>S.A Traders</Text><Text style={s.brandSub}>MATERIAL RENTAL SOLUTIONS</Text>
- </View><View style={s.mode}><Text style={s.modeText}>RN</Text></View></View>
- <View style={s.banner}><Text style={s.bannerText}>NATIVE UI · LOCAL TEST MODE · NOT CONNECTED TO LIVE FIRESTORE</Text></View>
+ </View><View style={s.mode}><Text style={s.modeText}>v0.3</Text></View></View>
+ <View style={s.banner}><Text style={s.bannerText}>OFFLINE LEDGER · EXPORT BACKUPS REGULARLY · CLOUD SYNC IN MORE</Text></View>
  <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}>
   <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
    {page==='dashboard'&&<>
@@ -210,7 +211,7 @@ export default function App(){
      found.map(b=><BillTile key={b.bill_no} b={b} onPress={()=>openBill(b.bill_no)}/>)}
    </>}
    {page==='form'&&<>
-    <Head title={selected?'Edit rental bill':'New rental bill'} subtitle="Fast billing · clear quantities · transparent totals"/>
+    <Head title={customMode?(selected?'Edit Custom Shop bill':'New Custom Shop bill'):(selected?'Edit rental bill':'New rental bill')} subtitle="Fast billing · clear quantities · transparent totals"/>
     <Card>
      <SectionHeader title="Customer & cycle" subtitle="Invoice details and rental period"/>
      {data.customers.length>0&&<View style={{marginBottom:12}}>
@@ -258,17 +259,17 @@ export default function App(){
       <Input label="Down trip charge (₹)" value={draft.transport_down_charge} numeric onChange={v=>formUpdate('transport_down_charge',v)}/>
       <Input label="Loading (₹)" value={draft.loading_charge} numeric onChange={v=>formUpdate('loading_charge',v)}/>
       <Input label="Unloading (₹)" value={draft.unloading_charge} numeric onChange={v=>formUpdate('unloading_charge',v)}/>
-      <Input label="Security advance (₹)" value={draft.advance_amount} numeric onChange={v=>formUpdate('advance_amount',v)}/>
+      <Input locked={customMode} label="Security advance (₹)" value={draft.advance_amount} numeric onChange={v=>formUpdate('advance_amount',v)}/>
       <Text style={s.note}>Transport applies only to the first rental cycle. Advance is a separate security deposit.</Text>
     </Card>}
     <View style={s.fastTotal}><Text style={s.fastTotalLabel}>Current rental total</Text>
-      <Text style={s.fastTotalValue}>{money(calculateBill(draft).due)}</Text></View>
+      <Text style={s.fastTotalValue}>{money((customMode?calculateCustom(draft):calculateBill(draft)).due)}</Text></View>
     <Text style={s.note}>Offline local calculation only. Not yet verified for production billing.</Text>
     <Button label={working?'Saving…':selected?'Save changes':'Save rental bill'} disabled={working} onPress={()=>void saveBill()}/>
     <View style={{height:9}}/><Button outline label="Cancel" onPress={()=>navigate(selected?'detail':'bills')}/>
    </>}
    {page==='detail'&&selectedBill&&(()=>{
-    const b=selectedBill,v=calculateBill(b);
+    const b=selectedBill,v=customMode?calculateCustom(b):calculateBill(b);
     const sameCustomer=data.bills.filter(x=>(b.mobile&&x.mobile===b.mobile)||(!b.mobile&&x.name===b.name));
     return <>
      <View style={s.billHeader}><Pressable accessibilityRole="button" onPress={()=>navigate('bills')}><Text style={s.billBack}>‹</Text></Pressable>
@@ -280,9 +281,12 @@ export default function App(){
       <View style={{flex:1}}><Text style={s.billCustomerName}>{b.name}</Text>
        <Text style={s.billHeadSub}>{b.place||'No site'} · Started {b.start_date}</Text></View>
      </View>
-     <BillHero bill={b}/>
+     {customMode?<Card><Line label="Custom grand total" value={money(v.due)}/><Line label="Pending" value={money(v.pending)}/><Line label="Automatic advance" value={money(v.advance)}/></Card>:<BillHero bill={b}/>}
+     <View style={s.detailActionRow}><Button outline label="Print invoice" onPress={()=>void printBill(b,customMode).catch(e=>Alert.alert('Print failed',String(e)))}/><Button outline label="PDF / WhatsApp" onPress={()=>void shareBillPdf(b,customMode).catch(e=>Alert.alert('Share failed',String(e)))}/></View>
+     {customMode&&!b.converted_to_professional&&<Button label="Convert to professional bill" onPress={()=>{void authorize('Convert custom bill',async()=>{await update(convertCustom(data,b));setCustomMode(false);});}}/>}
+     {b.converted_to_professional&&<Text style={s.note}>Converted: record further payments on the professional bill.</Text>}
      <View style={s.detailActionRow}>
-      {b.status==='open'&&<Button label="＋ Record Payment" onPress={()=>{setModal('payment');setDetailTab('payments');setAmount('');}}/>}
+      {b.status!=='closed'&&!b.converted_to_professional&&<Button label="＋ Record Payment" onPress={()=>{setModal('payment');setDetailTab('payments');setAmount('');}}/>}
       <Button outline label="Edit Bill" onPress={()=>editBill(b)}/>
       <Button outline label="Share" onPress={()=>{void Share.share({message:invoiceText(b)});}}/>
      </View>
@@ -298,33 +302,26 @@ export default function App(){
       </View>}
      </>}
      {detailTab==='cycles'&&<><SectionHeader title="Rental cycle history" subtitle={b.cycle_days+'-day cycles · individual totals'}/>
-       <BillCycleDetails bill={b}/></>}
+       <BillCycleDetails bill={b} onPrint={index=>void printBill(b,false,index).catch(e=>Alert.alert('Print failed',String(e)))} onNext={()=>void printBill(b,false,calculateBill(b).cycles.length+1).catch(e=>Alert.alert('Print failed',String(e)))}/></>}
      {detailTab==='all'&&<><SectionHeader title="All materials for customer" subtitle={sameCustomer.length+' related bill(s) · '+b.name}/>
        <CustomerMaterialSummary bills={sameCustomer}/>
        {sameCustomer.map(other=><BillTile key={other.bill_no} b={other} onPress={()=>openBill(other.bill_no)}/>)}</>}
      {detailTab==='payments'&&<><SectionHeader title="Payment history" subtitle="Recorded collections and balances"/>
        {(b.payments||[]).length===0?<Card><Text style={s.empty}>No payments recorded.</Text></Card>:
-        b.payments.map((p,index)=><Card key={p.payment_id||p.id||String(index)}><Line label={p.payment_date||p.date||'Date not recorded'} value={money(p.amount)}/>
-         <Text style={s.note}>{p.note||'Payment received'}</Text></Card>)}
+        <HistoryActions bill={b} save={replaceBill} authorize={authorize} paymentsOnly/>}
        <Card><Line label="Total paid" value={money(v.paid)}/><Line label="Amount pending" value={money(v.pending)}/></Card>
       </>}
-     {modal&&<Card><Text style={s.section}>{modal==='payment'?'Record payment':modal==='return'?'Return material':'Add material'}</Text>
-      {modal==='payment'?<><Input label="Received ₹" value={amount} numeric onChange={setAmount}/>
-       <Input label="Payment note" value={paymentNote} onChange={setPaymentNote}/></>:
-       <><Text style={s.inputLabel}>Material</Text><View style={s.choiceRow}>{MATERIALS.map(([k,label])=>
-        <Pressable style={[s.smallChoice,changeKey===k&&s.selectedChoice]} key={k} onPress={()=>setChangeKey(k)}>
-         <Text style={[s.choiceText,changeKey===k&&{color:'white'}]}>{label}</Text></Pressable>)}</View>
-        <Input label="Pieces" value={changeQty} numeric onChange={setChangeQty}/>
-        <Text style={s.note}>Effective from next rental cycle. Wood return/addition not yet migrated.</Text></>}
-      <Button label="Confirm" onPress={()=>void recordChange()}/><View style={{height:7}}/>
-      <Button outline label="Cancel" onPress={()=>setModal(null)}/></Card>}
+     {modal==='payment'&&<PaymentForm bill={b} custom={customMode} save={replaceBill} cancel={()=>setModal(null)} working={working}/>}
+     {(modal==='return'||modal==='addition')&&<MaterialChangeForm bill={b} type={modal} save={replaceBill} cancel={()=>setModal(null)} working={working}/>}
+     {!customMode&&<HistoryActions bill={b} save={replaceBill} authorize={authorize}/>}
+     <Button outline label="Delete bill" onPress={()=>confirmDelete(b)}/>
      
      {b.status==='open'&&<View style={{marginTop:12}}><Button outline label="Close this bill" onPress={()=>confirmClose(b)}/></View>}
      <View style={{marginTop:12}}><Button outline label="← All bills" onPress={()=>navigate('bills')}/></View>
     </>;
    })()}
    {page==='customers'&&<><Head title="Customers" subtitle="Search customers, bill history and material summaries."/>
-    <Button label="＋ Add customer" onPress={()=>{setCustomerDraft({name:'',mobile:'',place:''});navigate('customer-form');}}/>
+    <Button label="＋ Add customer" onPress={()=>{setCustomerOriginal('');setCustomerDraft({name:'',mobile:'',place:''});navigate('customer-form');}}/>
     <View style={{height:12}}/><Search value={query} onChange={setQuery} placeholder="Search name, number, location"/>
     {customers.length===0?<Card><Text style={s.empty}>No customers yet.</Text></Card>:customers.map(c=>
      <Pressable key={c.mobile} onPress={()=>{setSelectedCustomer(c.mobile);setCustomerTab('history');navigate('customer-detail');}} style={s.row}>
@@ -335,12 +332,13 @@ export default function App(){
     const c=data.customers.find(x=>x.mobile===selectedCustomer);
     if(!c)return <Text style={s.empty}>Customer not found.</Text>;
     const bills=data.bills.filter(b=>b.mobile===c.mobile);
-    const pending=bills.filter(b=>b.status==='open').reduce((sum,b)=>sum+calculateBill(b).pending,0);
+    const pending=bills.reduce((sum,b)=>sum+calculateBill(b).pending,0);
     return <><Head title="Customer details" subtitle={c.name+' · '+c.mobile}/>
       <Card><View style={s.billCustomer}><View style={s.customerIcon}><Text style={s.customerInitial}>{c.name.slice(0,1).toUpperCase()}</Text></View>
        <View style={{flex:1}}><Text style={s.billCustomerName}>{c.name}</Text><Text style={s.billHeadSub}>{c.mobile} · {c.place}</Text></View></View>
        <Line label="Total bills" value={txt(bills.length)}/><Line label="Outstanding" value={money(pending)}/>
-       <Button outline label="Edit customer" onPress={()=>{setCustomerDraft(c);navigate('customer-form');}}/></Card>
+       <Button outline label="Customer bill / material PDF" onPress={()=>void shareCustomerReport(c,bills).catch(e=>Alert.alert('Share failed',String(e)))}/>
+       <Button outline label="Edit customer" onPress={()=>{setCustomerOriginal(c.mobile);setCustomerDraft(c);navigate('customer-form');}}/></Card>
       <Segments items={[{value:'history',label:'Bill history'},{value:'materials',label:'Material summary'}]}
        value={customerTab} onChange={setCustomerTab}/>
       {customerTab==='history'&&(bills.length?bills.map(b=><BillTile key={b.bill_no} b={b} onPress={()=>openBill(b.bill_no)}/>):
@@ -349,7 +347,7 @@ export default function App(){
       <Button outline label="← Customers" onPress={()=>navigate('customers')}/>
      </>;
    })()}
-   {page==='customer-form'&&<><Head title="Customer details" subtitle="Create or update a local customer."/><Card>
+   {page==='customer-form'&&<><Head title="Customer details" subtitle="Customer details and linked rental bills"/><Card>
     <Input label="Name" value={customerDraft.name} onChange={v=>setCustomerDraft(x=>({...x,name:v}))}/>
     <Input label="Mobile" value={customerDraft.mobile} onChange={v=>setCustomerDraft(x=>({...x,mobile:v}))}/>
     <Input label="Place" value={customerDraft.place} onChange={v=>setCustomerDraft(x=>({...x,place:v}))}/>
@@ -391,15 +389,15 @@ export default function App(){
     <Card><Text style={s.section}>App data</Text>
      <Button label="Import S.A Traders JSON backup" disabled={working} onPress={()=>{void importBackup();}}/>
      <View style={{height:8}}/><Button outline label="Export compatible JSON backup" onPress={()=>{void exportBackup();}}/>
-     <View style={{height:8}}/><Button outline label="Clear local test records" onPress={confirmReset}/>
+     <View style={{height:8}}/><Button outline label="Clear local test records" onPress={()=>void authorize('Clear local records',async()=>confirmReset())}/>
     </Card>
-    <Card><Text style={s.section}>Not migrated yet</Text>
-     <Text style={s.note}>Live Firestore authentication/sync, complete legacy rental edge cases, native PDF printing, invoice image sharing, payment notification listener, WhatsApp reminder jobs, guarded multi-bill receipts, custom shop billing parity, backup import, wood returns, admin controls.</Text>
-     <Text style={[s.note,{marginTop:9,color:'#A4493E'}]}>These are intentionally unavailable rather than being fake buttons. Do not use this APK for actual business accounting.</Text>
-    </Card>
+    <OperationsHub data={data} update={update} authorize={authorize} working={working}
+      newCustom={()=>{setCustomMode(true);setSelected('');setDraft(makeBill());navigate('form');}}
+      openCustom={b=>{setCustomMode(true);setSelected(b.bill_no);navigate('detail');}}/>
+    {adminPanel}
     <Button outline label="Open reports" onPress={()=>navigate('reports')}/>
    </>}
-   {page==='note-form'&&<><Head title={noteDraft.type==='slip'?'Delivery slip':'Challan'} subtitle="Native offline document record"/><Card>
+   {page==='note-form'&&<><Head title={noteDraft.type==='slip'?'Delivery slip':'Challan'} subtitle="Delivery and return document"/><Card>
     <Input label="Customer" value={noteDraft.customer} onChange={v=>setNoteDraft(x=>({...x,customer:v}))}/>
     <Input label="Date YYYY-MM-DD" value={noteDraft.date} onChange={v=>setNoteDraft(x=>({...x,date:v}))}/>
     <Input label="Materials / notes" value={noteDraft.notes} multiline onChange={v=>setNoteDraft(x=>({...x,notes:v}))}/>
@@ -409,6 +407,7 @@ export default function App(){
    </Card></>}
   </ScrollView>
  </KeyboardAvoidingView>
+ {working&&<ActivityIndicator color={C.peach}/>}
  <View style={s.nav}>
   {TABS.map(([k,label,icon])=><Pressable key={k} accessibilityRole="tab" accessibilityState={{selected:page===k}} onPress={()=>navigate(k)}
    style={[s.navItem,(page===k||page==='form'&&k==='bills'||page==='detail'&&k==='bills'||page==='customer-detail'&&k==='customers'||page==='customer-form'&&k==='customers'||page==='stock-form'&&k==='inventory'||page==='note-form'&&k==='more')&&s.navOn]}>

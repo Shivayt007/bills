@@ -9,7 +9,7 @@ assert(!/react-native-webview|<WebView\b|satradersbilling:\/\//.test(app), 'Do n
 assert(!app.includes('satradersbilling://'), 'Old Java route shortcuts are forbidden');
 assert(!app.includes('Linking.openURL'), 'No URL wrapper navigation');
 assert(app.includes('saveBill=async'), 'Native bill workflow missing');
-assert(app.includes('recordChange=async'), 'Native payment/return workflow missing');
+assert(app.includes('PaymentForm')&&app.includes('MaterialChangeForm'), 'Native payment/return workflow missing');
 assert(app.includes('saveCustomer=async'), 'Native customer workflow missing');
 assert(app.includes('saveStock=async'), 'Native inventory workflow missing');
 assert(app.includes('saveNote=async'), 'Native slip/challan workflow missing');

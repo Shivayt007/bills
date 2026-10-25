@@ -1,6 +1,6 @@
 import React from 'react';
 import {Pressable,StyleSheet,Text,View} from 'react-native';
-import {Bill,calculateBill,integer,MATERIALS,money,num,WOODS,sizes} from './domain';
+import {Bill,calculateBill,integer,MATERIALS,money,num,WOODS,sizes,physicalBalance,mapToText,cyclePaid} from './domain';
 
 const K={navy:'#092642',navy2:'#123B5A',gold:'#FFB12C',orange:'#F47B18',green:'#0B966B',paper:'#FFFFFF',muted:'#71849A',bg:'#F5F8FC',line:'#E6EDF5',ink:'#152A43'};
 export type BillTab='materials'|'cycles'|'all'|'payments';
@@ -91,24 +91,26 @@ export function BillMaterialDetails({bill,showAll=false}:{bill:Bill;showAll?:boo
   <View style={p.tableFoot}><Text style={p.tableFootText}>Transport is charged in the first cycle only. Advance is a separate security deposit.</Text></View>
  </View>;
 }
-export function BillCycleDetails({bill}:{bill:Bill}){
+export function BillCycleDetails({bill,onPrint,onNext}:{bill:Bill;onPrint?:(index:number)=>void;onNext?:()=>void}){
  const x=calculateBill(bill);
  return <View>
   {x.cycles.length===0?<Text style={p.empty}>No rental cycle has started.</Text>:x.cycles.slice().reverse().map(c=>
    <View key={c.index} style={p.cycleCard}><View style={p.cycleBadge}><Text style={p.cycleBadgeText}>#{c.index}</Text></View>
     <View style={{flex:1}}><Text style={p.cycleDates}>{c.start_date} → {c.end_date}</Text>
      <Text style={p.cycleHint}>Rent {money(c.rent)}{c.index===1?' · transport included':''}</Text></View>
-    <Text style={p.cycleAmount}>{money(c.total)}</Text></View>)}
+    <View><Text style={p.cycleAmount}>{money(c.total)}</Text><Text style={p.cycleHint}>Paid {money(cyclePaid(bill,c))}</Text>{onPrint&&<Pressable accessibilityRole="button" style={{padding:12}} onPress={()=>onPrint(c.index)}><Text>Print cycle</Text></Pressable>}</View></View>)}
+  {onNext&&<Pressable accessibilityRole="button" style={{padding:16}} onPress={onNext}><Text>Print next cycle estimate</Text></Pressable>}
  </View>;
 }
 export function CustomerMaterialSummary({bills}:{bills:Bill[]}){
- const current=bills.filter(b=>b.status==='open');
+ const current=bills.filter(b=>b.status!=='closed').map(physicalBalance);
  return <View style={p.surface}>
   <View style={p.tableHeading}><Text style={p.tableHeadName}>MATERIAL ACROSS OPEN BILLS</Text><Text style={p.tableHeadQty}>QTY</Text></View>
-  {MATERIALS.map(([k,label,q])=>({k,label,qty:current.reduce((a,b)=>a+integer(b[q]),0)})).filter(x=>x.qty>0)
+  {MATERIALS.map(([k,label,q])=>({k,label,qty:current.reduce((a,b)=>a+integer(b.qty[k]),0)})).filter(x=>x.qty>0)
   .map(x=><View key={x.k} style={p.summaryRow}><Text style={p.tableRowName}>{x.label}</Text>
    <Text style={p.summaryQty}>{x.qty}</Text></View>)}
-  <Text style={p.tableFootText}>Aggregated base quantities. Historical returns and additions must be reviewed per bill.</Text>
+  {WOODS.map(([k,label])=>{const m:Record<string,number>={};for(const b of current)for(const [ft,p] of Object.entries(b.wood[k]))m[ft]=(m[ft]||0)+p;return <View style={p.summaryRow} key={k}><Text style={p.tableRowName}>{label}</Text><Text style={p.summaryQty}>{mapToText(m)||'0'}</Text></View>;})}
+  <Text style={p.tableFootText}>Physical outstanding after all recorded additions and returns.</Text>
  </View>;
 }
 const p=StyleSheet.create({
@@ -131,7 +133,7 @@ const p=StyleSheet.create({
  rateLine:{flexDirection:'row',alignItems:'center',marginTop:4},ratePrefix:{color:K.muted,fontSize:11},
  rateUnit:{fontSize:9,color:K.muted},
  stepper:{flexDirection:'row',alignItems:'center',backgroundColor:'#F5F8FB',borderRadius:12,padding:2},
- stepButton:{width:25,height:30,alignItems:'center',justifyContent:'center',backgroundColor:'white',borderRadius:10,borderWidth:1,borderColor:K.line},
+ stepButton:{width:44,height:44,alignItems:'center',justifyContent:'center',backgroundColor:'white',borderRadius:10,borderWidth:1,borderColor:K.line},
  stepButtonText:{fontWeight:'900',fontSize:19,color:K.ink},
  miniInput:{fontSize:12,color:K.ink,fontWeight:'800',minWidth:29,padding:0,textAlign:'center',borderBottomWidth:1,borderColor:'#DAE4ED'},
  productAmount:{width:72,fontWeight:'900',color:K.ink,fontSize:11,textAlign:'right'},

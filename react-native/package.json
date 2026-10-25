@@ -1,6 +1,6 @@
 {
   "name": "sa-traders-native-workspace",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "main": "index.js",
   "scripts": {
@@ -8,16 +8,30 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild --platform android",
     "typecheck": "tsc --noEmit",
-    "check": "node scripts/check-preview.cjs"
+    "check": "node scripts/check-preview.cjs",
+    "test": "node scripts/domain-parity-check.cjs && node scripts/backup-parity-check.cjs && node scripts/full-parity-check.cjs",
+    "ios": "expo run:ios"
   },
   "dependencies": {
-    "expo": "~54.0.0",
-    "react": "19.1.0",
-    "react-native": "0.81.5",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "~54.0.0",
+    "expo-build-properties": "~1.0.10",
+    "expo-crypto": "~15.0.9",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.17",
-    "expo-sharing": "~14.0.8"
+    "expo-intent-launcher": "~13.0.8",
+    "expo-notifications": "~0.32.17",
+    "expo-print": "~15.0.8",
+    "expo-secure-store": "~15.0.8",
+    "expo-sharing": "~14.0.8",
+    "expo-system-ui": "~6.0.9",
+    "firebase": "^13.1.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-view-shot": "4.0.3",
+    "react-native-web": "^0.21.0"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
