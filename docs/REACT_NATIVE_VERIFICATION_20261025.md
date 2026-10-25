@@ -54,22 +54,22 @@ I = implemented in source; P = partial; U = integration unverified. Main baselin
 | Background daily reminders | Missing | I/U | original WorkManager worker; device scheduling/reboot U |
 | PDF/print/cycle/customer sharing | Text only | I/U | renderer and share API; physical print/recipient U |
 | Immutable image invoice archive | Missing | Missing | not implied by current PDFs |
-| Invoice image sharing | Missing | P | PDF complete; screenshot image route still under review |
+| Invoice image sharing | Missing | I/U | Native view capture and Android PNG sharing; phone U |
 | Firebase auth / conflict protection | Missing | I/U | optional explicit authenticated connector; no live account tested |
 | Automatic cloud listeners/offline cloud queue | Missing | P | local offline ledger; explicit sync instead of continuous cloud updates |
 | JSON import/export | I local | I local | parser/roundtrip tests; merge conflict policy needs careful review |
-| Inventory | P | P | material/wood UI parity tracked in follow-up changes |
-| Slips/challans | Notes only | P | original structured records retained/editable, generic PDF; native form parity incomplete |
+| Inventory | P | I/U | physical material and per-length wood availability; phone U |
+| Slips/challans | Notes only | I/U | Native forms preserve original fields and generate material PDFs; phone U |
 | WhatsApp service | Missing | I/U | existing API client; service test suite passed with mocks; actual pairing/delivery U |
 | Original user/role administration | Missing | P | local PIN; server Auth roles require deployment/administration |
-| Full reports/CSV | P | P | core totals; detailed reporting tracked in follow-up changes |
+| Full reports/CSV | P | I/U | date-filtered payment CSV, physical tracker, active rental PDF; phone U |
 
 ## Executed validation
 
 - `npm run typecheck`: passed.
 - `npm run check`: passed native-only integration checks.
 - `npm test`: passed existing rental smoke, JSON roundtrip/validation and new source comparison suite.
-- Golden suite: **3,166 checks**, 450 synthetic bills, 15/20/30-day cycles, fractional rates, decimal wood, transport, returns/additions, closures and custom conversion. Also rejection checks for malformed wood, excessive returns, duplicate receipts, overallocations and duplicate manual entries. Re-run with Asia/Kolkata timezone passed.
+- Golden suite: **3,168 checks**, 450 synthetic bills, 15/20/30-day cycles, fractional rates, decimal wood, transport, returns/additions, closures and custom conversion. Also rejection checks for malformed wood, excessive returns, duplicate receipts, overallocations and duplicate manual entries. Re-run with Asia/Kolkata timezone passed.
 - Original `tests/rental-cycle-test.cjs`, `split-payments-test.cjs`, `notifications-test.cjs`, `whatsapp-reminders-test.cjs`: passed.
 - `node --test whatsapp-reminders/test/api.test.js`: 6 tests passed (mock service, idempotency and uncertain-send handling).
 - Expo prebuild: passed; injected Java sources, ReactPackage and Android WorkManager dependency inspected.
@@ -91,3 +91,5 @@ I = implemented in source; P = partial; U = integration unverified. Main baselin
 ## Required phone acceptance
 
 Import an anonymized backup; compare every bill's due/paid/pending/deposit with the original app at the same date. Create and restart after a rental and Custom Shop bill. Return different wood lengths and verify next four cycles. Record and delete a cycle payment; split ₹5,000 across three bills and correct it to ₹3,000 + ₹2,000 credit. Grant notification access, receive an actual incoming-payment notification, verify duplicate suppression, then enable reminders and test restart/reboot. Generate and share all invoice types. Test Firebase in a dedicated project with deny-by-default rules, including simultaneous conflicting payments, network failure and a >400-record refusal. Test actual WhatsApp service authentication/pairing and uncertain-send retry. None of these device/service scenarios are marked passed here.
+
+Final review added native invoice PNG previews/sharing, per-length wood inventory, original delivery/return/challan forms, detailed payment CSV and active-material PDFs. Fractional transport component rounding is separately covered for Custom Shop and converted Custom Shop; see FINANCIAL_CALCULATION_REFERENCE.md. Customer physical material summaries include closed bills, matching the original behavior that closure does not automatically return stock. Android APK targets ARM64 and ARMv7 devices, API26+. Browser screenshot execution was unavailable because the browser download failed; no visual/device pass is claimed.

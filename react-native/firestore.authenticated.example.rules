@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function shopAdmin() {
+   return request.auth != null && request.auth.token.saTradersAdmin == true;
+  }
+  match /{store}/{id} {
+   allow read, write: if shopAdmin() && store in ['bills','customers','customBills','inventory','slips','challans','settings'];
+  }
+ }
+}
+// Deployment reference only. Set saTradersAdmin using a trusted Admin SDK.
+// Do not allow clients to set their own claims. Emulator tests and explicit
+// administrator provisioning are required before applying this to live data.

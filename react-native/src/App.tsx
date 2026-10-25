@@ -1,10 +1,13 @@
 import React,{useEffect,useMemo,useState,useRef} from 'react';
 import {
- Alert,ActivityIndicator,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,
+ Alert,ActivityIndicator,KeyboardAvoidingView,Platform,Pressable,
  ScrollView,Share,StatusBar,BackHandler,StyleSheet,Text,TextInput,View,
 } from 'react-native';
 import {calculateBill,Customer,Data,EMPTY,invoiceText,makeBill,MATERIALS,money,
- num,Note,RATES,round2,Stock,TODAY,validateBill,WOODS,Bill,calculateCustom,physicalBalance,mapToText,cyclePaid} from './domain';
+ num,Note,RATES,round2,sizes,validateWood,mapSum,Stock,TODAY,validateBill,WOODS,Bill,calculateCustom,physicalBalance,mapToText,cyclePaid} from './domain';
+import {SafeAreaProvider,SafeAreaView} from 'react-native-safe-area-context';
+import {InvoiceImage} from './InvoiceImage';
+import {ReportsPanel} from './ReportsPanel';
 import {OperationsHub} from './OperationsHub';
 import {MaterialChangeForm,PaymentForm,HistoryActions} from './WorkflowForms';
 import {printBill,shareBillPdf,shareCustomerReport} from './invoices';
@@ -44,7 +47,8 @@ function Stat({label,value,accent=false}:{label:string;value:string;accent?:bool
   <Text style={[s.statLabel,accent&&{color:'#BCCCD9'}]}>{label}</Text></View>;
 }
 function Head({title,subtitle}:{title:string;subtitle:string}){return <View style={{marginBottom:17}}><Text style={s.heading}>{title}</Text><Text style={s.subtitle}>{subtitle}</Text></View>;}
-export default function App(){
+export default function App(){return <SafeAreaProvider><LedgerApp/></SafeAreaProvider>;}
+function LedgerApp(){
  const {authorize,panel:adminPanel,dialog:adminDialog,locked,unlock,ready:adminReady}=useAdmin();
  const mutation=useRef(false);
  const [data,setData]=useState<Data>(EMPTY),[loaded,setLoaded]=useState(false);
@@ -56,6 +60,7 @@ export default function App(){
  const [billFilter,setBillFilter]=useState<'all'|'open'|'closed'>('all');
  const [selected,setSelected]=useState(''),[draft,setDraft]=useState<Bill>(makeBill());
  const [customerDraft,setCustomerDraft]=useState<Customer>({name:'',mobile:'',place:''});
+ const [stockWood,setStockWood]=useState('');
  const [stockDraft,setStockDraft]=useState<Stock>({item:'jackey',stock_qty:0});
  const [noteDraft,setNoteDraft]=useState<Note>({id:'',customer:'',date:TODAY(),notes:'',type:'slip'});
  const [amount,setAmount]=useState(''),[paymentNote,setPaymentNote]=useState('');
@@ -82,9 +87,9 @@ export default function App(){
    const parsed=parseLegacyBackup(json);
    Alert.alert('Preview backup import',parsed.summary+'\n\nChoose Merge to keep existing local records, or Replace to overwrite LOCAL test data. A safety backup will be saved first. This does not write to Firebase.',[
      {text:'Cancel',style:'cancel'},
-     {text:'Merge local records',onPress:()=>{void applyBackup(mergeBackup(data,parsed.data));}},
+     {text:'Merge local records',onPress:()=>{void authorize('Merge backup',async()=>{await applyBackup(mergeBackup(data,parsed.data));});}},
      {text:'Replace local records',style:'destructive',onPress:()=>Alert.alert('Confirm local replacement','All existing local test records will be replaced. Your real Firestore database will not be changed.',[
-       {text:'Cancel',style:'cancel'}, {text:'Replace local records',style:'destructive',onPress:()=>{void applyBackup(parsed.data);}}
+       {text:'Cancel',style:'cancel'}, {text:'Replace local records',style:'destructive',onPress:()=>{void authorize('Replace local backup',async()=>{await applyBackup(parsed.data);});}}
      ])}
    ]);
   }catch(e){Alert.alert('Import rejected',txt(e instanceof Error?e.message:e));}
@@ -116,7 +121,7 @@ export default function App(){
  const navigate=(next:Page)=>{setPage(next);setQuery('');setModal(null);};
  const openBill=(id:string)=>{setCustomMode(false);setSelected(id);setDetailTab('materials');navigate('detail');};
  const newBill=()=>{setCustomMode(false);setSelected('');setDraft(makeBill());setFormSection('materials');navigate('form');};
- const editBill=(b:Bill)=>{setSelected(b.bill_no);setDraft({...b});setFormSection('materials');navigate('form');};
+ const editBill=(b:Bill)=>{setSelected(b.bill_no);setDraft({...makeBill(),...b});setFormSection('materials');navigate('form');};
  const selectedBill=(customMode?(data.customBills||[]) as Bill[]:data.bills).find(b=>b.bill_no===selected);
  const totals=useMemo(()=>{
   const active=data.bills;
@@ -152,8 +157,10 @@ export default function App(){
  };
  const saveStock=async()=>{
   if(!stockDraft.item.trim()){Alert.alert('Item is required');return;}
+  if(!Number.isInteger(Number(stockDraft.stock_qty))||Number(stockDraft.stock_qty)<0){Alert.alert('Stock quantity must be a non-negative whole number');return;}
+  if(WOODS.some(([k])=>k===stockDraft.item)){try{validateWood(stockWood);}catch(e){Alert.alert('Invalid wood stock',String(e));return;}}
   const arr=data.inventory.filter(x=>x.item!==stockDraft.item);
-  await update({...data,inventory:[...arr,{...stockDraft,stock_qty:Math.max(0,num(stockDraft.stock_qty))}]});
+  await update({...data,inventory:[...arr,{...stockDraft,stock_qty:Math.max(0,num(stockDraft.stock_qty)),...(WOODS.some(([k])=>k===stockDraft.item)?{stock_map:sizes(stockWood)}:{})}]});
   navigate('inventory');
  };
  const saveNote=async()=>{
@@ -269,7 +276,7 @@ export default function App(){
     <View style={{height:9}}/><Button outline label="Cancel" onPress={()=>navigate(selected?'detail':'bills')}/>
    </>}
    {page==='detail'&&selectedBill&&(()=>{
-    const b=selectedBill,v=customMode?calculateCustom(b):calculateBill(b);
+    const b:Bill={...selectedBill,terms_conditions:selectedBill.terms_conditions||(data.settings||[]).find(x=>x.key===(customMode?'custom_terms':'terms_invoice'))?.value,print_rules:selectedBill.print_rules||(data.settings||[]).find(x=>x.key==='custom_rules')?.value},v=customMode?calculateCustom(b):calculateBill(b);
     const sameCustomer=data.bills.filter(x=>(b.mobile&&x.mobile===b.mobile)||(!b.mobile&&x.name===b.name));
     return <>
      <View style={s.billHeader}><Pressable accessibilityRole="button" onPress={()=>navigate('bills')}><Text style={s.billBack}>‹</Text></Pressable>
@@ -277,12 +284,13 @@ export default function App(){
       <View style={s.billStatus}><Text style={s.billStatusText}>{b.status==='open'?'Active':'Closed'}</Text></View>
      </View>
      <View style={s.billCustomer}>
-      <View style={s.customerIcon}><Text style={s.customerInitial}>{b.name.slice(0,1).toUpperCase()}</Text></View>
+      <View style={s.customerIcon}><Text style={s.customerInitial}>{txt(b.name).slice(0,1).toUpperCase()}</Text></View>
       <View style={{flex:1}}><Text style={s.billCustomerName}>{b.name}</Text>
        <Text style={s.billHeadSub}>{b.place||'No site'} · Started {b.start_date}</Text></View>
      </View>
      {customMode?<Card><Line label="Custom grand total" value={money(v.due)}/><Line label="Pending" value={money(v.pending)}/><Line label="Automatic advance" value={money(v.advance)}/></Card>:<BillHero bill={b}/>}
      <View style={s.detailActionRow}><Button outline label="Print invoice" onPress={()=>void printBill(b,customMode).catch(e=>Alert.alert('Print failed',String(e)))}/><Button outline label="PDF / WhatsApp" onPress={()=>void shareBillPdf(b,customMode).catch(e=>Alert.alert('Share failed',String(e)))}/></View>
+     <InvoiceImage bill={b} custom={customMode}/>
      {customMode&&!b.converted_to_professional&&<Button label="Convert to professional bill" onPress={()=>{void authorize('Convert custom bill',async()=>{await update(convertCustom(data,b));setCustomMode(false);});}}/>}
      {b.converted_to_professional&&<Text style={s.note}>Converted: record further payments on the professional bill.</Text>}
      <View style={s.detailActionRow}>
@@ -325,7 +333,7 @@ export default function App(){
     <View style={{height:12}}/><Search value={query} onChange={setQuery} placeholder="Search name, number, location"/>
     {customers.length===0?<Card><Text style={s.empty}>No customers yet.</Text></Card>:customers.map(c=>
      <Pressable key={c.mobile} onPress={()=>{setSelectedCustomer(c.mobile);setCustomerTab('history');navigate('customer-detail');}} style={s.row}>
-      <View style={s.avatar}><Text style={s.avatarText}>{c.name.slice(0,1).toUpperCase()}</Text></View>
+      <View style={s.avatar}><Text style={s.avatarText}>{txt(c.name).slice(0,1).toUpperCase()}</Text></View>
       <View style={{flex:1}}><Text style={s.rowTitle}>{c.name}</Text><Text style={s.rowSub}>{c.mobile} · {c.place}</Text></View><Text style={s.chevron}>›</Text>
      </Pressable>)}</>}
    {page==='customer-detail'&&(()=>{
@@ -334,7 +342,7 @@ export default function App(){
     const bills=data.bills.filter(b=>b.mobile===c.mobile);
     const pending=bills.reduce((sum,b)=>sum+calculateBill(b).pending,0);
     return <><Head title="Customer details" subtitle={c.name+' · '+c.mobile}/>
-      <Card><View style={s.billCustomer}><View style={s.customerIcon}><Text style={s.customerInitial}>{c.name.slice(0,1).toUpperCase()}</Text></View>
+      <Card><View style={s.billCustomer}><View style={s.customerIcon}><Text style={s.customerInitial}>{txt(c.name).slice(0,1).toUpperCase()}</Text></View>
        <View style={{flex:1}}><Text style={s.billCustomerName}>{c.name}</Text><Text style={s.billHeadSub}>{c.mobile} · {c.place}</Text></View></View>
        <Line label="Total bills" value={txt(bills.length)}/><Line label="Outstanding" value={money(pending)}/>
        <Button outline label="Customer bill / material PDF" onPress={()=>void shareCustomerReport(c,bills).catch(e=>Alert.alert('Share failed',String(e)))}/>
@@ -351,28 +359,30 @@ export default function App(){
     <Input label="Name" value={customerDraft.name} onChange={v=>setCustomerDraft(x=>({...x,name:v}))}/>
     <Input label="Mobile" value={customerDraft.mobile} onChange={v=>setCustomerDraft(x=>({...x,mobile:v}))}/>
     <Input label="Place" value={customerDraft.place} onChange={v=>setCustomerDraft(x=>({...x,place:v}))}/>
-    <Button label="Save customer" onPress={()=>void saveCustomer()}/><View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate('customers')}/>
+    <Button label="Save customer" onPress={()=>void saveCustomer().catch(()=>{})}/><View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate('customers')}/>
    </Card></>}
    {page==='inventory'&&<><Head title="Inventory" subtitle="Track local master stock. Rented stock estimates from active bills."/>
     {MATERIALS.map(([k,label,q])=>{
      const stock=data.inventory.find(x=>x.item===k)?.stock_qty||0;
-     const rented=data.bills.filter(b=>b.status==='open').reduce((sum,b)=>sum+num(b[q]),0);
+     const rented=data.bills.filter(b=>b.status==='open').reduce((sum,b)=>sum+num(physicalBalance(b).qty[k]),0);
      return <Pressable key={k} style={s.row} onPress={()=>{setStockDraft({item:k,stock_qty:stock});navigate('stock-form');}}>
       <View style={s.avatar}><Text style={s.avatarText}>▦</Text></View>
       <View style={{flex:1}}><Text style={s.rowTitle}>{label}</Text>
-       <Text style={s.rowSub}>Stock {stock} · Base rented {rented}</Text></View><Text style={s.stockValue}>{stock-rented}</Text>
+       <Text style={s.rowSub}>Stock {stock} · Rented {rented}</Text></View><Text style={s.stockValue}>{stock-rented}</Text>
      </Pressable>;})}
-    <Text style={s.note}>Available stock is a basic estimate; return/addition and wood balance parity not yet verified.</Text>
+    {WOODS.map(([k,label])=>{const stock=data.inventory.find(x=>x.item===k)?.stock_map||{},rented=data.bills.filter(b=>b.status!=='closed').reduce((m,b)=>mapSum(m,physicalBalance(b).wood[k]),{});return <Pressable style={s.row} key={k} onPress={()=>{setStockDraft({item:k,stock_qty:0,stock_map:stock});setStockWood(mapToText(stock));navigate('stock-form');}}><View style={{flex:1}}><Text style={s.rowTitle}>{label}</Text><Text style={s.rowSub}>Stock {mapToText(stock)||'0'} · Rented {mapToText(rented)||'0'}</Text><Text style={s.rowSub}>Available {mapToText(mapSum(stock,rented,-1))||'0'}</Text></View></Pressable>;})}
+    <Text style={s.note}>Available = master stock minus physical outstanding on open rental bills.</Text>
    </>}
    {page==='stock-form'&&<><Head title="Update stock" subtitle={'Master stock for '+stockDraft.item}/><Card>
-    <Input label="Stock quantity" value={stockDraft.stock_qty} numeric onChange={v=>setStockDraft(x=>({...x,stock_qty:num(v)}))}/>
-    <Button label="Save stock" onPress={()=>void saveStock()}/><View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate('inventory')}/>
+    {WOODS.some(([k])=>k===stockDraft.item)?<Input label="Wood stock feet × pieces" value={stockWood} onChange={setStockWood}/>:<Input label="Stock quantity" value={stockDraft.stock_qty} numeric onChange={v=>setStockDraft(x=>({...x,stock_qty:num(v)}))}/>}
+    <Button label="Save stock" onPress={()=>void saveStock().catch(()=>{})}/><View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate('inventory')}/>
    </Card></>}
    {page==='reports'&&<><Head title="Reports" subtitle="Native report summaries of local test records."/>
     <View style={s.statGrid}><Stat label="Active invoices" value={txt(totals.active)}/><Stat label="Total due" value={money(totals.due)}/></View>
     <View style={s.statGrid}><Stat label="Received" value={money(totals.paid)}/><Stat label="Pending" value={money(totals.pending)}/></View>
+    <ReportsPanel data={data}/>
     <Text style={s.section}>Pending invoices</Text>
-    {data.bills.filter(b=>b.status==='open'&&calculateBill(b).pending>0).map(b=><BillTile key={b.bill_no} b={b} onPress={()=>openBill(b.bill_no)}/>)}
+    {data.bills.filter(b=>calculateBill(b).pending>0).map(b=><BillTile key={b.bill_no} b={b} onPress={()=>openBill(b.bill_no)}/>)}
     <Button outline label="Share local report" onPress={()=>{void Share.share({message:
      'S.A Traders — local test report\nBills: '+data.bills.length+'\nDue: '+money(totals.due)+'\nPaid: '+money(totals.paid)+'\nPending: '+money(totals.pending)
     });}}/>
@@ -401,7 +411,7 @@ export default function App(){
     <Input label="Customer" value={noteDraft.customer} onChange={v=>setNoteDraft(x=>({...x,customer:v}))}/>
     <Input label="Date YYYY-MM-DD" value={noteDraft.date} onChange={v=>setNoteDraft(x=>({...x,date:v}))}/>
     <Input label="Materials / notes" value={noteDraft.notes} multiline onChange={v=>setNoteDraft(x=>({...x,notes:v}))}/>
-    <Button label="Save record" onPress={()=>void saveNote()}/><View style={{height:8}}/>
+    <Button label="Save record" onPress={()=>void saveNote().catch(()=>{})}/><View style={{height:8}}/>
     <Button outline label="Share text" onPress={()=>{void Share.share({message:noteDraft.type.toUpperCase()+' · '+noteDraft.customer+'\n'+noteDraft.date+'\n'+noteDraft.notes});}}/>
     <View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate('more')}/>
    </Card></>}
@@ -424,7 +434,7 @@ function BillTile({b,onPress}:{b:Bill;onPress:()=>void}){
  const v=calculateBill(b),progress=v.due>0?Math.min(100,Math.max(0,v.paid/v.due*100)):0;
  return <Pressable accessibilityRole="button" onPress={onPress} style={s.proBillTile}>
    <View style={s.tileTop}>
-    <View style={s.customerIcon}><Text style={s.customerInitial}>{b.name.slice(0,1).toUpperCase()}</Text></View>
+    <View style={s.customerIcon}><Text style={s.customerInitial}>{txt(b.name).slice(0,1).toUpperCase()}</Text></View>
     <View style={{flex:1}}><Text style={s.tileName} numberOfLines={1}>{b.name}</Text>
      <Text style={s.tileMeta}>#{b.bill_no}  ·  {b.start_date}  ·  {b.cycle_days} days</Text></View>
     <View style={{alignItems:'flex-end'}}><Text style={s.tileDue}>{money(v.pending)}</Text><Text style={s.tileMeta}>pending</Text></View>

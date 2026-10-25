@@ -30,6 +30,7 @@ export function parseLegacyBackup(text:string):{data:Data;summary:string;busines
   for(const field of ['payments','return_history','additional_history']){
    if(b[field]!==undefined&&!Array.isArray(b[field]))throw Error('Invalid '+field+' for bill '+b.bill_no);
   }
+  for(const field of ['return_history','additional_history'])for(const h of (b[field] as unknown[]|undefined)||[]){if(!isObject(h)||h.items!==undefined&&!isObject(h.items)||h.wood!==undefined&&!isObject(h.wood))throw Error('Invalid material history in bill '+b.bill_no);}
   for(const p of (b.payments as Record<string,unknown>[]|undefined)||[]){
    if(!isObject(p)||!Number.isFinite(Number(p.amount))||Number(p.amount)<0)throw Error('Invalid payment amount in bill '+b.bill_no);
   }
@@ -39,6 +40,7 @@ export function parseLegacyBackup(text:string):{data:Data;summary:string;busines
  // Only provide defaults needed by the native UI; do not rewrite legacy keys.
  const normalized=bills.map(b=>({
   ...b,
+  name:typeof b.name==='string'?b.name:'',mobile:typeof b.mobile==='string'?b.mobile:'',place:typeof b.place==='string'?b.place:'',
   payments:Array.isArray(b.payments)?b.payments:[],
   return_history:Array.isArray(b.return_history)?b.return_history:[],
   additional_history:Array.isArray(b.additional_history)?b.additional_history:[],
@@ -74,6 +76,7 @@ export function mergeBackup(current:Data,incoming:Data):Data{
   slips:merge(current.slips||[],incoming.slips||[],'slip_no'),
   challans:merge(current.challans||[],incoming.challans||[],'challan_no'),
   settings:merge(current.settings||[],incoming.settings||[],'key'),
+  notes:merge(current.notes||[],incoming.notes||[],'id') as Data['notes'],
   backupBusiness:incoming.backupBusiness||current.backupBusiness,
   backupExtra:{...current.backupExtra,...incoming.backupExtra}};
 }

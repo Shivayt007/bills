@@ -22,6 +22,7 @@ for(const days of [15,20,30])for(let i=0;i<150;i++){
  eq(d.calculateCustom(b).due,legacy.engine.hydrateCustom(b).calc.grand_total,'custom total');
  b.calculation_type='customshop_professional';eq(d.calculateBill(b).due,legacy.engine.hydrateBill(b).total_due,'conversion total');
 }
+{const b=d.makeBill();b.start_date=now;b.transport_up_trips=1;b.transport_down_trips=1;for(const k of ['transport_up_charge','transport_down_charge','loading_charge','unloading_charge'])b[k]=.005;eq(d.calculateCustom(b).due,legacy.engine.hydrateCustom(b).calc.grand_total,'custom independently rounded fees');b.calculation_type='customshop_professional';eq(d.calculateBill(b).due,legacy.engine.hydrateBill(b).total_due,'converted raw summed transport');}
 for(const raw of ['8×5+10×2','8.5×3','8×2+8×3','12x0','6*10,9x2'])eq(d.woodStats(d.sizes(raw),18).amount,legacy.engine.woodStats(legacy.engine.parseComboSizes(raw),18).amount,'wood '+raw);
 for(const raw of ['8x2oops','8x-2','8x2.5','-8x2'])assert.throws(()=>d.validateWood(raw));
 let b=d.makeBill();Object.assign(b,{bill_no:'A',name:'Test',mobile:'9999999999',start_date:now,jackey_qty:100});

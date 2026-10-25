@@ -71,8 +71,8 @@ export function historyTotals(list:ItemChange[]){
 export function snapshotForCycle(b:Bill,index:number){
  // Sum all events before clamping, exactly as app.js snapshotForCycle.
  const base=baseQty(b),wood=baseWood(b);
- const plus=historyTotals((b.additional_history||[]).filter(h=>num(h.effective_from_cycle,999999)<=index));
- const minus=historyTotals((b.return_history||[]).filter(h=>num(h.effective_from_cycle,999999)<=index));
+ const plus=historyTotals((b.additional_history||[]).filter(h=>Math.trunc(num(h.effective_from_cycle,999999))<=index));
+ const minus=historyTotals((b.return_history||[]).filter(h=>Math.trunc(num(h.effective_from_cycle,999999))<=index));
  for(const k of Object.keys(base))base[k]=Math.max(0,base[k]+plus.mat[k]-minus.mat[k]);
  for(const k of Object.keys(wood))wood[k]=mapSum(mapSum(wood[k],plus.wood[k]),minus.wood[k],-1);
  return {qty:base,q:base,wood};
@@ -100,13 +100,13 @@ export function cycleFor(b:Bill,index:number):Cycle{
 }
 export const cyclePaid=(b:Bill,c:Cycle)=>amountTotal((b.payments||[]).filter(p=>p.cycle_index===c.index&&p.cycle_start_date===c.start_date&&p.cycle_end_date===c.end_date));
 export function calculateCustom(b:Bill){
- const br=calcRent(baseQty(b),baseWood(b),ratesOf(b)),tr=transport(b),paid=amountTotal(b.payments),advance=br.rent,due=round2(br.rent+tr.total+advance);
- return {due,paid,pending:Math.max(0,round2(due-paid)),advance,transport:tr.total,material:br.material,wood:br.wood,cycles:[] as Cycle[],credit:Math.max(0,round2(paid-due))};
+ const br=calcRent(baseQty(b),baseWood(b),ratesOf(b)),tr=transport(b),paid=amountTotal(b.payments),advance=br.rent,customTransport=round2(round2(tr.up+tr.down)+tr.loading+tr.unloading),due=round2(br.rent+round2(tr.up+tr.down)+tr.loading+tr.unloading+advance);
+ return {due,paid,pending:Math.max(0,round2(due-paid)),advance,transport:customTransport,material:br.material,wood:br.wood,cycles:[] as Cycle[],credit:Math.max(0,round2(paid-due))};
 }
 export function calculateBill(b:Bill,asOf=TODAY()){
  const first=calcRent(baseQty(b),baseWood(b),ratesOf(b)),tr=transport(b).total,paid=amountTotal(b.payments),cycles:Cycle[]=[];
  if(b.calculation_type==='customshop_professional'){
-  const custom=calculateCustom(b),start=dateUTC(b.start_date)?b.start_date:asOf;
+  const base=calculateCustom(b),due=round2(first.rent+tr+first.rent),custom={...base,due,pending:Math.max(0,round2(due-paid)),credit:Math.max(0,round2(paid-due)),transport:tr},start=dateUTC(b.start_date)?b.start_date:asOf;
   return {...custom,cycles:[{index:1,start_date:start,end_date:addDate(start,Math.max(1,Math.trunc(num(b.cycle_days,30)))-1),total:custom.due,rent:round2(first.rent*2),transport:tr,snapshot_qty:baseQty(b),snapshot_wood:baseWood(b)}]};
  }
  const start=dateUTC(b.start_date),until=dateUTC(b.status==='closed'&&b.closed_at?b.closed_at:asOf);

@@ -103,7 +103,7 @@ export function BillCycleDetails({bill,onPrint,onNext}:{bill:Bill;onPrint?:(inde
  </View>;
 }
 export function CustomerMaterialSummary({bills}:{bills:Bill[]}){
- const current=bills.filter(b=>b.status!=='closed').map(physicalBalance);
+ const current=bills.map(physicalBalance);
  return <View style={p.surface}>
   <View style={p.tableHeading}><Text style={p.tableHeadName}>MATERIAL ACROSS OPEN BILLS</Text><Text style={p.tableHeadQty}>QTY</Text></View>
   {MATERIALS.map(([k,label,q])=>({k,label,qty:current.reduce((a,b)=>a+integer(b.qty[k]),0)})).filter(x=>x.qty>0)

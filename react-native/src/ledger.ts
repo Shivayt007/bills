@@ -33,6 +33,7 @@ export function allocateReceipt(data:Data,input:ReceiptInput,allocations:Allocat
  const settings=[...(data.settings||[])];const previous=settings.find(s=>s.key===key)?.value as any;
  if(previous&&!input.editKey)throw Error('Receipt already saved; use Correct receipt');
  if(input.editKey&&(!previous||!input.reason?.trim()))throw Error('Correction reason required');
+ if(input.editKey&&(phone(previous.customer_mobile)!==mobile||cents(previous.amount)!==total||previous.item.id!==input.id||String(previous.item.reference||'').trim().toUpperCase().replace(/\s+/g,'')!==ref))throw Error('Receipt correction must preserve customer, transaction reference and received amount');
  const all=[...data.bills,...(data.customBills||[]) as Bill[]];
  if(all.some(b=>(b.payments||[]).some(p=>p.receipt_key!==key&&((ref&&String(p.transaction_reference||'').trim().toUpperCase().replace(/\s+/g,'')===ref)||p.detected_payment_id===input.id))))throw Error('Transaction already recorded');
  if(settings.some(s=>s.key!==key&&(s.value as any)?.item?.id===input.id))throw Error('Receipt ID already saved');
@@ -55,7 +56,8 @@ export function allocateReceipt(data:Data,input:ReceiptInput,allocations:Allocat
  if(credit)customer.payment_credit_receipts.push({receipt_key:key,amount:credit/100,created_at:new Date().toISOString()});
  customer.payment_credit_balance=round2(customer.payment_credit_receipts.reduce((s:number,c:any)=>s+num(c.amount),0));if(ci<0)next.customers.push(customer);
  const receipt={kind:'split_payment_receipt',receipt_key:key,item:{id:input.id,reference:ref,amount:total/100,source:input.source},payment_date:input.date,amount:total/100,allocations:saved,credit:credit/100,customer_mobile:mobile,customer_name:input.name,customerKey:'phone:'+mobile,version:num(previous?.version)+1,status:'active',created_at:previous?.created_at||new Date().toISOString(),updated_at:new Date().toISOString(),audit:[...(previous?.audit||[]),...(previous?[{action:'reallocated',reason:input.reason,previous_allocations:previous.allocations,previous_credit:previous.credit}]:[])]};
- next.settings=[...settings.filter(s=>s.key!==key),{key,value:receipt}];return next;
+ const alias='payment_receipt:id:'+input.id;const oldAlias=settings.find(s=>s.key===alias);if(alias!==key&&oldAlias&&(oldAlias.value as any)?.receipt_key!==key)throw Error('Receipt ID already linked');
+ next.settings=[...settings.filter(s=>s.key!==key&&s.key!==alias),{key,value:receipt},...(alias!==key?[{key:alias,value:{kind:'split_receipt_alias',receipt_key:key}}]:[])];return next;
 }
 export function convertCustom(data:Data,b:Bill):Data{
  if(data.bills.some(v=>v.bill_no===b.bill_no))throw Error('Professional bill number already exists');
