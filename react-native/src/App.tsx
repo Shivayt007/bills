@@ -165,36 +165,62 @@ export default function App(){
      found.map(b=><BillTile key={b.bill_no} b={b} onPress={()=>openBill(b.bill_no)}/>)}
    </>}
    {page==='form'&&<>
-    <Head title={selected?'Edit invoice':'New rental invoice'} subtitle="Native input controls. Stored only on this device."/>
-    <Card><Text style={s.section}>Bill information</Text>
-     <Input label="Bill number" value={draft.bill_no} onChange={x=>formUpdate('bill_no',x)} locked={!!selected}/>
+    <Head title={selected?'Edit rental bill':'New rental bill'} subtitle="Fast billing · clear quantities · transparent totals"/>
+    <Card>
+     <SectionHeader title="Customer & cycle" subtitle="Invoice details and rental period"/>
+     {data.customers.length>0&&<View style={{marginBottom:12}}>
+      <Text style={s.inputLabel}>Choose existing customer</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>{data.customers.slice(0,12).map(c=>
+       <Pressable key={c.mobile} style={s.customerChip}
+        onPress={()=>setDraft(v=>({...v,name:c.name,mobile:c.mobile,place:c.place}))}>
+        <Text style={s.customerChipText}>{c.name}</Text></Pressable>)}</ScrollView></View>}
+     <Input label="Bill number *" value={draft.bill_no} onChange={x=>formUpdate('bill_no',x)} locked={!!selected}/>
+     <Input label="Customer name *" value={draft.name} onChange={x=>formUpdate('name',x)}/>
+     <View style={s.twoColumns}>
+      <View style={{flex:1}}><Input label="Mobile" value={draft.mobile} onChange={x=>formUpdate('mobile',x)}/></View>
+      <View style={{flex:1}}><Input label="Site / location" value={draft.place} onChange={x=>formUpdate('place',x)}/></View>
+     </View>
      <Input label="Start date (YYYY-MM-DD)" value={draft.start_date} onChange={x=>formUpdate('start_date',x)}/>
-     <Text style={s.inputLabel}>Billing cycle</Text><View style={s.choiceRow}>
-      {[15,20,30].map(days=><Pressable key={days} style={[s.choice,num(draft.cycle_days)===days&&s.selectedChoice]} onPress={()=>setDraft(x=>({...x,cycle_days:days}))}>
+     <Text style={s.inputLabel}>Rental cycle</Text>
+     <View style={s.choiceRow}>{[15,20,30].map(days=><Pressable key={days}
+       accessibilityRole="button" accessibilityState={{selected:num(draft.cycle_days)===days}}
+       style={[s.choice,num(draft.cycle_days)===days&&s.selectedChoice]}
+       onPress={()=>setDraft(x=>({...x,cycle_days:days}))}>
        <Text style={[s.choiceText,num(draft.cycle_days)===days&&{color:'white'}]}>{days} days</Text></Pressable>)}</View>
-     <Input label="Advance deposit (₹)" value={draft.advance_amount} numeric onChange={x=>formUpdate('advance_amount',x)}/>
-     <Text style={s.section}>Customer</Text>
-     <Input label="Customer name" value={draft.name} onChange={x=>formUpdate('name',x)}/>
-     <Input label="Mobile" value={draft.mobile} onChange={x=>formUpdate('mobile',x)}/>
-     <Input label="Place / Site" value={draft.place} onChange={x=>formUpdate('place',x)}/>
-     <Text style={s.section}>Materials · Quantity × Rate</Text>
-     {MATERIALS.map(([k,label,q,r])=><View key={k} style={s.materialLine}>
-      <Text style={s.materialName}>{label}</Text><View style={{flex:1}}><Input label="Quantity" value={draft[q]} numeric onChange={x=>formUpdate(q,x)}/></View>
-      <View style={{flex:1}}><Input label="Rate ₹" value={draft[r]} numeric onChange={x=>formUpdate(r,x)}/></View></View>)}
-     <Text style={s.section}>Wood sizes · e.g. 8×5+10×2</Text>
-     {WOODS.map(([k,label,r])=><View key={k}><Text style={s.materialName}>{label}</Text>
-      <Input label="Feet × pieces" value={draft[k]} placeholder="8×5+10×2" onChange={x=>formUpdate(k,x)}/>
-      <Input label="Rate per foot ₹" value={draft[r]} numeric onChange={x=>formUpdate(r,x)}/></View>)}
-     <Text style={s.section}>Transport & handling</Text>
-     {([['transport_up_trips','Up trips'],['transport_up_charge','Up trip charge'],['transport_down_trips','Down trips'],
-      ['transport_down_charge','Down trip charge'],['loading_charge','Loading ₹'],['unloading_charge','Unloading ₹']] as const).map(([k,label])=>
-      <Input key={k} label={label} value={draft[k]} numeric onChange={x=>formUpdate(k,x)}/>)}
-     <View style={s.preview}><Text style={s.inputLabel}>Current accrued total</Text>
-      <Text style={s.previewAmount}>{money(calculateBill(draft).due)}</Text>
-      <Text style={s.note}>Preview recalculates through today; future cycles and returns affect totals.</Text></View>
-     <Button label={working?'Saving…':selected?'Save changes':'Create invoice'} disabled={working} onPress={()=>void saveBill()}/>
-     <View style={{height:8}}/><Button outline label="Cancel" onPress={()=>navigate(selected?'detail':'bills')}/>
     </Card>
+    <SectionHeader title="Rental materials" subtitle="Tap + / − to adjust quantities, or edit manually"/>
+    <Segments<FormSection> items={[{value:'materials',label:'Materials'},{value:'wood',label:'Wood'},{value:'charges',label:'Charges'}]}
+       value={formSection} onChange={setFormSection}/>
+    {formSection==='materials'&&<Card>
+     <View style={s.columnHeader}><Text style={s.columnLabel}>ITEM / RATE</Text><Text style={s.columnLabel}>QTY</Text><Text style={s.columnLabel}>AMOUNT</Text></View>
+     {MATERIALS.map(([key,label,q,r])=><QuantityEditor key={key} label={label}
+       quantity={Math.max(0,Math.trunc(num(draft[q])))} rate={num(draft[r])}
+       onQtyChange={value=>formUpdate(q,value)} onRateChange={value=>formUpdate(r,value)}
+       onIncrease={()=>setDraft(old=>({...old,[q]:Math.max(0,Math.trunc(num(old[q])))+1}))}
+       onDecrease={()=>setDraft(old=>({...old,[q]:Math.max(0,Math.trunc(num(old[q]))-1)}))}/>)}
+    </Card>}
+    {formSection==='wood'&&<Card>
+     <Text style={s.note}>Enter feet × pieces, for example 8×5+10×2.</Text>
+     {WOODS.map(([k,label,r])=><View key={k}><SectionHeader title={label}/>
+      <Input label="Feet × pieces" value={draft[k]} placeholder="8×5+10×2" onChange={value=>formUpdate(k,value)}/>
+      <Input label="Rental rate (₹ per foot)" value={draft[r]} numeric onChange={value=>formUpdate(r,value)}/>
+     </View>)}
+    </Card>}
+    {formSection==='charges'&&<Card>
+      <Input label="Up trips" value={draft.transport_up_trips} numeric onChange={v=>formUpdate('transport_up_trips',v)}/>
+      <Input label="Up trip charge (₹)" value={draft.transport_up_charge} numeric onChange={v=>formUpdate('transport_up_charge',v)}/>
+      <Input label="Down trips" value={draft.transport_down_trips} numeric onChange={v=>formUpdate('transport_down_trips',v)}/>
+      <Input label="Down trip charge (₹)" value={draft.transport_down_charge} numeric onChange={v=>formUpdate('transport_down_charge',v)}/>
+      <Input label="Loading (₹)" value={draft.loading_charge} numeric onChange={v=>formUpdate('loading_charge',v)}/>
+      <Input label="Unloading (₹)" value={draft.unloading_charge} numeric onChange={v=>formUpdate('unloading_charge',v)}/>
+      <Input label="Security advance (₹)" value={draft.advance_amount} numeric onChange={v=>formUpdate('advance_amount',v)}/>
+      <Text style={s.note}>Transport applies only to the first rental cycle. Advance is a separate security deposit.</Text>
+    </Card>}
+    <View style={s.fastTotal}><Text style={s.fastTotalLabel}>Current rental total</Text>
+      <Text style={s.fastTotalValue}>{money(calculateBill(draft).due)}</Text></View>
+    <Text style={s.note}>Offline local calculation only. Not yet verified for production billing.</Text>
+    <Button label={working?'Saving…':selected?'Save changes':'Save rental bill'} disabled={working} onPress={()=>void saveBill()}/>
+    <View style={{height:9}}/><Button outline label="Cancel" onPress={()=>navigate(selected?'detail':'bills')}/>
    </>}
    {page==='detail'&&selectedBill&&(()=>{
     const b=selectedBill,v=calculateBill(b);
@@ -371,4 +397,12 @@ const s=StyleSheet.create({
  tileProgressFill:{height:5,backgroundColor:'#0EA86F',borderRadius:5},
  tileBottom:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginTop:8},
  tileBadge:{paddingVertical:5,paddingHorizontal:8,fontSize:9,fontWeight:'900',color:'#C47613',backgroundColor:'#FFF1D9',borderRadius:9},
+,
+ customerChip:{borderRadius:12,paddingVertical:11,paddingHorizontal:13,backgroundColor:'#EAF1F8',marginRight:7},
+ customerChipText:{fontSize:11,fontWeight:'800',color:'#143C60'},
+ twoColumns:{flexDirection:'row',gap:10},
+ columnHeader:{flexDirection:'row',justifyContent:'space-between',paddingBottom:12,borderBottomWidth:1,borderColor:C.line},
+ columnLabel:{fontWeight:'900',color:C.sub,fontSize:9},
+ fastTotal:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',backgroundColor:'#E6F8EC',borderRadius:14,padding:18,marginVertical:12},
+ fastTotalLabel:{fontSize:12,fontWeight:'900',color:C.ink},fastTotalValue:{fontSize:22,fontWeight:'900',color:'#09874F'},
 });
