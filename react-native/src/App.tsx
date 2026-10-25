@@ -268,7 +268,7 @@ function LedgerApp(){
       <Input label="Down trip charge (₹)" value={draft.transport_down_charge} numeric onChange={v=>formUpdate('transport_down_charge',v)}/>
       <Input label="Loading (₹)" value={draft.loading_charge} numeric onChange={v=>formUpdate('loading_charge',v)}/>
       <Input label="Unloading (₹)" value={draft.unloading_charge} numeric onChange={v=>formUpdate('unloading_charge',v)}/>
-      <Input locked={customMode} label="Security advance (₹)" value={draft.advance_amount} numeric onChange={v=>formUpdate('advance_amount',v)}/>
+      <Input locked={customMode} label={customMode?"Automatic advance (₹)":"Security advance (₹)"} value={customMode?calculateCustom(draft).advance:draft.advance_amount} numeric onChange={v=>formUpdate('advance_amount',v)}/>
       <Text style={s.note}>Transport applies only to the first rental cycle. Advance is a separate security deposit.</Text>
     </Card>}
     <View style={s.fastTotal}><Text style={s.fastTotalLabel}>Current rental total</Text>
@@ -306,7 +306,7 @@ function LedgerApp(){
       <BillMaterialDetails bill={b} showAll/>
       <Card><Line label="Security advance" value={money(v.advance)}/><Line label="Transport (first cycle)" value={money(v.transport)}/>
        <Line label="Total received" value={money(v.paid)}/><Line label="Pending amount" value={money(v.pending)}/></Card>
-      {b.status==='open'&&<View style={s.detailActionRow}>
+      {!customMode&&b.status==='open'&&<View style={s.detailActionRow}>
        <Button outline label="↩ Return Items" onPress={()=>{setModal('return');setChangeQty('');}}/>
        <Button outline label="＋ Add Material" onPress={()=>{setModal('addition');setChangeQty('');}}/>
       </View>}
@@ -326,7 +326,7 @@ function LedgerApp(){
      {!customMode&&<HistoryActions bill={b} save={replaceBill} authorize={authorize}/>}
      <Button outline label="Delete bill" onPress={()=>confirmDelete(b)}/>
      
-     {b.status==='open'&&<View style={{marginTop:12}}><Button outline label="Close this bill" onPress={()=>confirmClose(b)}/></View>}
+     {!customMode&&b.status==='open'&&<View style={{marginTop:12}}><Button outline label="Close this bill" onPress={()=>confirmClose(b)}/></View>}
      <View style={{marginTop:12}}><Button outline label="← All bills" onPress={()=>navigate('bills')}/></View>
     </>;
    })()}
