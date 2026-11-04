@@ -19,7 +19,7 @@ void main() {
     await icons.load();
   });
   final bill=<String,dynamic>{'bill_no':'2504','name':'Suriya','mobile':'9361354349','place':'Thanjavur','start_date':'2026-10-01','cycle_days':30,'status':'open','jackey_qty':100,'sheet_qty':100,'span_qty':100,'advance_amount':1000,'payments':<Map<String,dynamic>>[],'return_history':<Map<String,dynamic>>[],'additional_history':<Map<String,dynamic>>[]};
-  Widget app(Widget home,{Map<String,dynamic>? fetched})=>ProviderScope(overrides:[billsProvider.overrideWith((ref)=>Stream.value(<Map<String,dynamic>>[])),billDetailProvider('2504').overrideWith((ref)async=>fetched),isAdminProvider.overrideWith((ref)async=>false)],child:MaterialApp(theme:buildTheme().copyWith(textTheme:buildTheme().textTheme.apply(fontFamily:'PreviewSans')),home:home));
+  Widget app(Widget home,{Map<String,dynamic>? fetched})=>ProviderScope(overrides:[billsProvider.overrideWith((ref)=>Stream.value(<Map<String,dynamic>>[])),billDetailProvider('2504').overrideWith((ref)async=>fetched),isAdminProvider.overrideWith((ref)async=>false)],child:MaterialApp(theme:buildTheme().copyWith(textTheme:buildTheme().textTheme.apply(fontFamily:'PreviewSans'),filledButtonTheme:FilledButtonThemeData(style:buildTheme().filledButtonTheme.style?.copyWith(textStyle:const WidgetStatePropertyAll(TextStyle(fontFamily:'PreviewSans',fontWeight:FontWeight.w700))))),home:home));
   testWidgets('View bill fetches exact bill and back preserves the source route',(tester)async{
     await tester.pumpWidget(app(const Scaffold(body:ViewBillButton(billNo:'2504')),fetched:bill));
     await tester.tap(find.text('View bill'));await tester.pumpAndSettle();
