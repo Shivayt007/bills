@@ -127,7 +127,8 @@ class InvoicePaper extends StatelessWidget {
   @override Widget build(BuildContext context) {
     final b = data.bill;
     return Container(color: Colors.white, padding: const EdgeInsets.all(16),
-      child: DefaultTextStyle(style: const TextStyle(fontSize: 10, color: invoiceNavy),
+      child: DefaultTextStyle(style: const TextStyle(fontFamily: 'Roboto',
+        fontSize: 10, color: invoiceNavy),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -203,20 +204,20 @@ class InvoicePaper extends StatelessWidget {
       const SizedBox(height: 3), ...values.map((v) => Text(v, style: const TextStyle(fontSize: 8))),
     ]));
   Widget _caption(String label) => Padding(padding: const EdgeInsets.only(top: 12, bottom: 5),
-    child: Text(label, style: const TextStyle(color: invoiceGold, fontSize: 9,
+    child: Text(label, style: const TextStyle(color: invoiceGold, fontSize: 10,
       fontWeight: FontWeight.w900, letterSpacing: 1)));
   Widget _heading(List<String> values, List<int> widths) => Container(color: invoiceNavy,
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
     child: Row(children: List.generate(values.length, (i) => Expanded(flex: widths[i],
       child: Text(values[i], textAlign: i == 0 ? TextAlign.left : TextAlign.right,
-        style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w800))))));
+        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800))))));
   Widget _row(List<String> values, List<int> widths, {bool highlight = false}) =>
     Container(color: highlight ? invoiceWarm : Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       child: Row(children: List.generate(values.length, (i) => Expanded(flex: widths[i],
         child: Text(values[i], maxLines: 2, overflow: TextOverflow.ellipsis,
           textAlign: i == 0 ? TextAlign.left : TextAlign.right,
-          style: TextStyle(fontSize: 8, fontWeight: highlight ? FontWeight.w800 : FontWeight.w500))))));
+          style: TextStyle(fontSize: 9, fontWeight: highlight ? FontWeight.w800 : FontWeight.w500))))));
   Widget _total(String label, num value, {bool gold = false}) => Expanded(
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label, style: const TextStyle(color: Colors.white70, fontSize: 7)),
