@@ -1,10 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // This app currently uses an on-device app lock, not Firebase Authentication.
-    // Replace this temporary rule with authenticated access before production use.
+    // Keep the legacy S.A Traders document path and allow access only after
+    // Firebase Authentication. The application intentionally has one shop
+    // account space; deploy stricter per-role policies if multi-tenant use is added.
     match /sa_traders/business/{store}/{document} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
   }
 }
