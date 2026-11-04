@@ -15,7 +15,7 @@ class _CustomBillLink extends ConsumerWidget {
   @override Widget build(BuildContext context,WidgetRef ref)=>ref.watch(customBillLinkProvider(id)).when(
     loading:()=>Scaffold(appBar:AppBar(title:Text('Custom bill #$id')),body:const Center(child:CircularProgressIndicator())),
     error:(e,st)=>Scaffold(appBar:AppBar(),body:Center(child:TextButton(onPressed:()=>ref.invalidate(customBillLinkProvider(id)),child:const Text('Could not load bill. Retry')))),
-    data:(b)=>b==null?Scaffold(appBar:AppBar(),body:const Center(child:Text('Bill not found'))):CustomBillScreen(focusedBill:id));
+    data:(b)=>b==null?Scaffold(appBar:AppBar(),body:const Center(child:Text('Bill not found'))):CustomBillScreen(focusedBill:id,focusedData:b));
 }
 
 class ViewBillButton extends StatelessWidget {
