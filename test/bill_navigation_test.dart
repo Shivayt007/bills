@@ -57,4 +57,31 @@ void main() {
       await tester.ensureVisible(find.text('Activity'));await tester.pumpAndSettle();await tester.tap(find.text('Activity'));await tester.pumpAndSettle();await tester.scrollUntilVisible(find.text('Payment & material activity'),150);await tester.pumpAndSettle();expect(find.text('Payment & material activity'),findsOneWidget);expect(tester.takeException(),isNull);
     });
   }
+  testWidgets('Dark bill details keeps actions and totals readable',(tester)async{
+    tester.view.physicalSize=const Size(390,1500);tester.view.devicePixelRatio=1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final boundary=GlobalKey();
+    final dark=buildTheme(Brightness.dark);
+    await tester.pumpWidget(ProviderScope(overrides:[
+      billsProvider.overrideWith((ref)=>Stream.value(<Map<String,dynamic>>[])),
+      billDetailProvider('2504').overrideWith((ref)async=>bill),
+      isAdminProvider.overrideWith((ref)async=>false),
+    ],child:MaterialApp(theme:dark.copyWith(
+      textTheme:dark.textTheme.apply(fontFamily:'PreviewSans')),
+      home:RepaintBoundary(key:boundary,
+        child:const BillDetailScreen(billNo:'2504')))));
+    await tester.pumpAndSettle();
+    expect(find.text('Record payment'),findsOneWidget);
+    expect(tester.takeException(),isNull);
+    await tester.runAsync(()async{
+      final image=await (boundary.currentContext!.findRenderObject()
+        as RenderRepaintBoundary).toImage(pixelRatio:2);
+      final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
+      await Directory('build/previews').create(recursive:true);
+      await File('build/previews/bill-details-dark.png')
+        .writeAsBytes(bytes!.buffer.asUint8List());
+      image.dispose();
+    });
+  });
 }
