@@ -1,10 +1,27 @@
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../lib/core/theme/app_theme.dart';
 import '../lib/features/billing/data/billing_repository.dart';
 import '../lib/features/billing/presentation/bill_entry_sheets.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() async {
+    final fontFile = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
+    if (await fontFile.exists()) {
+      await (FontLoader('PreviewSans')
+        ..addFont(fontFile.readAsBytes().then((bytes) => ByteData.sublistView(bytes)))).load();
+    }
+    final iconFile = File('${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
+    if (await iconFile.exists()) {
+      await (FontLoader('MaterialIcons')
+        ..addFont(iconFile.readAsBytes().then((bytes) => ByteData.sublistView(bytes)))).load();
+    }
+  });
   test('Legacy Firestore IDs match FirebaseBridge URL safe Base64', () {
     expect(BillingRepository.legacyDocumentId('2504'), 'MjUwNA');
     expect(BillingRepository.legacyDocumentId('bill 1/2'), 'YmlsbCAxLzI');
@@ -29,16 +46,30 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       MaterialEntry? result;
-      await tester.pumpWidget(MaterialApp(theme: buildTheme(),
+      final boundary = GlobalKey();
+      await tester.pumpWidget(RepaintBoundary(key: boundary,
+        child: MaterialApp(theme: buildTheme().copyWith(
+          textTheme: buildTheme().textTheme.apply(fontFamily: 'PreviewSans')),
         home: Scaffold(body: Builder(builder: (context) => FilledButton(
           onPressed: () async { result = await showMaterialEntry(context, bill, isReturn: true); },
-          child: const Text('Open return'))))));
+          child: const Text('Open return')))))));
       await tester.tap(find.text('Open return'));
       await tester.pumpAndSettle();
       expect(find.text('Return material'), findsOneWidget);
       expect(find.text('Jackey'), findsOneWidget);
       expect(find.text('Sheet'), findsNothing);
       expect(tester.takeException(), isNull);
+      if (width == 390) {
+        await tester.runAsync(() async {
+          final image = await (boundary.currentContext!.findRenderObject()
+            as RenderRepaintBoundary).toImage(pixelRatio: 2);
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          await Directory('build/previews').create(recursive: true);
+          await File('build/previews/material-return.png')
+            .writeAsBytes(bytes!.buffer.asUint8List());
+          image.dispose();
+        });
+      }
       await tester.tap(find.byTooltip('Add one Jackey'));
       await tester.tap(find.text('Save return'));
       await tester.pumpAndSettle();
