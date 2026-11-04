@@ -92,7 +92,7 @@ class _PaymentFormState extends State<_PaymentForm> {
       ])),
     Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), children: [
       AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('PENDING ON BILL', style: TextStyle(fontSize: 11,
+        Text('PENDING ON BILL', style: TextStyle(fontSize: 11,
           color: AppPalette.of(context).muted, fontWeight: FontWeight.w800, letterSpacing: 1)),
         const SizedBox(height: 5),
         Text(moneyLabel(remaining), style: Theme.of(context).textTheme.headlineMedium),
