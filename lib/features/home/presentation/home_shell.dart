@@ -85,7 +85,7 @@ class MoreScreen extends StatelessWidget {
     body: AppPageWidth(child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       children: [
         Text('TOOLS & RECORDS', style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: AppColors.teal, letterSpacing: 1.3, fontWeight: FontWeight.w800)),
+          color: AppPalette.of(context).accent, letterSpacing: 1.3, fontWeight: FontWeight.w800)),
         const SizedBox(height: AppSpace.xs),
         Text('Run the business', style: Theme.of(context).textTheme.headlineMedium),
         const SectionTitle('Billing & finance'),
