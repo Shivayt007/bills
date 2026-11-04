@@ -21,6 +21,22 @@ android {
         versionCode 22
         versionName '2.0.0'
     }
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv('KEYSTORE_FILE')
+            if (keystorePath) {
+                storeFile file(keystorePath)
+            }
+            storePassword System.getenv('KEYSTORE_PASSWORD')
+            keyAlias System.getenv('KEY_ALIAS')
+            keyPassword System.getenv('KEY_PASSWORD')
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
 }
 flutter { source '../..' }
 dependencies { coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5' }
