@@ -1,5 +1,8 @@
 import 'dart:typed_data';
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sa_traders_billing/core/theme/app_theme.dart';
@@ -41,13 +44,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
   testWidgets('invoice stays printable in dark mode and creates PDF', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final bill = hydrateRentalBill(sample, today: DateTime.utc(2026, 11, 4));
     final data = InvoiceData(bill);
+    final boundary = GlobalKey();
     await tester.pumpWidget(MaterialApp(theme: buildTheme(Brightness.dark),
-      home: Scaffold(body: SingleChildScrollView(child: InvoicePaper(data: data)))));
+      home: Scaffold(body: SingleChildScrollView(child:
+        RepaintBoundary(key: boundary, child: InvoicePaper(data: data))))));
     expect(find.text('RENTAL CYCLES'), findsOneWidget);
     expect(find.text('PENDING'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.runAsync(() async {
+      final image = await (boundary.currentContext!.findRenderObject()
+        as RenderRepaintBoundary).toImage(pixelRatio: 2);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      await Directory('build/previews').create(recursive: true);
+      await File('build/previews/invoice-dark.png')
+        .writeAsBytes(bytes!.buffer.asUint8List());
+      image.dispose();
+    });
     final logo = await rootBundle.load('assets/sa-traders-logo.jpg');
     final pdf = await buildInvoicePdf(data, Uint8List.view(logo.buffer));
     expect(pdf.length, greaterThan(1000));
