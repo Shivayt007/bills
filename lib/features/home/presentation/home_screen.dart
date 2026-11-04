@@ -73,7 +73,8 @@ class HomeScreen extends ConsumerWidget {
                   MaterialPageRoute(builder: (_) => BillDetailScreen(billNo: '${bill['bill_no']}')))))),
           ],
         ),
-      ));
+      )),
+    );
   }
 }
 
@@ -143,7 +144,6 @@ class _BillTile extends StatelessWidget {
             const StatusPill(label: 'PENDING', color: AppColors.red),
           ]),
         ]))),
-      )),
-    );
+      ));
   }
 }
