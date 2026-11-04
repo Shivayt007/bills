@@ -10,6 +10,14 @@ import 'package:sa_traders_billing/features/billing/domain/billing_calculator.da
 import 'package:sa_traders_billing/features/invoice/presentation/invoice_screen.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() async {
+    final font = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
+    if (await font.exists()) {
+      await (FontLoader('Roboto')..addFont(font.readAsBytes().then(
+        (bytes) => ByteData.sublistView(bytes)))).load();
+    }
+  });
   final sample = <String, dynamic>{
     'bill_no': '2703', 'name': 'Max Homes', 'mobile': '9600463988',
     'place': 'Seruseri', 'start_date': '2026-09-17', 'cycle_days': 30,

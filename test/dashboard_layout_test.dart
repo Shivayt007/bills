@@ -59,4 +59,31 @@ void main() {
       }
     });
   }
+  testWidgets('Dark dashboard keeps cards and labels visible', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final boundary = GlobalKey();
+    final dark = buildTheme(Brightness.dark);
+    await tester.pumpWidget(ProviderScope(overrides: [
+      billsProvider.overrideWith((ref) => const Stream.empty()),
+      hydratedBillsProvider.overrideWith((ref) => [sample]),
+    ], child: MaterialApp(theme: dark.copyWith(
+      textTheme: dark.textTheme.apply(fontFamily: 'PreviewSans')),
+      home: RepaintBoundary(key: boundary,
+        child: HomeScreen(onNavigate: (_) {})))));
+    await tester.pumpAndSettle();
+    expect(find.text('Rental overview'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.runAsync(() async {
+      final image = await (boundary.currentContext!.findRenderObject()
+        as RenderRepaintBoundary).toImage(pixelRatio: 2);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      await Directory('build/previews').create(recursive: true);
+      await File('build/previews/dashboard-dark.png')
+        .writeAsBytes(bytes!.buffer.asUint8List());
+      image.dispose();
+    });
+  });
 }
