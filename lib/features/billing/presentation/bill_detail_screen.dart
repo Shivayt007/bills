@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/common.dart';
 import '../domain/billing_calculator.dart';
 import '../../invoice/presentation/invoice_screen.dart';
+import 'bill_entry_sheets.dart';
 
 final billDetailProvider = FutureProvider.autoDispose.family<Map<String,dynamic>?, String>((ref, id) => ref.watch(billingRepositoryProvider).get('bills', id));
 
@@ -63,10 +64,106 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     final id='${entry[isReturn?'rid':'aid']??''}';
     return Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text('${entry['date']??'—'} · Cycle #${entry['effective_from_cycle']??'—'}',style:const TextStyle(fontWeight:FontWeight.w800))),if(admin)IconButton(tooltip:'Delete entry',onPressed:()=>_deleteHistory(context,ref,isReturn,id),icon:const Icon(Icons.delete_outline,color:AppColors.red))]),Text(parts.isEmpty?'No material quantities':parts.join('  •  ')),if('${entry['note']??''}'.isNotEmpty)Padding(padding:const EdgeInsets.only(top:6),child:Text('Note: ${entry['note']}')),Text('Recorded by ${entry['created_by']??'—'}',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:AppColors.gray))])));
   }
-  Future<void> _recordPayment(BuildContext context,WidgetRef ref,Map bill,List<Map> cycles)async{final amount=TextEditingController(),note=TextEditingController();var method='Cash';var cycle=cycles.isEmpty?null:cycles.last;final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,set)=>AlertDialog(title:const Text('Record payment'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[if(cycles.isNotEmpty)DropdownButtonFormField<Map>(value:cycle,decoration:const InputDecoration(labelText:'Rental cycle'),items:cycles.map((c)=>DropdownMenuItem(value:c,child:Text('Cycle #${c['index']}'))).toList(),onChanged:(v)=>set(()=>cycle=v)),TextField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Amount received')),DropdownButtonFormField<String>(value:method,items:['Cash','UPI','Bank'].map((m)=>DropdownMenuItem(value:m,child:Text(m))).toList(),onChanged:(v)=>set(()=>method=v??'Cash')),TextField(controller:note,decoration:const InputDecoration(labelText:'Note (optional)'))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Save'))])));if(ok!=true)return;final value=double.tryParse(amount.text);if(value==null||value<=0){_toast(context,'Enter a valid amount');return;}final raw=await ref.read(billingRepositoryProvider).get('bills','${bill['bill_no']}');if(raw==null)return;final pays=(raw['payments'] as List? ?? []).map((p)=>Map<String,dynamic>.from(p as Map)).toList();final date=DateTime.now().toIso8601String().substring(0,10);pays.add({'payment_id':'pay-${DateTime.now().microsecondsSinceEpoch}','amount':moneyRound(value),'payment_date':date,'note':note.text.trim(),'method':method,...?cycle==null?null:{'cycle_index':cycle!['index'],'cycle_start_date':cycle!['start_date'],'cycle_end_date':cycle!['end_date']},'created_at':DateTime.now().toUtc().toIso8601String()});await ref.read(billingRepositoryProvider).put('bills',{...raw,'payments':pays});if(context.mounted)_toast(context,'Payment saved');}
-  Future<void> _materialChange(BuildContext context,WidgetRef ref,Map bill,{required bool isReturn})async{final qty={for(final s in materialCatalog)s.key:TextEditingController(text:'0')};final wood={for(final s in woodCatalog)s.key:TextEditingController()};final note=TextEditingController();final now=DateTime.now();final date=TextEditingController(text:dateKey(now));final days=(bill['cycle_days'] as num?)?.toInt()??30;final start=parseBillingDate(bill['start_date']);if(start==null){_toast(context,'Bill start date is missing');return;}final controllers=[...qty.values,...wood.values,note,date];final ok=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:Text(isReturn?'Record returned material':'Record additional material'),content:SizedBox(width:420,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[TextField(controller:date,decoration:const InputDecoration(labelText:'Return / addition date (YYYY-MM-DD)')),...materialCatalog.map((s)=>TextField(controller:qty[s.key],keyboardType:TextInputType.number,decoration:InputDecoration(labelText:'${s.label} quantity'))),...woodCatalog.map((s)=>TextField(controller:wood[s.key],decoration:InputDecoration(labelText:'${s.label} · sizes, e.g. 8×5+10×2'))),TextField(controller:note,decoration:const InputDecoration(labelText:'Note (optional)'))]))),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Save'))]));if(ok!=true){for(final c in controllers)c.dispose();return;}final parsed=parseBillingDate(date.text);if(parsed==null){for(final c in controllers)c.dispose();_toast(context,'Enter a valid date');return;}final quantities={for(final s in materialCatalog)s.key:(int.tryParse(qty[s.key]!.text)??0).clamp(0,100000000)};final woods={for(final s in woodCatalog)s.key:parseWoodSizes(wood[s.key]!.text)};if(quantities.values.every((x)=>x==0)&&woods.values.every((x)=>x.isEmpty)){for(final c in controllers)c.dispose();_toast(context,'Enter at least one returned quantity');return;}
-    if(isReturn){final balances=bill['balance_qty'] as Map;for(final s in materialCatalog){if(quantities[s.key]!>(balances[s.key] as num).toInt()){for(final c in controllers)c.dispose();_toast(context,'Return exceeds outstanding ${s.label}');return;}}final currentWood=bill['balance_wood'] as Map;for(final s in woodCatalog){final current=(currentWood[s.key] as Map?)??const {};for(final e in woods[s.key]!.entries){if(e.value>((current[e.key] as num?)?.toInt()??0)){for(final c in controllers)c.dispose();_toast(context,'Return exceeds outstanding ${s.label} size ${e.key}ft');return;}}}}
-    final effective=cycleIndex(start,days,parsed)+1;final raw=await ref.read(billingRepositoryProvider).get('bills','${bill['bill_no']}');if(raw==null){for(final c in controllers)c.dispose();return;}final field=isReturn?'return_history':'additional_history';final list=(raw[field] as List? ?? []).map((e)=>Map<String,dynamic>.from(e as Map)).toList();final prefix=isReturn?'ret':'add';list.add({isReturn?'rid':'aid':'$prefix-${DateTime.now().microsecondsSinceEpoch}','date':date.text,'note':note.text.trim(),'effective_from_cycle':effective,'items':quantities,'wood':{for(final s in woodCatalog)s.key:woods[s.key]},'created_by':ref.read(authRepositoryProvider).currentUser?.email??'unknown','created_at':DateTime.now().toUtc().toIso8601String()});await ref.read(billingRepositoryProvider).put('bills',{...raw,field:list});for(final c in controllers)c.dispose();if(context.mounted)_toast(context,'Saved; applies from cycle #$effective');}
+  Future<void> _recordPayment(BuildContext context, WidgetRef ref, Map bill, List<Map> cycles) async {
+    final entry = await showPaymentEntry(context, bill, cycles);
+    if (entry == null) return;
+    try {
+      final repository = ref.read(billingRepositoryProvider);
+      final raw = await repository.get('bills', '${bill['bill_no']}');
+      if (raw == null) throw StateError('Bill no longer exists. Refresh and try again.');
+      final now = DateTime.now().toUtc();
+      final refreshed = hydrateRentalBill(raw, today: DateTime.utc(now.year, now.month, now.day));
+      final freshCycles = (refreshed['cycles'] as List).cast<Map>();
+      final freshCycle = freshCycles.where((c) =>
+        c['index'] == entry.cycle['index'] &&
+        c['start_date'] == entry.cycle['start_date'] &&
+        c['end_date'] == entry.cycle['end_date']).firstOrNull;
+      if (freshCycle == null) throw StateError('The rental cycle changed. Reopen the payment sheet.');
+      if (entry.amount > (refreshed['pending'] as num).toDouble() + .001) {
+        throw StateError('The payment exceeds the current pending balance.');
+      }
+      final payments = (raw['payments'] as List? ?? const [])
+        .map((p) => Map<String, dynamic>.from(p as Map)).toList();
+      final duplicate = payments.any((p) =>
+        (p['amount'] as num?)?.toDouble() == moneyRound(entry.amount) &&
+        (p['payment_date'] ?? p['date']) == entry.date);
+      if (duplicate) {
+        if (!context.mounted) return;
+        final confirmed = await _confirm(context,
+          'A payment of ${moneyLabel(entry.amount)} already exists for ${entry.date}. Save another?');
+        if (!confirmed) return;
+      }
+      payments.add({
+        'payment_id': 'pay-${DateTime.now().microsecondsSinceEpoch}',
+        'amount': moneyRound(entry.amount),
+        'payment_date': entry.date,
+        'note': entry.note,
+        'method': entry.method,
+        'cycle_index': freshCycle['index'],
+        'cycle_start_date': freshCycle['start_date'],
+        'cycle_end_date': freshCycle['end_date'],
+        'created_by': ref.read(authRepositoryProvider).currentUser?.email ?? 'unknown',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      await repository.put('bills', {...raw, 'payments': payments});
+      ref.invalidate(billDetailProvider(billNo));
+      if (context.mounted) _toast(context, 'Payment recorded');
+    } catch (error) {
+      if (context.mounted) _toast(context, 'Payment not saved: $error');
+    }
+  }
+
+  Future<void> _materialChange(BuildContext context, WidgetRef ref, Map bill,
+      {required bool isReturn}) async {
+    final start = parseBillingDate(bill['start_date']);
+    if (start == null) { _toast(context, 'Bill start date is missing'); return; }
+    final entry = await showMaterialEntry(context, bill, isReturn: isReturn);
+    if (entry == null) return;
+    try {
+      final repository = ref.read(billingRepositoryProvider);
+      final raw = await repository.get('bills', '${bill['bill_no']}');
+      if (raw == null) throw StateError('Bill no longer exists. Refresh and try again.');
+      final now = DateTime.now().toUtc();
+      final latest = hydrateRentalBill(raw, today: DateTime.utc(now.year, now.month, now.day));
+      if (isReturn) {
+        final balances = latest['balance_qty'] as Map;
+        for (final spec in materialCatalog) {
+          if (entry.items[spec.key]! > (balances[spec.key] as num).toInt()) {
+            throw StateError('Return exceeds outstanding ${spec.label}.');
+          }
+        }
+        final currentWood = latest['balance_wood'] as Map;
+        for (final spec in woodCatalog) {
+          final available = currentWood[spec.key] as Map? ?? const {};
+          for (final size in entry.wood[spec.key]!.entries) {
+            if (size.value > ((available[size.key] as num?)?.toInt() ?? 0)) {
+              throw StateError('Return exceeds outstanding ${spec.label} ${size.key} ft.');
+            }
+          }
+        }
+      }
+      final days = (raw['cycle_days'] as num?)?.toInt() ?? 30;
+      final effective = cycleIndex(start, days, parseBillingDate(entry.date)!) + 1;
+      final field = isReturn ? 'return_history' : 'additional_history';
+      final entries = (raw[field] as List? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      entries.add({
+        isReturn ? 'rid' : 'aid': '${isReturn ? 'ret' : 'add'}-${DateTime.now().microsecondsSinceEpoch}',
+        'date': entry.date,
+        'note': entry.note,
+        'effective_from_cycle': effective,
+        'items': entry.items,
+        'wood': entry.wood,
+        'created_by': ref.read(authRepositoryProvider).currentUser?.email ?? 'unknown',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      await repository.put('bills', {...raw, field: entries});
+      ref.invalidate(billDetailProvider(billNo));
+      if (context.mounted) _toast(context, 'Saved; applies from cycle #$effective');
+    } catch (error) {
+      if (context.mounted) _toast(context, 'Material change not saved: $error');
+    }
+  }
   Future<void> _deleteHistory(BuildContext context,WidgetRef ref,bool isReturn,String id)async{if(!await _confirm(context,'Delete this history entry?'))return;final raw=await ref.read(billingRepositoryProvider).get('bills',billNo);if(raw==null)return;final key=isReturn?'return_history':'additional_history',idKey=isReturn?'rid':'aid';final rows=(raw[key] as List? ?? []).where((x)=>(x as Map)[idKey]!=id).toList();await ref.read(billingRepositoryProvider).put('bills',{...raw,key:rows});if(context.mounted)_toast(context,'History entry deleted');}
   Future<void> _deletePayment(BuildContext context,WidgetRef ref,Map bill,Map payment)async{if(!await _confirm(context,'Delete this payment?'))return;final raw=await ref.read(billingRepositoryProvider).get('bills','${bill['bill_no']}');if(raw==null)return;final payments=(raw['payments'] as List? ?? []).map((x)=>Map<String,dynamic>.from(x as Map)).toList();final id=payment['payment_id'];payments.removeWhere((p)=>p['payment_id']==id);final audit=(raw['payment_audit'] as List? ?? []).toList()..add({'action':'deleted','payment_id':id,'amount':payment['amount'],'payment_date':payment['payment_date'],'payment':payment,'deleted_by':ref.read(authRepositoryProvider).currentUser?.email,'deleted_at':DateTime.now().toUtc().toIso8601String(),'reason':'Removed by administrator'});await ref.read(billingRepositoryProvider).put('bills',{...raw,'payments':payments,'payment_audit':audit});}
   Future<void> _close(BuildContext context,WidgetRef ref,Map bill,bool admin)async{if(!admin){_toast(context,'Administrator access required');return;}if(!await _confirm(context,'Close this bill? Rental cycles stop from the closure date.'))return;final raw=await ref.read(billingRepositoryProvider).get('bills','${bill['bill_no']}');if(raw==null)return;final today=dateKey(DateTime.now().toUtc());await ref.read(billingRepositoryProvider).put('bills',{...raw,'status':'closed','closed_at':today,'closed_by':ref.read(authRepositoryProvider).currentUser?.email,'closed_at_iso':DateTime.now().toUtc().toIso8601String()});}
