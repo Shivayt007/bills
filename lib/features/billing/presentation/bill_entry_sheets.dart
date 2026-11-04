@@ -68,12 +68,6 @@ class _PaymentFormState extends State<_PaymentForm> {
     if (picked != null) setState(() => date = picked);
   }
   void submit() {
-    for (final spec in materialCatalog) {
-      if (int.tryParse(qtyInputs[spec.key]!.text.trim()) == null) {
-        setState(() => error = 'Enter a valid quantity for ${spec.label}.');
-        return;
-      }
-    }
     final text = amount.text.trim();
     final value = double.tryParse(text);
     if (!RegExp(r'^(?:\d+|\d*\.\d{1,2})$').hasMatch(text) || value == null ||
@@ -182,6 +176,12 @@ class _MaterialFormState extends State<_MaterialForm> {
     if (picked != null) setState(() => date = picked);
   }
   void submit() {
+    for (final spec in materialCatalog) {
+      if (int.tryParse(qtyInputs[spec.key]!.text.trim()) == null) {
+        setState(() => error = 'Enter a valid quantity for ${spec.label}.');
+        return;
+      }
+    }
     if (qty.values.any((value) => value < 0)) {
       setState(() => error = 'Quantities cannot be negative.');
       return;
