@@ -68,6 +68,12 @@ class _PaymentFormState extends State<_PaymentForm> {
     if (picked != null) setState(() => date = picked);
   }
   void submit() {
+    for (final spec in materialCatalog) {
+      if (int.tryParse(qtyInputs[spec.key]!.text.trim()) == null) {
+        setState(() => error = 'Enter a valid quantity for ${spec.label}.');
+        return;
+      }
+    }
     final text = amount.text.trim();
     final value = double.tryParse(text);
     if (!RegExp(r'^(?:\d+|\d*\.\d{1,2})$').hasMatch(text) || value == null ||
@@ -149,16 +155,21 @@ class _MaterialForm extends StatefulWidget {
 
 class _MaterialFormState extends State<_MaterialForm> {
   final qty = <String, int>{};
+  final qtyInputs = <String, TextEditingController>{};
   final wood = <String, TextEditingController>{};
   final note = TextEditingController();
   DateTime date = DateTime.now();
   String? error;
   @override void initState() {
     super.initState();
-    for (final spec in materialCatalog) { qty[spec.key] = 0; }
+    for (final spec in materialCatalog) {
+      qty[spec.key] = 0;
+      qtyInputs[spec.key] = TextEditingController(text: '0');
+    }
     for (final spec in woodCatalog) { wood[spec.key] = TextEditingController(); }
   }
   @override void dispose() {
+    for (final controller in qtyInputs.values) { controller.dispose(); }
     for (final controller in wood.values) { controller.dispose(); }
     note.dispose(); super.dispose();
   }
@@ -171,6 +182,10 @@ class _MaterialFormState extends State<_MaterialForm> {
     if (picked != null) setState(() => date = picked);
   }
   void submit() {
+    if (qty.values.any((value) => value < 0)) {
+      setState(() => error = 'Quantities cannot be negative.');
+      return;
+    }
     final woods = <String, Map<String, int>>{};
     for (final spec in woodCatalog) {
       final value = wood[spec.key]!.text.trim();
@@ -241,13 +256,30 @@ class _MaterialFormState extends State<_MaterialForm> {
                 style: Theme.of(context).textTheme.bodySmall),
             ])),
             IconButton(tooltip: 'Remove one ${spec.label}',
-              onPressed: qty[spec.key] == 0 ? null : () => setState(() => qty[spec.key] = qty[spec.key]! - 1),
+              onPressed: qty[spec.key] == 0 ? null : () => setState(() {
+                qty[spec.key] = qty[spec.key]! - 1;
+                qtyInputs[spec.key]!.text = '${qty[spec.key]}';
+              }),
               icon: const Icon(Icons.remove_circle_outline)),
-            SizedBox(width: 30, child: Text('${qty[spec.key]}', textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium)),
+            SizedBox(width: 52, child: TextField(
+              controller: qtyInputs[spec.key],
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              onTap: () => qtyInputs[spec.key]!.selection = TextSelection(
+                baseOffset: 0, extentOffset: qtyInputs[spec.key]!.text.length),
+              decoration: const InputDecoration(isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4)),
+              onChanged: (value) => setState(() {
+                qty[spec.key] = int.tryParse(value) ?? 0;
+                error = null;
+              }),
+            )),
             IconButton(tooltip: 'Add one ${spec.label}',
               onPressed: widget.isReturn && qty[spec.key]! >= (balances[spec.key] as num).toInt()
-                ? null : () => setState(() => qty[spec.key] = qty[spec.key]! + 1),
+                ? null : () => setState(() {
+                    qty[spec.key] = qty[spec.key]! + 1;
+                    qtyInputs[spec.key]!.text = '${qty[spec.key]}';
+                  }),
               icon: const Icon(Icons.add_circle_outline, color: AppColors.teal)),
           ])))),
         if (woods.isNotEmpty) const SectionTitle('Wood by size'),
