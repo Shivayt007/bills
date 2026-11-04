@@ -259,7 +259,7 @@ class _MaterialFormState extends State<_MaterialForm> {
                 ? 'Out: ${woodToText(Map<String,int>.from((currentWood[spec.key] as Map).map(
                     (key, value) => MapEntry('$key', (value as num).toInt()))))}'
                 : 'Enter length × pieces, separated by +'),
-            onChanged: (_) => setState(() => error = null))),
+            onChanged: (_) => setState(() => error = null)))),
         const SectionTitle('Details'),
         TextField(controller: note, maxLines: 2,
           decoration: const InputDecoration(labelText: 'Note (optional)'),
