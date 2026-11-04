@@ -23,7 +23,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: bill-details-preview
-          path: build/previews/*.png
+          path: build/previews/*
           if-no-files-found: error
       - name: Decode existing S.A Traders release keystore
         if: ${{ !contains(github.event.head_commit.message, '[preview]') }}
