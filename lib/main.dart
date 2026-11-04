@@ -8,6 +8,7 @@ import 'app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await appThemeController.load();
   await ReminderService.initialize();
   runApp(const ProviderScope(child: SATradersApp()));
 }

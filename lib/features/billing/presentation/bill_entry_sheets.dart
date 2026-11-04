@@ -21,7 +21,7 @@ class MaterialEntry {
 
 Future<T?> _entrySheet<T>(BuildContext context, Widget child) =>
     showModalBottomSheet<T>(context: context, isScrollControlled: true,
-      useSafeArea: true, showDragHandle: true, backgroundColor: AppColors.canvas,
+      useSafeArea: true, showDragHandle: true, backgroundColor: AppPalette.of(context).canvas,
       builder: (sheet) {
         final available = MediaQuery.sizeOf(sheet).height - MediaQuery.viewInsetsOf(sheet).bottom;
         return Padding(padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheet).bottom),
@@ -93,7 +93,7 @@ class _PaymentFormState extends State<_PaymentForm> {
     Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), children: [
       AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('PENDING ON BILL', style: TextStyle(fontSize: 11,
-          color: AppColors.gray, fontWeight: FontWeight.w800, letterSpacing: 1)),
+          color: AppPalette.of(context).muted, fontWeight: FontWeight.w800, letterSpacing: 1)),
         const SizedBox(height: 5),
         Text(moneyLabel(remaining), style: Theme.of(context).textTheme.headlineMedium),
       ])),
@@ -129,7 +129,7 @@ class _PaymentFormState extends State<_PaymentForm> {
       TextField(controller: note, maxLength: 500,
         decoration: const InputDecoration(labelText: 'Note (optional)')),
       if (error != null) Padding(padding: const EdgeInsets.only(bottom: 12),
-        child: Text(error!, style: const TextStyle(color: AppColors.red))),
+        child: Text(error!, style: TextStyle(color: AppPalette.of(context).danger))),
     ])),
     SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
       child: Row(children: [
@@ -280,7 +280,7 @@ class _MaterialFormState extends State<_MaterialForm> {
                     qty[spec.key] = qty[spec.key]! + 1;
                     qtyInputs[spec.key]!.text = '${qty[spec.key]}';
                   }),
-              icon: const Icon(Icons.add_circle_outline, color: AppColors.teal)),
+              icon: Icon(Icons.add_circle_outline, color: AppPalette.of(context).accent)),
           ])))),
         if (woods.isNotEmpty) const SectionTitle('Wood by size'),
         ...woods.map((spec) => Padding(padding: const EdgeInsets.only(bottom: 12),
@@ -297,7 +297,7 @@ class _MaterialFormState extends State<_MaterialForm> {
           decoration: const InputDecoration(labelText: 'Note (optional)'),
           onChanged: (_) => setState(() => error = null)),
         if (error != null) Padding(padding: const EdgeInsets.only(top: 12),
-          child: Text(error!, style: const TextStyle(color: AppColors.red))),
+          child: Text(error!, style: TextStyle(color: AppPalette.of(context).danger))),
       ])),
       SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
         child: Row(children: [

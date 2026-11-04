@@ -31,7 +31,7 @@ class _HomeShellState extends State<HomeShell> {
     if (wide) {
       return Scaffold(body: SafeArea(child: Row(children: [
         NavigationRail(selectedIndex: index, onDestinationSelected: select,
-          labelType: NavigationRailLabelType.all, backgroundColor: AppColors.surface,
+          labelType: NavigationRailLabelType.all, backgroundColor: AppPalette.of(context).surface,
           destinations: const [
             NavigationRailDestination(icon: Icon(Icons.home_outlined),
               selectedIcon: Icon(Icons.home), label: Text('Home')),
@@ -42,7 +42,7 @@ class _HomeShellState extends State<HomeShell> {
             NavigationRailDestination(icon: Icon(Icons.grid_view_outlined),
               selectedIcon: Icon(Icons.grid_view), label: Text('More')),
           ]),
-        const VerticalDivider(width: 1, color: AppColors.border),
+        VerticalDivider(width: 1, color: AppPalette.of(context).border),
         Expanded(child: Scaffold(body: pages, floatingActionButton: create)),
       ])));
     }
@@ -99,6 +99,7 @@ class MoreScreen extends StatelessWidget {
         _tile(context, 'Delivery slips & challans', 'Track material movement',
           Icons.local_shipping_outlined, () => _open(context, const SlipsScreen())),
         const SectionTitle('Business'),
+        const _ThemeSelector(),
         _tile(context, 'Administration', 'Terms, backup and account',
           Icons.admin_panel_settings_outlined, () => _open(context, const AdminScreen())),
         const SizedBox(height: AppSpace.lg),
@@ -115,14 +116,37 @@ class MoreScreen extends StatelessWidget {
       child: AppSurface(child: InkWell(onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.card),
         child: Row(children: [
-          CircleAvatar(backgroundColor: AppColors.surfaceTint,
-            child: Icon(icon, color: AppColors.teal)),
+          CircleAvatar(backgroundColor: AppPalette.of(context).subtle,
+            child: Icon(icon, color: AppPalette.of(context).accent)),
           const SizedBox(width: AppSpace.sm),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpace.xxs),
             Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
           ])),
-          const Icon(Icons.chevron_right, color: AppColors.gray),
+          Icon(Icons.chevron_right, color: AppPalette.of(context).muted),
         ]))));
+}
+
+class _ThemeSelector extends StatelessWidget {
+  const _ThemeSelector();
+  @override Widget build(BuildContext context) => AppSurface(
+    child: Row(children: [
+      Icon(Icons.brightness_6_outlined, color: AppPalette.of(context).accent),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Appearance', style: Theme.of(context).textTheme.titleMedium),
+        Text('Choose system, light or dark', style: Theme.of(context).textTheme.bodySmall),
+      ])),
+      ValueListenableBuilder<ThemeMode>(valueListenable: appThemeController,
+        builder: (context, mode, _) => DropdownButton<ThemeMode>(
+          value: mode, underline: const SizedBox.shrink(),
+          items: const [
+            DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
+            DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
+            DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+          ],
+          onChanged: (next) { if (next != null) appThemeController.setMode(next); },
+        )),
+    ]));
 }

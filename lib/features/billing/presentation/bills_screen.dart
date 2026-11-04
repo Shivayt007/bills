@@ -33,7 +33,7 @@ class _BillsScreenState extends ConsumerState<BillsScreen> {
         Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 12), child: Column(
           crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('FIND A BILL', style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppColors.teal, letterSpacing: 1.2, fontWeight: FontWeight.w800)),
+              color: AppPalette.of(context).accent, letterSpacing: 1.2, fontWeight: FontWeight.w800)),
             const SizedBox(height: AppSpace.xs),
             TextField(controller: search, onChanged: (_) => setState(() {}),
               textInputAction: TextInputAction.search,
@@ -83,9 +83,9 @@ class _BillRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.card), child: Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpace.xxs),
           child: Row(children: [
-            CircleAvatar(radius: 23, backgroundColor: AppColors.surfaceTint,
-              child: Text(display[0].toUpperCase(), style: const TextStyle(
-                color: AppColors.teal, fontWeight: FontWeight.w900))),
+            CircleAvatar(radius: 23, backgroundColor: AppPalette.of(context).subtle,
+              child: Text(display[0].toUpperCase(), style: TextStyle(
+                color: AppPalette.of(context).accent, fontWeight: FontWeight.w900))),
             const SizedBox(width: AppSpace.sm),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(display, maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -99,7 +99,7 @@ class _BillRow extends StatelessWidget {
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(moneyLabel(bill['pending'] ?? 0), maxLines: 1,
                 style: TextStyle(fontWeight: FontWeight.w900,
-                  color: closed ? AppColors.gray : AppColors.red)),
+                  color: closed ? AppPalette.of(context).muted : AppPalette.of(context).danger)),
               const SizedBox(height: AppSpace.xxs),
               StatusPill(label: closed ? 'CLOSED' : 'OPEN',
                 color: closed ? AppColors.gray : AppColors.green),

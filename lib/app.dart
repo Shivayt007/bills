@@ -22,10 +22,11 @@ class SATradersApp extends ConsumerWidget {
       final pending=ReminderService.pendingBillPayload;
       if(pending!=null)ReminderService.onBillTap!(pending);
     }else{ReminderService.onBillTap=null;}
-    return MaterialApp(
+    return ValueListenableBuilder<ThemeMode>(valueListenable: appThemeController,
+      builder: (context, mode, _) => MaterialApp(
       navigatorKey:billNavigatorKey,title:'S.A Traders', debugShowCheckedModeBanner:false, theme:buildTheme(),
-      home:auth.when(data:(user)=>user==null?const LoginScreen():const HomeShell(),loading:()=>const _Loading(),error:(e,_)=>_Error(message:'Authentication could not start: $e')),
-    );
+      darkTheme: buildTheme(Brightness.dark), themeMode: mode,
+      home:auth.when(data:(user)=>user==null?const LoginScreen():const HomeShell(),loading:()=>const _Loading(),error:(e,_)=>_Error(message:'Authentication could not start: $e'))));
   }
 }
 class _Loading extends StatelessWidget { const _Loading(); @override Widget build(BuildContext context)=>const Scaffold(body:Center(child:CircularProgressIndicator())); }

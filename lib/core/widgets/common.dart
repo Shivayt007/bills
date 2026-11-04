@@ -19,10 +19,10 @@ class AppSurface extends StatelessWidget {
   final bool shadow;
   @override Widget build(BuildContext context) => Container(
     padding: padding,
-    decoration: BoxDecoration(color: AppColors.surface,
+    decoration: BoxDecoration(color: AppPalette.of(context).surface,
       borderRadius: BorderRadius.circular(AppRadius.card),
-      border: Border.all(color: AppColors.border),
-      boxShadow: shadow ? AppShadows.card : null), child: child);
+      border: Border.all(color: AppPalette.of(context).border),
+      boxShadow: shadow && Theme.of(context).brightness == Brightness.light ? AppShadows.card : null), child: child);
 }
 
 class StatusPill extends StatelessWidget {
@@ -32,10 +32,10 @@ class StatusPill extends StatelessWidget {
   final IconData? icon;
   @override Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(color: color.withValues(alpha: .1), borderRadius: BorderRadius.circular(99)),
+    decoration: BoxDecoration(color: (Theme.of(context).brightness == Brightness.dark ? AppPalette.of(context).subtle : color.withValues(alpha: .1)), borderRadius: BorderRadius.circular(99)),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
-      if (icon != null) ...[Icon(icon, size: 14, color: color), const SizedBox(width: 4)],
-      Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800)),
+      if (icon != null) ...[Icon(icon, size: 14, color: Theme.of(context).brightness == Brightness.dark ? AppPalette.of(context).ink : color), const SizedBox(width: 4)],
+      Text(label, style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppPalette.of(context).ink : color, fontSize: 11, fontWeight: FontWeight.w800)),
     ]));
 }
 

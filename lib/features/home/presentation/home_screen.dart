@@ -37,7 +37,7 @@ class HomeScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
           children: [
             Text('YOUR BUSINESS TODAY', style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppColors.teal, letterSpacing: 1.5, fontWeight: FontWeight.w800)),
+              color: AppPalette.of(context).accent, letterSpacing: 1.5, fontWeight: FontWeight.w800)),
             const SizedBox(height: AppSpace.xs),
             Text('Rental overview', style: Theme.of(context).textTheme.headlineLarge),
             const SizedBox(height: AppSpace.md),
@@ -125,9 +125,9 @@ class _BillTile extends StatelessWidget {
       child: AppSurface(child: InkWell(
         onTap: onTap, borderRadius: BorderRadius.circular(AppRadius.card),
         child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
-          CircleAvatar(backgroundColor: AppColors.surfaceTint,
-            child: Text(display[0].toUpperCase(), style: const TextStyle(
-              color: AppColors.teal, fontWeight: FontWeight.w800))),
+          CircleAvatar(backgroundColor: AppPalette.of(context).subtle,
+            child: Text(display[0].toUpperCase(), style: TextStyle(
+              color: AppPalette.of(context).accent, fontWeight: FontWeight.w800))),
           const SizedBox(width: AppSpace.sm),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(display, maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -139,7 +139,7 @@ class _BillTile extends StatelessWidget {
           const SizedBox(width: AppSpace.xs),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(moneyLabel(bill['pending'] ?? 0), maxLines: 1,
-              style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.red)),
+              style: TextStyle(fontWeight: FontWeight.w900, color: AppPalette.of(context).danger)),
             const SizedBox(height: AppSpace.xxs),
             const StatusPill(label: 'PENDING', color: AppColors.red),
           ]),
