@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'features/billing/presentation/bill_navigation.dart';
+import 'features/notifications/data/reminder_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/providers.dart';
@@ -10,8 +13,17 @@ class SATradersApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth=ref.watch(authStateProvider);
+    if(auth.asData?.value!=null){
+      ReminderService.onBillTap=(payload){WidgetsBinding.instance.addPostFrameCallback((_){
+        final context=billNavigatorKey.currentContext;
+        if(context==null)return;
+        try{final row=jsonDecode(payload) as Map;ReminderService.pendingBillPayload=null;openBill(context,'${row['billNo']}',isCustom:row['isCustom']==true);}catch(_){}
+      });WidgetsBinding.instance.scheduleFrame();};
+      final pending=ReminderService.pendingBillPayload;
+      if(pending!=null)ReminderService.onBillTap!(pending);
+    }else{ReminderService.onBillTap=null;}
     return MaterialApp(
-      title:'S.A Traders', debugShowCheckedModeBanner:false, theme:buildTheme(),
+      navigatorKey:billNavigatorKey,title:'S.A Traders', debugShowCheckedModeBanner:false, theme:buildTheme(),
       home:auth.when(data:(user)=>user==null?const LoginScreen():const HomeShell(),loading:()=>const _Loading(),error:(e,_)=>_Error(message:'Authentication could not start: $e')),
     );
   }
