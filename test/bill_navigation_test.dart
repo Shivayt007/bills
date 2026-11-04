@@ -36,8 +36,8 @@ void main() {
           image.dispose();
         });
       }
-      await tester.ensureVisible(find.text('Rental cycles'));await tester.tap(find.text('Rental cycles'));await tester.pumpAndSettle();expect(find.text('Materials out'),findsNothing);expect(tester.takeException(),isNull);
-      await tester.ensureVisible(find.text('Activity'));await tester.tap(find.text('Activity'));await tester.pumpAndSettle();expect(find.text('Payment & material activity'),findsOneWidget);expect(tester.takeException(),isNull);
+      await tester.ensureVisible(find.text('Rental cycles'));await tester.pumpAndSettle();await tester.tap(find.text('Rental cycles'));await tester.pumpAndSettle();expect(find.text('Materials out'),findsNothing);expect(tester.takeException(),isNull);
+      await tester.ensureVisible(find.text('Activity'));await tester.pumpAndSettle();await tester.tap(find.text('Activity'));await tester.pumpAndSettle();await tester.scrollUntilVisible(find.text('Payment & material activity'),150);await tester.pumpAndSettle();expect(find.text('Payment & material activity'),findsOneWidget);expect(tester.takeException(),isNull);
     });
   }
 }
