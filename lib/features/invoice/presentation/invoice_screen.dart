@@ -184,7 +184,7 @@ class InvoicePaper extends StatelessWidget {
                 _total('TOTAL DUE', data.total), _total('TOTAL PAID', data.paid),
                 _total('PENDING', data.pending, gold: true),
               ])),
-              Container(color: invoiceWarm, padding: const EdgeInsets.all(7),
+              Container(width: double.infinity, color: invoiceWarm, padding: const EdgeInsets.all(7),
                 child: Text('Advance: ' + moneyLabel(data.advance) + ' (Refundable)  ·  '
                   + (b['cycle_days'] ?? 30).toString() + '-day cycle  ·  Transport Cycle #1 only',
                   style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w700))),
@@ -311,7 +311,7 @@ Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
                   fontWeight: pw.FontWeight.bold)),
               ])),
         ])),
-      pw.Container(color: warm, padding: const pw.EdgeInsets.all(8),
+      pw.Container(width: double.infinity, color: warm, padding: const pw.EdgeInsets.all(8),
         child: pw.Text('Advance: ' + pdfMoney(data.advance) +
           ' (Refundable)     Transport Cycle #1 only', style: const pw.TextStyle(fontSize: 8))),
       pw.SizedBox(height: 30),
