@@ -77,6 +77,8 @@ void main() {
     final logo = await rootBundle.load('assets/sa-traders-logo.jpg');
     final pdf = await buildInvoicePdf(data, Uint8List.view(logo.buffer));
     expect(pdf.length, greaterThan(1000));
-    await File('build/previews/invoice.pdf').writeAsBytes(pdf);
+    await tester.runAsync(() async {
+      await File('build/previews/invoice.pdf').writeAsBytes(pdf);
+    });
   });
 }
