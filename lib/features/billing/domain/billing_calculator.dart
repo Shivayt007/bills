@@ -193,8 +193,8 @@ Map<String, List<Map<String, dynamic>>> reminderCategories(List<Map<String, dyna
   final todayKey = dateKey(date), limit = dateKey(date.add(const Duration(days:7)));
   for (final row in rows) {
     final cycles = (row['cycles'] as List? ?? const []).cast<Map>();
-    final started = cycles.where((c)=>'${c['start']??c['start_date']}'<=todayKey).toList();
-    final future = cycles.where((c)=>'${c['start']??c['start_date']}'>todayKey).toList();
+    final started = cycles.where((c)=>'${c['start']??c['start_date']}'.compareTo(todayKey)<=0).toList();
+    final future = cycles.where((c)=>'${c['start']??c['start_date']}'.compareTo(todayKey)>0).toList();
     final current = started.isEmpty ? null : started.last;
     final total = row['isCustom']==true ? _num(row['total']) : moneyRound(started.fold<double>(0,(v,c)=>v+_num(c['total'])));
     final paid = _num(row['paid']);

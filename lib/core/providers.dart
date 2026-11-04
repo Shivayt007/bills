@@ -17,7 +17,7 @@ final challansProvider = StreamProvider((ref)=>ref.watch(billingRepositoryProvid
 final settingsProvider = StreamProvider((ref)=>ref.watch(billingRepositoryProvider).watch('settings'));
 final isAdminProvider = FutureProvider((ref)=>ref.watch(authRepositoryProvider).isAdmin());
 final hydratedBillsProvider = Provider((ref){
-  final raw=ref.watch(billsProvider).valueOrNull??const <Map<String,dynamic>>[];
+  final raw=ref.watch(billsProvider).asData?.value??const <Map<String,dynamic>>[];
   final now=DateTime.now().toUtc();
   return raw.map((b)=>hydrateRentalBill(b,today:DateTime.utc(now.year,now.month,now.day))).toList();
 });
