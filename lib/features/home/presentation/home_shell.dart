@@ -1,20 +1,128 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../billing/presentation/bills_screen.dart';
+import '../../../core/widgets/common.dart';
+import '../../admin/presentation/admin_screen.dart';
 import '../../billing/presentation/bill_form_screen.dart';
+import '../../billing/presentation/bills_screen.dart';
 import '../../custom_bills/presentation/custom_bill_screen.dart';
 import '../../inventory/presentation/inventory_screen.dart';
 import '../../notifications/presentation/notifications_screen.dart';
 import '../../reports/presentation/reports_screen.dart';
 import '../../slips/presentation/slips_screen.dart';
-import '../../admin/presentation/admin_screen.dart';
 import 'home_screen.dart';
 
-class HomeShell extends StatefulWidget { const HomeShell({super.key}); @override State<HomeShell> createState()=>_HomeShellState(); }
-class _HomeShellState extends State<HomeShell>{int index=0;
-  void select(int i)=>setState(()=>index=i);
-  @override Widget build(BuildContext context){final screens=[HomeScreen(onNavigate:select),const BillsScreen(),const NotificationsScreen(),MoreScreen(onNavigate:select)];return Scaffold(body:IndexedStack(index:index,children:screens),bottomNavigationBar:NavigationBar(selectedIndex:index,onDestinationSelected:select,destinations:const[NavigationDestination(icon:Icon(Icons.home_outlined),selectedIcon:Icon(Icons.home),label:'Home'),NavigationDestination(icon:Icon(Icons.receipt_long_outlined),selectedIcon:Icon(Icons.receipt_long),label:'Bills'),NavigationDestination(icon:Icon(Icons.notifications_outlined),selectedIcon:Icon(Icons.notifications),label:'Alerts'),NavigationDestination(icon:Icon(Icons.grid_view_outlined),selectedIcon:Icon(Icons.grid_view),label:'More')]),floatingActionButton:index<2?FloatingActionButton.extended(onPressed:()=>_chooseCreate(context),icon:const Icon(Icons.add),label:const Text('New bill'),backgroundColor:AppColors.teal,foregroundColor:Colors.white):null);}
+class HomeShell extends StatefulWidget {
+  const HomeShell({super.key});
+  @override State<HomeShell> createState() => _HomeShellState();
 }
-Future<void> _chooseCreate(BuildContext context)async{final type=await showModalBottomSheet<String>(context:context,builder:(c)=>SafeArea(child:Wrap(children:[ListTile(leading:const Icon(Icons.construction_outlined),title:const Text('Rental bill'),subtitle:const Text('Cycle-based material rent'),onTap:()=>Navigator.pop(c,'rental')),ListTile(leading:const Icon(Icons.shopping_bag_outlined),title:const Text('Custom shop bill'),subtitle:const Text('One-time materials and charges'),onTap:()=>Navigator.pop(c,'custom'))])));if(type==null||!context.mounted)return;await Navigator.push(context,MaterialPageRoute(builder:(_)=>type=='rental'?const BillFormScreen():const CustomBillFormScreen()));}
-class MoreScreen extends StatelessWidget{const MoreScreen({super.key,required this.onNavigate});final ValueChanged<int> onNavigate;@override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('Workspace')),body:ListView(padding:const EdgeInsets.all(18),children:[_tile(context,'Custom bills','One-time shop invoices',Icons.shopping_bag_outlined,()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const CustomBillScreen()))),_tile(context,'Reports','Collections and material rent',Icons.query_stats,()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const ReportsScreen()))),_tile(context,'Inventory','Stock and material on rent',Icons.inventory_2_outlined,()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const InventoryScreen()))),_tile(context,'Delivery slips & challans','Track material movement',Icons.local_shipping_outlined,()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const SlipsScreen()))),_tile(context,'Administration','Terms, backup and account',Icons.admin_panel_settings_outlined,()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const AdminScreen()))),const SizedBox(height:10),const Text('S.A Traders · Scaffolding & centring rentals',textAlign:TextAlign.center,style:TextStyle(color:AppColors.gray))]));
-Widget _tile(BuildContext context,String title,String subtitle,IconData icon,VoidCallback onTap)=>Padding(padding:const EdgeInsets.only(bottom:12),child:Card(child:ListTile(onTap:onTap,contentPadding:const EdgeInsets.symmetric(horizontal:18,vertical:8),leading:CircleAvatar(backgroundColor:AppColors.paleBlue.withValues(alpha:.25),child:Icon(icon,color:AppColors.teal)),title:Text(title,style:const TextStyle(fontWeight:FontWeight.w700)),subtitle:Text(subtitle),trailing:const Icon(Icons.arrow_forward_ios,size:16))));}
+
+class _HomeShellState extends State<HomeShell> {
+  int index = 0;
+  void select(int destination) => setState(() => index = destination);
+
+  @override Widget build(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 840;
+    final screens = [HomeScreen(onNavigate: select), const BillsScreen(),
+      const NotificationsScreen(), const MoreScreen()];
+    final pages = IndexedStack(index: index, children: screens);
+    final create = index < 2 ? FloatingActionButton.extended(
+      onPressed: () => _chooseCreate(context), icon: const Icon(Icons.add),
+      label: const Text('New bill')) : null;
+    if (wide) {
+      return Scaffold(body: SafeArea(child: Row(children: [
+        NavigationRail(selectedIndex: index, onDestinationSelected: select,
+          labelType: NavigationRailLabelType.all, backgroundColor: AppColors.surface,
+          destinations: const [
+            NavigationRailDestination(icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home), label: Text('Home')),
+            NavigationRailDestination(icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long), label: Text('Bills')),
+            NavigationRailDestination(icon: Icon(Icons.notifications_outlined),
+              selectedIcon: Icon(Icons.notifications), label: Text('Alerts')),
+            NavigationRailDestination(icon: Icon(Icons.grid_view_outlined),
+              selectedIcon: Icon(Icons.grid_view), label: Text('More')),
+          ]),
+        const VerticalDivider(width: 1, color: AppColors.border),
+        Expanded(child: Scaffold(body: pages, floatingActionButton: create)),
+      ])));
+    }
+    return Scaffold(body: pages, floatingActionButton: create,
+      bottomNavigationBar: NavigationBar(selectedIndex: index,
+        onDestinationSelected: select, destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long), label: 'Bills'),
+          NavigationDestination(icon: Icon(Icons.notifications_outlined),
+            selectedIcon: Icon(Icons.notifications), label: 'Alerts'),
+          NavigationDestination(icon: Icon(Icons.grid_view_outlined),
+            selectedIcon: Icon(Icons.grid_view), label: 'More'),
+        ]));
+  }
+}
+
+Future<void> _chooseCreate(BuildContext context) async {
+  final type = await showModalBottomSheet<String>(context: context,
+    showDragHandle: true, builder: (sheet) => SafeArea(child: Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.md),
+      child: Wrap(children: [
+        ListTile(leading: const Icon(Icons.construction_outlined),
+          title: const Text('Rental bill'), subtitle: const Text('Cycle based material rent'),
+          onTap: () => Navigator.pop(sheet, 'rental')),
+        ListTile(leading: const Icon(Icons.shopping_bag_outlined),
+          title: const Text('Custom shop bill'), subtitle: const Text('Materials and one time charges'),
+          onTap: () => Navigator.pop(sheet, 'custom')),
+      ]))));
+  if (type == null || !context.mounted) return;
+  await Navigator.push(context, MaterialPageRoute(builder: (_) =>
+    type == 'rental' ? const BillFormScreen() : const CustomBillFormScreen()));
+}
+
+class MoreScreen extends StatelessWidget {
+  const MoreScreen({super.key});
+  @override Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Workspace')),
+    body: AppPageWidth(child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      children: [
+        Text('TOOLS & RECORDS', style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: AppColors.teal, letterSpacing: 1.3, fontWeight: FontWeight.w800)),
+        const SizedBox(height: AppSpace.xs),
+        Text('Run the business', style: Theme.of(context).textTheme.headlineMedium),
+        const SectionTitle('Billing & finance'),
+        _tile(context, 'Custom bills', 'One time shop invoices', Icons.shopping_bag_outlined,
+          () => _open(context, const CustomBillScreen())),
+        _tile(context, 'Reports', 'Collections and material rent', Icons.query_stats,
+          () => _open(context, const ReportsScreen())),
+        const SectionTitle('Operations'),
+        _tile(context, 'Inventory', 'Stock and material on rent', Icons.inventory_2_outlined,
+          () => _open(context, const InventoryScreen())),
+        _tile(context, 'Delivery slips & challans', 'Track material movement',
+          Icons.local_shipping_outlined, () => _open(context, const SlipsScreen())),
+        const SectionTitle('Business'),
+        _tile(context, 'Administration', 'Terms, backup and account',
+          Icons.admin_panel_settings_outlined, () => _open(context, const AdminScreen())),
+        const SizedBox(height: AppSpace.lg),
+        Text('S.A Traders · Scaffolding & centring rentals', textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall),
+      ])));
+
+  void _open(BuildContext context, Widget screen) => Navigator.push(context,
+    MaterialPageRoute(builder: (_) => screen));
+
+  Widget _tile(BuildContext context, String title, String subtitle,
+    IconData icon, VoidCallback onTap) => Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.xs),
+      child: AppSurface(child: InkWell(onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: Row(children: [
+          CircleAvatar(backgroundColor: AppColors.surfaceTint,
+            child: Icon(icon, color: AppColors.teal)),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpace.xxs),
+            Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+          ])),
+          const Icon(Icons.chevron_right, color: AppColors.gray),
+        ]))));
+}
