@@ -73,8 +73,7 @@ class HomeScreen extends ConsumerWidget {
                   MaterialPageRoute(builder: (_) => BillDetailScreen(billNo: '${bill['bill_no']}')))))),
           ],
         ),
-      )),
-    );
+      ));
   }
 }
 
