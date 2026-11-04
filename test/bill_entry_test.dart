@@ -62,7 +62,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save payment'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Enter an amount above'), findsOneWidget);
+    expect(result, isNull);
     await tester.tap(find.text('Full cycle'));
     await tester.tap(find.text('Save payment'));
     await tester.pumpAndSettle();

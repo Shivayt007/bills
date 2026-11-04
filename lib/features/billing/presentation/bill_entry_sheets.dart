@@ -98,7 +98,7 @@ class _PaymentFormState extends State<_PaymentForm> {
         Text(moneyLabel(remaining), style: Theme.of(context).textTheme.headlineMedium),
       ])),
       const SizedBox(height: 16),
-      DropdownButtonFormField<Map>(initialValue: cycle,
+      DropdownButtonFormField<Map>(initialValue: cycle, isExpanded: true,
         decoration: const InputDecoration(labelText: 'Rental cycle'),
         items: widget.cycles.map((item) => DropdownMenuItem<Map>(value: item,
           child: Text('Cycle #${item['index']} · ${item['start_date']}',
