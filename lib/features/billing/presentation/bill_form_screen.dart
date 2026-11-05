@@ -129,7 +129,7 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
             if (editing) _spaced(Text('The bill number stays fixed so payments and old invoices remain linked.',
               style: Theme.of(context).textTheme.bodySmall)),
             _spaced(_field('name', 'Customer name')),
-            _spaced(_field('mobile', 'Mobile number', number: true)),
+            _spaced(_field('mobile', 'Mobile number')),
             _field('place', 'Site / place'),
           ]),
           const SizedBox(height: 14),
@@ -208,8 +208,8 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
         'start_date': dateKey(DateTime.utc(start.year, start.month, start.day)),
         'cycle_days': days,
         for (final key in ['advance_amount','transport_up_charge','transport_down_charge',
-            'loading_charge','unloading_charge']) key: double.parse(c[key]!.text),
-        for (final key in ['transport_up_trips','transport_down_trips']) key: int.parse(c[key]!.text),
+            'loading_charge','unloading_charge']) key: double.tryParse(c[key]!.text) ?? 0,
+        for (final key in ['transport_up_trips','transport_down_trips']) key: int.tryParse(c[key]!.text) ?? 0,
         if (!editing) ...{
           'status':'open', 'payments':<Map<String,dynamic>>[],
           'payment_audit':<Map<String,dynamic>>[],
@@ -220,12 +220,12 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
         },
       };
       for (final s in materialCatalog) {
-        bill[s.quantityField] = int.parse(c[s.quantityField]!.text);
-        bill[s.rateField] = double.parse(c[s.rateField]!.text);
+        bill[s.quantityField] = int.tryParse(c[s.quantityField]!.text) ?? 0;
+        bill[s.rateField] = double.tryParse(c[s.rateField]!.text) ?? s.defaultRate;
       }
       for (final s in woodCatalog) {
         bill[s.key] = c[s.key]!.text.trim();
-        bill[s.rateField] = double.parse(c[s.rateField]!.text);
+        bill[s.rateField] = double.tryParse(c[s.rateField]!.text) ?? s.defaultRate;
       }
       if (editing) {
         final freshHasHistory = ['payments','return_history','additional_history']
