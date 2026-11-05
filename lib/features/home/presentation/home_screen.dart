@@ -97,27 +97,44 @@ class _OutstandingCard extends StatelessWidget {
   @override Widget build(BuildContext context)=>ClipRRect(
     borderRadius:BorderRadius.circular(24),child:BackdropFilter(
       filter:ImageFilter.blur(sigmaX:8,sigmaY:8),
-      child:Container(padding:const EdgeInsets.all(22),
+      child:Container(
         decoration:BoxDecoration(borderRadius:BorderRadius.circular(24),
           gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,
-            colors:[Color(0xEF1687A3),Color(0xF505637F),Color(0xFA084D66)]),
-          border:Border.all(color:const Color(0xC2B9F4FB),width:1.2),
+            colors:[Color(0xDC1994AE),Color(0xE705637F),Color(0xF0084D66)]),
+          border:Border.all(color:const Color(0xD7C6F7FC),width:1.3),
           boxShadow:const [BoxShadow(color:Color(0x393D8094),blurRadius:20,offset:Offset(0,8))]),
-        child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          const Text('Total Outstanding',style:TextStyle(color:Colors.white,
-            fontSize:16,fontWeight:FontWeight.w700)),
-          const SizedBox(height:7),
-          AnimatedSwitcher(duration:reduceMotion?Duration.zero:AppMotion.standard,
-            child:FittedBox(key:ValueKey(amount),fit:BoxFit.scaleDown,
-              alignment:Alignment.centerLeft,
-              child:Text(moneyLabel(amount),maxLines:1,
-                style:const TextStyle(color:Colors.white,fontSize:39,fontWeight:FontWeight.w900)))),
-          const SizedBox(height:16),
-          Row(children:[const Icon(Icons.receipt_long_outlined,color:Colors.white,size:18),
-            const SizedBox(width:7),Expanded(child:Text('$count active rental bills',
-              style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700))),
-            IconButton(onPressed:onViewBills,tooltip:'View active bills',
-              icon:const Icon(Icons.arrow_forward,color:Colors.white))]),
+        child:Stack(clipBehavior:Clip.hardEdge,children:[
+          Positioned(top:-88,right:-36,width:230,height:230,
+            child:IgnorePointer(child:Container(decoration:BoxDecoration(
+              shape:BoxShape.circle,border:Border.all(color:const Color(0x44FFFFFF)),
+              gradient:const RadialGradient(colors:[Color(0x66E6FFFF),
+                Color(0x20FFFFFF),Color(0x00FFFFFF)]))))),
+          Positioned(top:19,right:21,width:35,height:35,
+            child:IgnorePointer(child:Container(decoration:BoxDecoration(
+              shape:BoxShape.circle,border:Border.all(color:const Color(0x77FFFFFF)),
+              gradient:const LinearGradient(colors:[Color(0x88FFFFFF),
+                Color(0x13FFFFFF)]))))),
+          Positioned(bottom:-100,left:-70,width:210,height:210,
+            child:IgnorePointer(child:Container(decoration:const BoxDecoration(
+              shape:BoxShape.circle,gradient:RadialGradient(colors:[
+                Color(0x33C3FAFF),Color(0x00FFFFFF)]))))),
+          Padding(padding:const EdgeInsets.all(22),child:Column(
+            crossAxisAlignment:CrossAxisAlignment.start,children:[
+              const Text('Total Outstanding',style:TextStyle(color:Colors.white,
+                fontSize:16,fontWeight:FontWeight.w700)),
+              const SizedBox(height:7),
+              AnimatedSwitcher(duration:reduceMotion?Duration.zero:AppMotion.standard,
+                child:FittedBox(key:ValueKey(amount),fit:BoxFit.scaleDown,
+                  alignment:Alignment.centerLeft,
+                  child:Text(moneyLabel(amount),maxLines:1,
+                    style:const TextStyle(color:Colors.white,fontSize:39,fontWeight:FontWeight.w900)))),
+              const SizedBox(height:16),
+              Row(children:[const Icon(Icons.receipt_long_outlined,color:Colors.white,size:18),
+                const SizedBox(width:7),Expanded(child:Text('$count active rental bills',
+                  style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700))),
+                IconButton(onPressed:onViewBills,tooltip:'View active bills',
+                  icon:const Icon(Icons.arrow_forward,color:Colors.white))]),
+            ])),
         ]))));
 }
 
