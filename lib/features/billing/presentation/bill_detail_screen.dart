@@ -48,7 +48,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
           return ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.payments_outlined),
             title:Text(_money(p['amount']??0),style:const TextStyle(fontWeight:FontWeight.w900)),
             subtitle:Text('${p['payment_date']??p['date']??''} · ${p['method']??'Cash'}${p['cycle_index']!=null?' · Cycle #${p['cycle_index']}':''}'),
-            trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[
+            trailing:Row(mainAxisSize:MainAxisSize.min,children:[
               IconButton(tooltip:'Edit payment',onPressed:()=>_editPayment(context,ref,p,item.key),icon:const Icon(Icons.edit_outlined)),
               IconButton(tooltip:'Delete payment',onPressed:()=>_deletePayment(context,ref,p,item.key),
                 icon:Icon(Icons.delete_outline,color:AppPalette.of(context).danger))]));
