@@ -8,6 +8,7 @@ import '../../../core/widgets/common.dart';
 import '../domain/billing_calculator.dart';
 import '../../invoice/presentation/invoice_screen.dart';
 import 'bill_entry_sheets.dart';
+import '../domain/history_corrections.dart';
 
 final billDetailProvider = FutureProvider.autoDispose.family<Map<String,dynamic>?, String>((ref, id) => ref.watch(billingRepositoryProvider).get('bills', id));
 
@@ -42,7 +43,18 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
         _tabs(['Overview','Rental cycles','Activity'],tab,(i)=>setState(()=>tab=i)),const SizedBox(height:12),
         if(tab==0)...[_materials(b),const SizedBox(height:12)],
         if(tab!=2)_panel('Rental cycle ledger',Icons.calendar_month_outlined,[if(cycles.isEmpty)const Padding(padding:EdgeInsets.all(12),child:Text('No rental cycles yet')) else ...cycles.take(tab==0?2:cycles.length).map((c)=>_cycle(c,payments)),if(tab==0)TextButton(onPressed:()=>setState(()=>tab=1),child:const Text('View all →'))]),
-        if(tab!=1)...[const SizedBox(height:12),_panel('Payment & material activity',Icons.layers_outlined,[_tabs(['Payments (${payments.length})','Returns (${returns.length})','Additions (${additions.length})'],activity,(i)=>setState(()=>activity=i)),const SizedBox(height:12),if(activity==0)...[if(payments.isEmpty)const EmptyState(title:'No payments yet',description:'Record a payment to update the balance.',icon:Icons.account_balance_wallet_outlined) else ...payments.reversed.map((p)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.payments_outlined),title:Text(_money(p['amount']??0),style:const TextStyle(fontWeight:FontWeight.w900)),subtitle:Text('${p['payment_date']??p['date']??''} · ${p['method']??'Cash'}${p['cycle_index']!=null?' · Cycle #${p['cycle_index']}':''}'),trailing:admin?IconButton(tooltip:'Delete payment',icon:Icon(Icons.delete_outline,color:AppPalette.of(context).danger),onPressed:()=>_deletePayment(context,ref,b,p)):null))] else ...[if((activity==1?returns:additions).isEmpty)EmptyState(title:activity==1?'No returns yet':'No additions yet',description:'Material activity will appear here.',icon:Icons.inventory_2_outlined) else ...(activity==1?returns:additions).map((x)=>_historyCard(context,ref,x,isReturn:activity==1,admin:admin))]])],const SizedBox(height:16)]));
+        if(tab!=1)...[const SizedBox(height:12),_panel('Payment & material activity',Icons.layers_outlined,[_tabs(['Payments (${payments.length})','Returns (${returns.length})','Additions (${additions.length})'],activity,(i)=>setState(()=>activity=i)),const SizedBox(height:12),if(activity==0)...[if(payments.isEmpty)const EmptyState(title:'No payments yet',description:'Record a payment to update the balance.',icon:Icons.account_balance_wallet_outlined) else ...payments.asMap().entries.toList().reversed.map((item){
+          final p=item.value;
+          return ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.payments_outlined),
+            title:Text(_money(p['amount']??0),style:const TextStyle(fontWeight:FontWeight.w900)),
+            subtitle:Text('${p['payment_date']??p['date']??''} · ${p['method']??'Cash'}${p['cycle_index']!=null?' · Cycle #${p['cycle_index']}':''}'),
+            trailing:Wrap(mainAxisSize:MainAxisSize.min,children:[
+              IconButton(tooltip:'Edit payment',onPressed:()=>_editPayment(context,ref,p,item.key),icon:const Icon(Icons.edit_outlined)),
+              IconButton(tooltip:'Delete payment',onPressed:()=>_deletePayment(context,ref,p,item.key),
+                icon:Icon(Icons.delete_outline,color:AppPalette.of(context).danger))]));
+        })] else ...[if((activity==1?returns:additions).isEmpty)EmptyState(title:activity==1?'No returns yet':'No additions yet',description:'Material activity will appear here.',icon:Icons.inventory_2_outlined) else ...(activity==1?returns:additions).asMap().entries.map((item)=>_historyCard(
+          context,ref,item.value,isReturn:activity==1,
+          originalIndex:(activity==1?returns:additions).length-1-item.key))]])],const SizedBox(height:16)]));
   }
   void _invoice(BuildContext context,Map<String,dynamic> b)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoiceScreen(bill:b)));
   Widget _summary(String label,Object? amount)=>Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:const TextStyle(color:Colors.white70)),FittedBox(child:Text(_money(amount is num ? amount : 0),style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w900,fontSize:24)))]));
@@ -55,14 +67,18 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(crossAxisAlignment:CrossAxisAlignment.start,children:[CircleAvatar(radius:24,backgroundColor:const Color(0xffcfe6f7),child:Text(name.isEmpty?'S':name[0].toUpperCase(),style:const TextStyle(color:navy,fontWeight:FontWeight.w900,fontSize:24))),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(name,style:TextStyle(fontWeight:FontWeight.w900,fontSize:22,color:AppPalette.of(context).ink)),Text('${b['mobile']??'—'}',style:const TextStyle(fontWeight:FontWeight.w700)),Text('${b['place']??'—'}')])),const SizedBox(width:6),Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:7),decoration:BoxDecoration(color:closed?const Color(0xffe4eaf0):const Color(0xffbef2c4),borderRadius:BorderRadius.circular(12)),child:Text(closed?'CLOSED':'OPEN',style:TextStyle(color:closed?navy:const Color(0xff115c24),fontWeight:FontWeight.w900,fontSize:12)))]),const SizedBox(height:10),Text('Started ${b['start_date']??'—'} · ${b['cycle_days']??30}-day cycle',style:TextStyle(color:AppPalette.of(context).muted,fontSize:12))])));
   }
   Widget _quantityRow(String label,Object value)=>Padding(padding:const EdgeInsets.symmetric(vertical:7),child:Row(children:[Expanded(child:Text(label)),Text('$value',style:const TextStyle(fontWeight:FontWeight.w700))]));
-  Widget _historyCard(BuildContext context,WidgetRef ref,Map entry,{required bool isReturn,required bool admin}){
+  Widget _historyCard(BuildContext context,WidgetRef ref,Map entry,{required bool isReturn,required int originalIndex}){
     final items=(entry['items'] as Map?)??const {};
     final wood=(entry['wood'] as Map?)??const {};
     final parts=<String>[];
     for(final spec in materialCatalog){final quantity=(items[spec.key] as num?)?.toInt()??0;if(quantity>0)parts.add('${spec.label}: $quantity');}
     for(final spec in woodCatalog){final raw=wood[spec.key];if(raw is Map&&raw.isNotEmpty){final normalized=raw.map<String,int>((key,value)=>MapEntry('$key',(value as num).toInt()));parts.add('${spec.label}: ${woodToText(normalized)}');}}
-    final id='${entry[isReturn?'rid':'aid']??''}';
-    return Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text('${entry['date']??'—'} · Cycle #${entry['effective_from_cycle']??'—'}',style:const TextStyle(fontWeight:FontWeight.w800))),if(admin)IconButton(tooltip:'Delete entry',onPressed:()=>_deleteHistory(context,ref,isReturn,id),icon:Icon(Icons.delete_outline,color:AppPalette.of(context).danger))]),Text(parts.isEmpty?'No material quantities':parts.join('  •  ')),if('${entry['note']??''}'.isNotEmpty)Padding(padding:const EdgeInsets.only(top:6),child:Text('Note: ${entry['note']}')),Text('Recorded by ${entry['created_by']??'—'}',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:AppPalette.of(context).muted))])));
+    return Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text('${entry['date']??'—'} · Cycle #${entry['effective_from_cycle']??'—'}',style:const TextStyle(fontWeight:FontWeight.w800))),IconButton(tooltip:isReturn?'Edit return':'Edit addition',
+      onPressed:()=>_editHistory(context,ref,entry,originalIndex,isReturn),
+      icon:const Icon(Icons.edit_outlined)),
+      IconButton(tooltip:isReturn?'Delete return':'Delete addition',
+      onPressed:()=>_deleteHistory(context,ref,entry,originalIndex,isReturn),
+      icon:Icon(Icons.delete_outline,color:AppPalette.of(context).danger))]),Text(parts.isEmpty?'No material quantities':parts.join('  •  ')),if('${entry['note']??''}'.isNotEmpty)Padding(padding:const EdgeInsets.only(top:6),child:Text('Note: ${entry['note']}')),Text('Recorded by ${entry['created_by']??'—'}',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:AppPalette.of(context).muted))])));
   }
   Future<void> _recordPayment(BuildContext context, WidgetRef ref, Map bill, List<Map> cycles) async {
     final entry = await showPaymentEntry(context, bill, cycles);
@@ -164,8 +180,196 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       if (context.mounted) _toast(context, 'Material change not saved: $error');
     }
   }
-  Future<void> _deleteHistory(BuildContext context,WidgetRef ref,bool isReturn,String id)async{if(!await _confirm(context,'Delete this history entry?'))return;final raw=await ref.read(billingRepositoryProvider).get('bills',billNo);if(raw==null)return;final key=isReturn?'return_history':'additional_history',idKey=isReturn?'rid':'aid';final rows=(raw[key] as List? ?? []).where((x)=>(x as Map)[idKey]!=id).toList();await ref.read(billingRepositoryProvider).put('bills',{...raw,key:rows});if(context.mounted)_toast(context,'History entry deleted');}
-  Future<void> _deletePayment(BuildContext context,WidgetRef ref,Map bill,Map payment)async{if(!await _confirm(context,'Delete this payment?'))return;final raw=await ref.read(billingRepositoryProvider).get('bills','${bill['bill_no']}');if(raw==null)return;final payments=(raw['payments'] as List? ?? []).map((x)=>Map<String,dynamic>.from(x as Map)).toList();final id=payment['payment_id'];payments.removeWhere((p)=>p['payment_id']==id);final audit=(raw['payment_audit'] as List? ?? []).toList()..add({'action':'deleted','payment_id':id,'amount':payment['amount'],'payment_date':payment['payment_date'],'payment':payment,'deleted_by':ref.read(authRepositoryProvider).currentUser?.email,'deleted_at':DateTime.now().toUtc().toIso8601String(),'reason':'Removed by administrator'});await ref.read(billingRepositoryProvider).put('bills',{...raw,'payments':payments,'payment_audit':audit});}
+  Future<bool> _verifyDelete(BuildContext context, String title) async {
+    final password = TextEditingController();
+    try {
+      return await showDialog<bool>(context: context, builder: (dialog) {
+        bool busy = false;
+        String? error;
+        return StatefulBuilder(builder: (dialog, update) => AlertDialog(
+          title: Text(title),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('This removes one entry and recalculates the bill. Enter your Firebase account password to confirm.'),
+              const SizedBox(height: 12),
+              TextField(controller: password, obscureText: true, autofocus: true,
+                decoration: const InputDecoration(labelText: 'Account password'),
+                onSubmitted: (_) {}),
+              if (error != null) Padding(padding: const EdgeInsets.only(top: 10),
+                child: Text(error!, style: TextStyle(color: AppPalette.of(dialog).danger))),
+            ]),
+          actions: [
+            TextButton(onPressed: busy ? null : () => Navigator.pop(dialog, false),
+              child: const Text('Cancel')),
+            FilledButton(onPressed: busy ? null : () async {
+              if (password.text.isEmpty) {
+                update(() => error = 'Enter your password.');
+                return;
+              }
+              update(() { busy = true; error = null; });
+              try {
+                await ref.read(authRepositoryProvider).verifyPassword(password.text);
+                if (dialog.mounted) Navigator.pop(dialog, true);
+              } catch (_) {
+                if (dialog.mounted) update(() {
+                  busy = false;
+                  error = 'Password verification failed. Check your account password.';
+                });
+              }
+            }, child: const Text('Verify & delete')),
+          ]));
+      }) ?? false;
+    } finally {
+      password.dispose();
+    }
+  }
+
+  Future<void> _deleteHistory(BuildContext context, WidgetRef ref, Map entry,
+      int originalIndex, bool isReturn) async {
+    if (!await _verifyDelete(context, isReturn ? 'Delete return?' : 'Delete addition?')) return;
+    try {
+      final repository = ref.read(billingRepositoryProvider);
+      final raw = await repository.get('bills', billNo);
+      if (raw == null) throw StateError('Bill not found.');
+      final field = isReturn ? 'return_history' : 'additional_history';
+      final rows = historyRows(raw[field]);
+      final index = historyIndex(rows, entry, originalIndex, isReturn ? 'rid' : 'aid');
+      final removed = rows.removeAt(index);
+      final audit = historyRows(raw['history_audit'])..add({
+        'action': 'deleted', 'type': field, 'entry': removed,
+        'by': ref.read(authRepositoryProvider).currentUser?.email,
+        'at': DateTime.now().toUtc().toIso8601String(),
+      });
+      final updated = {...raw, field: rows, 'history_audit': audit};
+      validateMaterialLedger(updated);
+      await repository.put('bills', updated);
+      ref.invalidate(billDetailProvider(billNo));
+      if (context.mounted) _toast(context, 'Entry deleted');
+    } catch (error) {
+      if (context.mounted) _toast(context, 'Could not delete entry: $error');
+    }
+  }
+
+  Future<void> _editHistory(BuildContext context, WidgetRef ref, Map selected,
+      int originalIndex, bool isReturn) async {
+    try {
+      final repository = ref.read(billingRepositoryProvider);
+      final raw = await repository.get('bills', billNo);
+      if (raw == null) throw StateError('Bill not found.');
+      final field = isReturn ? 'return_history' : 'additional_history';
+      final rows = historyRows(raw[field]);
+      final index = historyIndex(rows, selected, originalIndex, isReturn ? 'rid' : 'aid');
+      final previous = rows.removeAt(index);
+      final now = DateTime.now().toUtc();
+      final without = hydrateRentalBill({...raw, field: rows},
+        today: DateTime.utc(now.year, now.month, now.day));
+      if (!context.mounted) return;
+      final entry = await showMaterialEntry(context, without,
+        isReturn: isReturn, initial: previous);
+      if (entry == null) return;
+      final start = parseBillingDate(raw['start_date']);
+      if (start == null) throw StateError('Bill start date is missing.');
+      final fresh = await repository.get('bills', billNo);
+      if (fresh == null) throw StateError('Bill no longer exists.');
+      final latest = historyRows(fresh[field]);
+      final position = historyIndex(latest, selected, originalIndex,
+        isReturn ? 'rid' : 'aid');
+      final old = latest[position];
+      latest[position] = {...old, 'date': entry.date, 'note': entry.note,
+        'items': entry.items, 'wood': entry.wood,
+        'effective_from_cycle': cycleIndex(start,
+          (fresh['cycle_days'] as num?)?.toInt() ?? 30,
+          parseBillingDate(entry.date)!) + 1,
+        'edited_by': ref.read(authRepositoryProvider).currentUser?.email,
+        'edited_at': DateTime.now().toUtc().toIso8601String()};
+      final audit = historyRows(fresh['history_audit'])..add({
+        'action': 'edited', 'type': field, 'before': old, 'after': latest[position],
+        'by': ref.read(authRepositoryProvider).currentUser?.email,
+        'at': DateTime.now().toUtc().toIso8601String(),
+      });
+      final updated = {...fresh, field: latest, 'history_audit': audit};
+      validateMaterialLedger(updated);
+      await repository.put('bills', updated);
+      ref.invalidate(billDetailProvider(billNo));
+      if (context.mounted) _toast(context, 'Material entry updated');
+    } catch (error) {
+      if (context.mounted) _toast(context, 'Could not edit entry: $error');
+    }
+  }
+
+  Future<void> _deletePayment(BuildContext context, WidgetRef ref,
+      Map selected, int originalIndex) async {
+    if (!await _verifyDelete(context, 'Delete payment?')) return;
+    try {
+      final repository = ref.read(billingRepositoryProvider);
+      final raw = await repository.get('bills', billNo);
+      if (raw == null) throw StateError('Bill not found.');
+      final payments = historyRows(raw['payments']);
+      final index = historyIndex(payments, selected, originalIndex, 'payment_id');
+      final removed = payments.removeAt(index);
+      final audit = historyRows(raw['payment_audit'])..add({
+        'action': 'deleted', 'payment': removed,
+        'deleted_by': ref.read(authRepositoryProvider).currentUser?.email,
+        'deleted_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      await repository.put('bills', {...raw, 'payments': payments, 'payment_audit': audit});
+      ref.invalidate(billDetailProvider(billNo));
+      if (context.mounted) _toast(context, 'Payment deleted');
+    } catch (error) {
+      if (context.mounted) _toast(context, 'Could not delete payment: $error');
+    }
+  }
+
+  Future<void> _editPayment(BuildContext context, WidgetRef ref,
+      Map selected, int originalIndex) async {
+    try {
+      final repository = ref.read(billingRepositoryProvider);
+      final raw = await repository.get('bills', billNo);
+      if (raw == null) throw StateError('Bill not found.');
+      final payments = historyRows(raw['payments']);
+      final index = historyIndex(payments, selected, originalIndex, 'payment_id');
+      final previous = payments.removeAt(index);
+      final now = DateTime.now().toUtc();
+      final without = hydrateRentalBill({...raw, 'payments': payments},
+        today: DateTime.utc(now.year, now.month, now.day));
+      if (!context.mounted) return;
+      final entry = await showPaymentEntry(context, without,
+        (without['cycles'] as List).cast<Map>(), initial: previous);
+      if (entry == null) return;
+      final fresh = await repository.get('bills', billNo);
+      if (fresh == null) throw StateError('Bill no longer exists.');
+      final latest = historyRows(fresh['payments']);
+      final position = historyIndex(latest, selected, originalIndex, 'payment_id');
+      final old = latest.removeAt(position);
+      final remaining = hydrateRentalBill({...fresh, 'payments': latest},
+        today: DateTime.utc(now.year, now.month, now.day));
+      if (entry.amount > (remaining['pending'] as num).toDouble() + .001) {
+        throw StateError('Amount exceeds the updated pending balance.');
+      }
+      final cycle = (remaining['cycles'] as List).cast<Map>().where((item) =>
+        item['index'] == entry.cycle['index'] &&
+        item['start_date'] == entry.cycle['start_date'] &&
+        item['end_date'] == entry.cycle['end_date']).firstOrNull;
+      if (cycle == null) throw StateError('Rental cycle changed. Reopen and try again.');
+      final edited = {...old, 'amount': moneyRound(entry.amount),
+        'payment_date': entry.date, 'method': entry.method, 'note': entry.note,
+        'cycle_index': cycle['index'], 'cycle_start_date': cycle['start_date'],
+        'cycle_end_date': cycle['end_date'],
+        'edited_by': ref.read(authRepositoryProvider).currentUser?.email,
+        'edited_at': DateTime.now().toUtc().toIso8601String()};
+      latest.insert(position, edited);
+      final audit = historyRows(fresh['payment_audit'])..add({
+        'action': 'edited', 'before': old, 'after': edited,
+        'by': ref.read(authRepositoryProvider).currentUser?.email,
+        'at': DateTime.now().toUtc().toIso8601String(),
+      });
+      await repository.put('bills', {...fresh, 'payments': latest, 'payment_audit': audit});
+      ref.invalidate(billDetailProvider(billNo));
+      if (context.mounted) _toast(context, 'Payment updated');
+    } catch (error) {
+      if (context.mounted) _toast(context, 'Could not edit payment: $error');
+    }
+  }
   Future<void> _close(BuildContext context,WidgetRef ref,Map bill,bool admin)async{if(!admin){_toast(context,'Administrator access required');return;}if(!await _confirm(context,'Close this bill? Rental cycles stop from the closure date.'))return;final raw=await ref.read(billingRepositoryProvider).get('bills','${bill['bill_no']}');if(raw==null)return;final today=dateKey(DateTime.now().toUtc());await ref.read(billingRepositoryProvider).put('bills',{...raw,'status':'closed','closed_at':today,'closed_by':ref.read(authRepositoryProvider).currentUser?.email,'closed_at_iso':DateTime.now().toUtc().toIso8601String()});}
   Future<void> _deleteBill(BuildContext context,WidgetRef ref,bool admin)async{if(!admin){_toast(context,'Administrator access required');return;}if(!await _confirm(context,'Permanently delete bill #$billNo?'))return;await ref.read(billingRepositoryProvider).delete('bills',billNo);if(context.mounted)Navigator.pop(context);}
   Future<bool> _confirm(BuildContext context,String text)async=>await showDialog<bool>(context:context,builder:(c)=>AlertDialog(content:Text(text),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Confirm'))]))??false;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:notification_listener_service/notification_listener_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/common.dart';
 import '../../admin/presentation/admin_screen.dart';
@@ -7,6 +8,7 @@ import '../../billing/presentation/bills_screen.dart';
 import '../../custom_bills/presentation/custom_bill_screen.dart';
 import '../../inventory/presentation/inventory_screen.dart';
 import '../../notifications/presentation/notifications_screen.dart';
+import '../../notifications/data/reminder_service.dart';
 import '../../reports/presentation/reports_screen.dart';
 import '../../slips/presentation/slips_screen.dart';
 import 'home_screen.dart';
@@ -98,6 +100,8 @@ class MoreScreen extends StatelessWidget {
           () => _open(context, const InventoryScreen())),
         _tile(context, 'Delivery slips & challans', 'Track material movement',
           Icons.local_shipping_outlined, () => _open(context, const SlipsScreen())),
+        const SectionTitle('Reminders & payments'),
+        const _ReminderControls(),
         const SectionTitle('Business'),
         const _ThemeSelector(),
         _tile(context, 'Administration', 'Terms, backup and account',
@@ -126,6 +130,76 @@ class MoreScreen extends StatelessWidget {
           ])),
           Icon(Icons.chevron_right, color: AppPalette.of(context).muted),
         ]))));
+}
+
+class _ReminderControls extends StatefulWidget {
+  const _ReminderControls();
+  @override State<_ReminderControls> createState() => _ReminderControlsState();
+}
+class _ReminderControlsState extends State<_ReminderControls> {
+  bool loading = true, enabled = false, paymentAccess = false;
+  String? error;
+  @override void initState() {
+    super.initState();
+    _load();
+  }
+  Future<void> _load() async {
+    try {
+      final results = await Future.wait([
+        ReminderService.remindersEnabled(),
+        ReminderService.paymentPermission(),
+      ]);
+      if (mounted) setState(() {
+        enabled = results[0];
+        paymentAccess = results[1];
+        loading = false;
+        error = null;
+      });
+    } catch (cause) {
+      if (mounted) setState(() {
+        loading = false;
+        error = 'Could not read reminder settings: $cause';
+      });
+    }
+  }
+  Future<void> _setReminder(bool value) async {
+    setState(() => loading = true);
+    try {
+      await ReminderService.setReminders(value);
+      await _load();
+    } catch (cause) {
+      if (mounted) setState(() {
+        loading = false;
+        error = 'Could not update reminders: $cause';
+      });
+    }
+  }
+  Future<void> _manageAccess() async {
+    try {
+      await NotificationListenerService.requestPermission();
+      await _load();
+    } catch (cause) {
+      if (mounted) setState(() => error = 'Could not open notification access: $cause');
+    }
+  }
+  @override Widget build(BuildContext context) => Column(children: [
+    Card(child: SwitchListTile(
+      title: const Text('Daily reminders'),
+      subtitle: const Text('Send a local notification for pending rental bills each day'),
+      secondary: const Icon(Icons.alarm_outlined),
+      value: enabled, onChanged: loading ? null : _setReminder)),
+    const SizedBox(height: 8),
+    Card(child: ListTile(
+      title: const Text('Payment detection'),
+      subtitle: Text(paymentAccess
+        ? 'Notification access enabled · review detected receipts in Alerts'
+        : 'Allow access to bank and UPI payment notifications'),
+      leading: const Icon(Icons.account_balance_wallet_outlined),
+      trailing: OutlinedButton(onPressed: loading ? null : _manageAccess,
+        child: Text(paymentAccess ? 'Manage' : 'Enable')))),
+    if (error != null) Padding(padding: const EdgeInsets.all(8),
+      child: Text(error!, style: TextStyle(color: AppPalette.of(context).danger))),
+  ]);
 }
 
 class _ThemeSelector extends StatelessWidget {

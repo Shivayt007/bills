@@ -28,25 +28,45 @@ Future<T?> _entrySheet<T>(BuildContext context, Widget child) =>
           child: SizedBox(height: math.min(available - 30, 740).clamp(300.0, 740.0).toDouble(), child: child));
       });
 
-Future<PaymentEntry?> showPaymentEntry(BuildContext context, Map bill, List<Map> cycles) =>
-    _entrySheet<PaymentEntry>(context, _PaymentForm(bill: bill, cycles: cycles));
+Future<PaymentEntry?> showPaymentEntry(BuildContext context, Map bill, List<Map> cycles,
+    {Map? initial}) =>
+    _entrySheet<PaymentEntry>(context, _PaymentForm(bill: bill, cycles: cycles, initial: initial));
 
-Future<MaterialEntry?> showMaterialEntry(BuildContext context, Map bill, {required bool isReturn}) =>
-    _entrySheet<MaterialEntry>(context, _MaterialForm(bill: bill, isReturn: isReturn));
+Future<MaterialEntry?> showMaterialEntry(BuildContext context, Map bill,
+    {required bool isReturn, Map? initial}) =>
+    _entrySheet<MaterialEntry>(context,
+      _MaterialForm(bill: bill, isReturn: isReturn, initial: initial));
 
 class _PaymentForm extends StatefulWidget {
-  const _PaymentForm({required this.bill, required this.cycles});
+  const _PaymentForm({required this.bill, required this.cycles, this.initial});
   final Map bill;
   final List<Map> cycles;
+  final Map? initial;
   @override State<_PaymentForm> createState() => _PaymentFormState();
 }
 
 class _PaymentFormState extends State<_PaymentForm> {
   final amount = TextEditingController(), note = TextEditingController();
   String method = 'Cash';
-  late Map? cycle = widget.cycles.isEmpty ? null : widget.cycles.last;
+  Map? cycle;
   DateTime date = DateTime.now();
   String? error;
+  @override void initState() {
+    super.initState();
+    final previous = widget.initial;
+    cycle = previous == null ? (widget.cycles.isEmpty ? null : widget.cycles.last) :
+      widget.cycles.where((item) => item['index'] == previous['cycle_index'] &&
+        item['start_date'] == previous['cycle_start_date'] &&
+        item['end_date'] == previous['cycle_end_date']).firstOrNull;
+    cycle ??= widget.cycles.isEmpty ? null : widget.cycles.last;
+    if (previous != null) {
+      amount.text = (previous['amount'] as num?)?.toString() ?? '';
+      note.text = '${previous['note'] ?? ''}';
+      method = '${previous['method'] ?? 'Cash'}';
+      if (!['Cash', 'UPI', 'Bank'].contains(method)) method = 'Cash';
+      date = parseBillingDate(previous['payment_date'] ?? previous['date']) ?? DateTime.now();
+    }
+  }
   @override void dispose() { amount.dispose(); note.dispose(); super.dispose(); }
 
   double get remaining => (widget.bill['pending'] as num?)?.toDouble() ?? 0;
@@ -85,7 +105,8 @@ class _PaymentFormState extends State<_PaymentForm> {
   @override Widget build(BuildContext context) => Column(children: [
     Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Record payment', style: Theme.of(context).textTheme.headlineMedium),
+        Text(widget.initial == null ? 'Record payment' : 'Edit payment',
+          style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 4),
         Text('Bill #${widget.bill['bill_no']} · ${widget.bill['name'] ?? 'Customer'}',
           style: Theme.of(context).textTheme.bodyMedium),
@@ -135,15 +156,17 @@ class _PaymentFormState extends State<_PaymentForm> {
       child: Row(children: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         const SizedBox(width: 12),
-        Expanded(child: FilledButton(onPressed: submit, child: const Text('Save payment'))),
+        Expanded(child: FilledButton(onPressed: submit,
+          child: Text(widget.initial == null ? 'Save payment' : 'Save changes'))),
       ]))),
   ]);
 }
 
 class _MaterialForm extends StatefulWidget {
-  const _MaterialForm({required this.bill, required this.isReturn});
+  const _MaterialForm({required this.bill, required this.isReturn, this.initial});
   final Map bill;
   final bool isReturn;
+  final Map? initial;
   @override State<_MaterialForm> createState() => _MaterialFormState();
 }
 
@@ -156,11 +179,23 @@ class _MaterialFormState extends State<_MaterialForm> {
   String? error;
   @override void initState() {
     super.initState();
+    final previous = widget.initial;
+    final initialItems = previous?['items'] as Map? ?? const {};
+    final initialWood = previous?['wood'] as Map? ?? const {};
     for (final spec in materialCatalog) {
-      qty[spec.key] = 0;
-      qtyInputs[spec.key] = TextEditingController(text: '0');
+      qty[spec.key] = (initialItems[spec.key] as num?)?.toInt() ?? 0;
+      qtyInputs[spec.key] = TextEditingController(text: '${qty[spec.key]}');
     }
-    for (final spec in woodCatalog) { wood[spec.key] = TextEditingController(); }
+    for (final spec in woodCatalog) {
+      final raw = initialWood[spec.key] as Map? ?? const {};
+      wood[spec.key] = TextEditingController(text: raw.isEmpty ? '' :
+        woodToText(raw.map<String, int>((key, value) =>
+          MapEntry('$key', (value as num).toInt()))));
+    }
+    if (previous != null) {
+      date = parseBillingDate(previous['date']) ?? DateTime.now();
+      note.text = '${previous['note'] ?? ''}';
+    }
   }
   @override void dispose() {
     for (final controller in qtyInputs.values) { controller.dispose(); }
@@ -232,7 +267,9 @@ class _MaterialFormState extends State<_MaterialForm> {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(widget.isReturn ? 'Return material' : 'Add material',
+          Text(widget.initial == null
+            ? (widget.isReturn ? 'Return material' : 'Add material')
+            : (widget.isReturn ? 'Edit return' : 'Edit addition'),
             style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 4),
           Text('Bill #${widget.bill['bill_no']} · ${widget.bill['name'] ?? 'Customer'}',
@@ -304,7 +341,8 @@ class _MaterialFormState extends State<_MaterialForm> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           const SizedBox(width: 12),
           Expanded(child: FilledButton(onPressed: submit,
-            child: Text(widget.isReturn ? 'Save return' : 'Add material'))),
+            child: Text(widget.initial != null ? 'Save changes' :
+              (widget.isReturn ? 'Save return' : 'Add material')))),
         ]))),
     ]);
   }

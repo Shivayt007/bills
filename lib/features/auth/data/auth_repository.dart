@@ -9,6 +9,15 @@ class AuthRepository {
     await _auth.signInWithEmailAndPassword(email: email.trim(), password: password);
   }
   Future<void> signOut() => _auth.signOut();
+  Future<void> verifyPassword(String password) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null || email.isEmpty) {
+      throw StateError('An email and password account is required.');
+    }
+    await user.reauthenticateWithCredential(
+      EmailAuthProvider.credential(email: email, password: password));
+  }
   Future<bool> isAdmin() async {
     final user = _auth.currentUser;
     if (user == null) return false;
