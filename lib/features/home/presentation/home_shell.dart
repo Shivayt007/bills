@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:notification_listener_service/notification_listener_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/glass_design.dart';
 import '../../../core/widgets/common.dart';
 import '../../admin/presentation/admin_screen.dart';
 import '../../billing/presentation/bill_form_screen.dart';
@@ -25,11 +26,10 @@ class _HomeShellState extends State<HomeShell> {
   @override Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 840;
     final screens = [HomeScreen(onNavigate: select), const BillsScreen(),
-      const NotificationsScreen(), const MoreScreen()];
+      const ReportsScreen(), const MoreScreen()];
     final pages = IndexedStack(index: index, children: screens);
-    final create = index < 2 ? FloatingActionButton.extended(
-      onPressed: () => _chooseCreate(context), icon: const Icon(Icons.add),
-      label: const Text('New bill')) : null;
+    final create = index < 2 ? GlassPillButton(onPressed: () => _chooseCreate(context),
+      icon: Icons.add, label: 'New bill') : null;
     if (wide) {
       return Scaffold(body: SafeArea(child: Row(children: [
         NavigationRail(selectedIndex: index, onDestinationSelected: select,
@@ -39,8 +39,8 @@ class _HomeShellState extends State<HomeShell> {
               selectedIcon: Icon(Icons.home), label: Text('Home')),
             NavigationRailDestination(icon: Icon(Icons.receipt_long_outlined),
               selectedIcon: Icon(Icons.receipt_long), label: Text('Bills')),
-            NavigationRailDestination(icon: Icon(Icons.notifications_outlined),
-              selectedIcon: Icon(Icons.notifications), label: Text('Alerts')),
+            NavigationRailDestination(icon: Icon(Icons.bar_chart_outlined),
+              selectedIcon: Icon(Icons.bar_chart), label: Text('Reports')),
             NavigationRailDestination(icon: Icon(Icons.grid_view_outlined),
               selectedIcon: Icon(Icons.grid_view), label: Text('More')),
           ]),
@@ -49,17 +49,7 @@ class _HomeShellState extends State<HomeShell> {
       ])));
     }
     return Scaffold(body: pages, floatingActionButton: create,
-      bottomNavigationBar: NavigationBar(selectedIndex: index,
-        onDestinationSelected: select, destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long), label: 'Bills'),
-          NavigationDestination(icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications), label: 'Alerts'),
-          NavigationDestination(icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.grid_view), label: 'More'),
-        ]));
+      bottomNavigationBar: GlassBottomNavigation(index: index, onSelected: select));
   }
 }
 
@@ -95,6 +85,8 @@ class MoreScreen extends StatelessWidget {
           () => _open(context, const CustomBillScreen())),
         _tile(context, 'Reports', 'Collections and material rent', Icons.query_stats,
           () => _open(context, const ReportsScreen())),
+        _tile(context, 'Notifications', 'Overdue, due today and upcoming bills',
+          Icons.notifications_outlined, () => _open(context, const NotificationsScreen())),
         const SectionTitle('Operations'),
         _tile(context, 'Inventory', 'Stock and material on rent', Icons.inventory_2_outlined,
           () => _open(context, const InventoryScreen())),
