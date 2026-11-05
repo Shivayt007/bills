@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../lib/core/providers.dart';
 import '../lib/core/theme/app_theme.dart';
 import '../lib/features/billing/presentation/bill_detail_screen.dart';
+import '../lib/features/billing/presentation/bill_form_screen.dart';
 import '../lib/features/billing/presentation/bill_navigation.dart';
 
 void main() {
@@ -64,6 +65,21 @@ void main() {
       expect(tester.takeException(),isNull);
     });
   }
+  testWidgets('Edit bill form fits a narrow screen and keeps bill number fixed',(tester)async{
+    tester.view.physicalSize=const Size(320,844);
+    tester.view.devicePixelRatio=1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ProviderScope(child:MaterialApp(theme:buildTheme(),
+      home:BillFormScreen(initialBill:bill))));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit bill #2504'),findsOneWidget);
+    expect(find.text('Bill number'),findsOneWidget);
+    expect(find.text('Save changes'),findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Materials'),150);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(),isNull);
+  });
   testWidgets('Dark bill details keeps actions and totals readable',(tester)async{
     tester.view.physicalSize=const Size(390,1500);tester.view.devicePixelRatio=1;
     addTearDown(tester.view.resetPhysicalSize);
