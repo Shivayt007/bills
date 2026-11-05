@@ -83,7 +83,7 @@ class HomeScreen extends ConsumerWidget {
               onTap:()=>Navigator.push(context,MaterialPageRoute(
                 builder:(_)=>BillDetailScreen(billNo:'${bill['bill_no']}')))))),
         ])))),
-    ));
+    );
   }
 }
 
