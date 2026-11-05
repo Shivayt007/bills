@@ -76,7 +76,7 @@ void main() {
     expect(find.text('Edit bill #2504'),findsOneWidget);
     expect(find.text('Bill number'),findsOneWidget);
     expect(find.text('Save changes'),findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Materials'),150);
+    await tester.drag(find.byType(ListView),const Offset(0,-450));
     await tester.pumpAndSettle();
     expect(tester.takeException(),isNull);
   });
