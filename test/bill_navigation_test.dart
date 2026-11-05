@@ -36,7 +36,7 @@ void main() {
     await tester.pumpWidget(app(const BillDetailScreen(billNo:'2504')));await tester.pumpAndSettle();expect(find.text('Bill not found'),findsOneWidget);
   });
   for(final width in [320.0,390.0]){
-    testWidgets('Bill details fits $width and tabs show their content',(tester)async{
+    testWidgets('Bill details fits $width and keeps bill actions visible',(tester)async{
       tester.view.physicalSize=Size(width,844);tester.view.devicePixelRatio=1;
       addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
       final boundary=GlobalKey();
@@ -53,8 +53,15 @@ void main() {
         });
       }
       tester.view.physicalSize=Size(width,844);await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Rental cycles'));await tester.pumpAndSettle();await tester.tap(find.text('Rental cycles'));await tester.pumpAndSettle();expect(find.text('Materials out'),findsNothing);expect(tester.takeException(),isNull);
-      await tester.ensureVisible(find.text('Activity'));await tester.pumpAndSettle();await tester.tap(find.text('Activity'));await tester.pumpAndSettle();await tester.scrollUntilVisible(find.text('Payment & material activity'),150);await tester.pumpAndSettle();expect(find.text('Payment & material activity'),findsOneWidget);expect(tester.takeException(),isNull);
+      await tester.ensureVisible(find.text('Rental cycles'));await tester.pumpAndSettle();
+      expect(find.text('Rental cycles'),findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Record return'),150);
+      await tester.pumpAndSettle();
+      expect(find.text('Record return'),findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Add material'),150);
+      await tester.pumpAndSettle();
+      expect(find.text('Add material'),findsOneWidget);
+      expect(tester.takeException(),isNull);
     });
   }
   testWidgets('Dark bill details keeps actions and totals readable',(tester)async{
