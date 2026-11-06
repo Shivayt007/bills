@@ -89,11 +89,13 @@ void main() {
     await tester.pumpWidget(ProviderScope(child:MaterialApp(theme:buildTheme(),
       home:BillFormScreen(initialBill:copy))));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.byTooltip('Add one Jackey'),180);
+    await tester.scrollUntilVisible(find.byTooltip('Add one Jackey'),180,
+      scrollable:find.byType(Scrollable).first);
     await tester.tap(find.byTooltip('Add one Jackey'));
     await tester.pumpAndSettle();
     expect(find.text('₹65.0 per cycle'),findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Estimated first cycle'),300);
+    await tester.scrollUntilVisible(find.text('Estimated first cycle'),300,
+      scrollable:find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.text('₹65.00'),findsOneWidget);
     expect(tester.takeException(),isNull);
