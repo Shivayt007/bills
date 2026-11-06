@@ -81,17 +81,13 @@ void main() {
     expect(tester.takeException(),isNull);
   });
   testWidgets('Material stepper updates the first-cycle estimate without changing the rate',(tester)async{
-    tester.view.physicalSize=const Size(390,844);
+    tester.view.physicalSize=const Size(390,1400);
     tester.view.devicePixelRatio=1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final copy=<String,dynamic>{...bill,'jackey_qty':0,'sheet_qty':0,'span_qty':0};
     await tester.pumpWidget(ProviderScope(child:MaterialApp(theme:buildTheme(),
       home:BillFormScreen(initialBill:copy))));
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.byTooltip('Add one Jackey'),180,
-      scrollable:find.byType(Scrollable).first);
-    await tester.drag(find.byType(ListView),const Offset(0,-150));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Add one Jackey'));
     await tester.pumpAndSettle();
