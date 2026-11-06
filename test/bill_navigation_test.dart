@@ -90,7 +90,9 @@ void main() {
       home:BillFormScreen(initialBill:copy))));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.byTooltip('Add one Jackey'),180,
-      scrollable:find.byType(Scrollable).first,alignment:0.4);
+      scrollable:find.byType(Scrollable).first);
+    await tester.drag(find.byType(ListView),const Offset(0,-150));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Add one Jackey'));
     await tester.pumpAndSettle();
     expect(find.text('₹65.0 per cycle'),findsOneWidget);
