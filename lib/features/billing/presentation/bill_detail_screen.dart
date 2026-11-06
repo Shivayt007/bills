@@ -567,5 +567,11 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       if(context.mounted) Navigator.pop(context);
     } catch(error) {if(context.mounted) _toast(context,'Could not delete bill: $error');}
   }
+  Future<bool> _confirm(BuildContext context,String text) async =>
+    await showDialog<bool>(context:context,builder:(dialog)=>AlertDialog(
+      content:Text(text),actions:[
+        TextButton(onPressed:()=>Navigator.pop(dialog,false),child:const Text('Cancel')),
+        FilledButton(onPressed:()=>Navigator.pop(dialog,true),child:const Text('Confirm')),
+      ])) ?? false;
   void _toast(BuildContext context,String text)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(text)));
 }
