@@ -45,17 +45,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     final additions = (b['additional_history'] as List).cast<Map>().reversed.toList();
     final active = cycles.lastOrNull;
     final p = AppPalette.of(context);
-    final admin = ref.watch(isAdminProvider).asData?.value ?? false;
     return Scaffold(
       appBar: AppBar(title: Text('Bill #$billNo'), actions: [
         IconButton(tooltip: 'View invoice', onPressed: () => _invoice(context,b),
           icon: const Icon(Icons.description_outlined)),
-        if (admin) PopupMenuButton<String>(onSelected: (v) => v == 'close'
-            ? _close(context,ref,b,admin) : _deleteBill(context,ref,admin),
-          itemBuilder: (_) => [
-            if (b['status'] != 'closed') const PopupMenuItem(value:'close',child:Text('Close bill')),
-            const PopupMenuItem(value:'delete',child:Text('Delete bill')),
-          ]),
       ]),
       body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 720),
         child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 28), children: [
@@ -68,7 +61,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
             decoration: BoxDecoration(color: AppColors.teal,
               borderRadius: BorderRadius.circular(AppRadius.hero)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Pending amount',style:TextStyle(color:Colors.white70,fontSize:16)),
+              const Text('Amount due',style:TextStyle(color:Colors.white70,fontSize:16)),
               const SizedBox(height:5),
               FittedBox(fit:BoxFit.scaleDown,child:Text(_money(b['pending'] as num),
                 style:const TextStyle(color:Colors.white,fontSize:42,fontWeight:FontWeight.w900))),
@@ -102,6 +95,11 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
               icon:const Icon(Icons.payments_outlined),label:const Text('Record payment')),
             OutlinedButton.icon(onPressed:()=>_invoice(context,b),
               icon:const Icon(Icons.share_outlined),label:const Text('Invoice')),
+            if (b['status'] != 'closed') OutlinedButton.icon(
+              onPressed:()=>_close(context,ref,b),
+              icon:const Icon(Icons.lock_outline),label:const Text('Close bill')),
+            TextButton.icon(onPressed:()=>_deleteBill(context,ref),
+              icon:const Icon(Icons.delete_outline),label:const Text('Delete bill')),
           ]),
           const SizedBox(height:16),
           _designCard('Current cycle rent',Icons.layers_outlined,[
@@ -519,8 +517,55 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       if (context.mounted) _toast(context, 'Could not edit payment: $error');
     }
   }
-  Future<void> _close(BuildContext context,WidgetRef ref,Map bill,bool admin)async{if(!admin){_toast(context,'Administrator access required');return;}if(!await _confirm(context,'Close this bill? Rental cycles stop from the closure date.'))return;final raw=await ref.read(billingRepositoryProvider).get('bills','${bill['bill_no']}');if(raw==null)return;final today=dateKey(DateTime.now().toUtc());await ref.read(billingRepositoryProvider).put('bills',{...raw,'status':'closed','closed_at':today,'closed_by':ref.read(authRepositoryProvider).currentUser?.email,'closed_at_iso':DateTime.now().toUtc().toIso8601String()});}
-  Future<void> _deleteBill(BuildContext context,WidgetRef ref,bool admin)async{if(!admin){_toast(context,'Administrator access required');return;}if(!await _confirm(context,'Permanently delete bill #$billNo?'))return;await ref.read(billingRepositoryProvider).delete('bills',billNo);if(context.mounted)Navigator.pop(context);}
-  Future<bool> _confirm(BuildContext context,String text)async=>await showDialog<bool>(context:context,builder:(c)=>AlertDialog(content:Text(text),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Confirm'))]))??false;
+  Future<bool> _verifyBillAction(BuildContext context,String title,String detail) async {
+    final password=TextEditingController();
+    try {
+      return await showDialog<bool>(context:context,builder:(dialog) {
+        var busy=false;String? error;
+        return StatefulBuilder(builder:(dialog,update)=>AlertDialog(
+          title:Text(title),content:Column(mainAxisSize:MainAxisSize.min,
+            crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Text(detail),const SizedBox(height:14),
+              TextField(controller:password,obscureText:true,autofocus:true,
+                decoration:const InputDecoration(labelText:'Firebase account password')),
+              if(error!=null) Padding(padding:const EdgeInsets.only(top:10),
+                child:Text(error!,style:TextStyle(color:AppPalette.of(dialog).danger))),
+            ]),actions:[TextButton(onPressed:busy?null:()=>Navigator.pop(dialog,false),
+              child:const Text('Cancel')),
+              FilledButton(onPressed:busy?null:() async {
+                if(password.text.isEmpty) {update(()=>error='Enter your password.');return;}
+                update(() {busy=true;error=null;});
+                try {
+                  await ref.read(authRepositoryProvider).verifyPassword(password.text);
+                  if(dialog.mounted) Navigator.pop(dialog,true);
+                } catch(_) {if(dialog.mounted) update(() {
+                  busy=false;error='Password verification failed.';
+                });}
+              },child:Text(title))]));
+      }) ?? false;
+    } finally {password.dispose();}
+  }
+  Future<void> _close(BuildContext context,WidgetRef ref,Map bill) async {
+    if(!await _verifyBillAction(context,'Close bill',
+      'Close bill #$billNo? Rental cycles stop from the closure date.')) return;
+    try {
+      final repo=ref.read(billingRepositoryProvider);
+      final raw=await repo.get('bills',billNo);
+      if(raw==null) throw StateError('Bill no longer exists.');
+      final now=DateTime.now().toUtc();
+      await repo.put('bills',{...raw,'status':'closed','closed_at':dateKey(now),
+        'closed_by':ref.read(authRepositoryProvider).currentUser?.email,
+        'closed_at_iso':now.toIso8601String()});
+      ref.invalidate(billDetailProvider(billNo));
+      if(context.mounted) _toast(context,'Bill closed');
+    } catch(error) {if(context.mounted) _toast(context,'Could not close bill: $error');}
+  }
+  Future<void> _deleteBill(BuildContext context,WidgetRef ref) async {
+    if(!await _verifyBillAction(context,'Delete bill',
+      'Permanently delete bill #$billNo? This cannot be undone.')) return;
+    try {await ref.read(billingRepositoryProvider).delete('bills',billNo);
+      if(context.mounted) Navigator.pop(context);
+    } catch(error) {if(context.mounted) _toast(context,'Could not delete bill: $error');}
+  }
   void _toast(BuildContext context,String text)=>ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(text)));
 }

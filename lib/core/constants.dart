@@ -26,6 +26,7 @@ class MaterialSpec {
 
 const storeKeys = <String, String>{
   'bills': 'bill_no',
+  'column_box_bills': 'id',
   'customers': 'mobile',
   'customBills': 'bill_no',
   'slips': 'slip_no',

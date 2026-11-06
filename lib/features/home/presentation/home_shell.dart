@@ -6,6 +6,8 @@ import '../../../core/widgets/common.dart';
 import '../../admin/presentation/admin_screen.dart';
 import '../../billing/presentation/bill_form_screen.dart';
 import '../../billing/presentation/bills_screen.dart';
+import '../../column_box/presentation/column_box_bills_list_screen.dart';
+import '../../column_box/presentation/create_column_box_bill_screen.dart';
 import '../../custom_bills/presentation/custom_bill_screen.dart';
 import '../../inventory/presentation/inventory_screen.dart';
 import '../../notifications/presentation/notifications_screen.dart';
@@ -64,10 +66,16 @@ Future<void> _chooseCreate(BuildContext context) async {
         ListTile(leading: const Icon(Icons.shopping_bag_outlined),
           title: const Text('Custom shop bill'), subtitle: const Text('Materials and one time charges'),
           onTap: () => Navigator.pop(sheet, 'custom')),
+        ListTile(leading: const Icon(Icons.view_in_ar_outlined),
+          title: const Text('Column box bill'),
+          subtitle: const Text('Centring and sized column boxes by the day'),
+          onTap: () => Navigator.pop(sheet, 'column_box')),
       ]))));
   if (type == null || !context.mounted) return;
   await Navigator.push(context, MaterialPageRoute(builder: (_) =>
-    type == 'rental' ? const BillFormScreen() : const CustomBillFormScreen()));
+    type == 'rental' ? const BillFormScreen() :
+    type == 'column_box' ? const CreateColumnBoxBillScreen() :
+      const CustomBillFormScreen()));
 }
 
 class MoreScreen extends StatelessWidget {
@@ -83,6 +91,12 @@ class MoreScreen extends StatelessWidget {
         const SectionTitle('Billing & finance'),
         _tile(context, 'Custom bills', 'One time shop invoices', Icons.shopping_bag_outlined,
           () => _open(context, const CustomBillScreen())),
+        _tile(context, 'Column box bills', 'Daily centring and column box rentals',
+          Icons.view_in_ar_outlined,
+          () => _open(context, const ColumnBoxBillsListScreen())),
+        _tile(context, 'New column box bill', 'Create a sized rental invoice',
+          Icons.add_box_outlined,
+          () => _open(context, const CreateColumnBoxBillScreen())),
         _tile(context, 'Reports', 'Collections and material rent', Icons.query_stats,
           () => _open(context, const ReportsScreen())),
         _tile(context, 'Notifications', 'Overdue, due today and upcoming bills',

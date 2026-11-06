@@ -8,6 +8,7 @@ import '../../../core/constants.dart';
 import '../../../core/providers.dart';
 import '../../../core/widgets/common.dart';
 import '../../billing/domain/billing_calculator.dart';
+import '../../column_box/data/column_box_repository.dart';
 import '../domain/backup_codec.dart';
 
 class BackupScreen extends ConsumerStatefulWidget {
@@ -73,6 +74,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       await ref.read(billingRepositoryProvider).replaceAll(stores);
       ref.invalidate(billsProvider);
       ref.invalidate(customBillsProvider);
+      ref.invalidate(columnBoxBillsProvider);
       ref.invalidate(customersProvider);
       ref.invalidate(inventoryProvider);
       ref.invalidate(slipsProvider);
@@ -101,7 +103,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text('Export file', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            const Text('Includes bills, customers, custom bills, slips, '
+            const Text('Includes rental and column box bills, customers, custom bills, slips, '
               'challans, inventory, and settings.'),
             const SizedBox(height: 16),
             FilledButton.icon(onPressed: busy ? null : _export,
