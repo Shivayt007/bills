@@ -199,6 +199,7 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
     final p = AppPalette.of(context);
     final rate = AnimatedBuilder(animation: c[spec.rateField]!,
       builder: (context, _) => Text('₹${c[spec.rateField]!.text} per cycle',
+        maxLines: 1, overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(color: p.muted)));
     final details = Column(crossAxisAlignment: CrossAxisAlignment.start,children: [
       Text(spec.label,maxLines:1,overflow:TextOverflow.ellipsis,
@@ -207,7 +208,8 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
         borderRadius: BorderRadius.circular(8),
         child: Padding(padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(mainAxisSize: MainAxisSize.min,children: [
-            rate,const SizedBox(width: 4),Icon(Icons.edit_outlined,size: 14,color: p.accent),
+            Flexible(child: rate),const SizedBox(width: 4),
+            Icon(Icons.edit_outlined,size: 14,color: p.accent),
           ]))),
     ]);
     return Padding(padding: const EdgeInsets.only(bottom: 9),
