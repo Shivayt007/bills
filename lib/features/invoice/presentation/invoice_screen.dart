@@ -1,24 +1,28 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants.dart';
+import '../../../core/providers.dart';
 import '../../../core/widgets/common.dart';
 import '../../billing/domain/billing_calculator.dart';
 
-const invoiceNavy = Color(0xFF101827);
-const invoiceGold = Color(0xFFC48A22);
-const invoicePale = Color(0xFFF0F3F8);
-const invoiceWarm = Color(0xFFFFF2C8);
-const invoiceMuted = Color(0xFF536071);
+const invoiceNavy = Color(0xFF05637F);
+const invoiceGold = Color(0xFF75D5EF);
+const invoicePale = Color(0xFFEDF5F8);
+const invoiceWarm = Color(0xFFDDEFF4);
+const invoiceMuted = Color(0xFF536C78);
+const defaultInvoiceTerms = '1) Rent is cycle-based (15/20/30 days as per bill).\n2) Transport/Loading/Unloading applies only in first cycle.\n3) Advance is a refundable security deposit.\n4) Damaged or missing materials are charged separately.\n5) Payment is due within the agreed period.';
 
 class InvoiceData {
-  InvoiceData(this.bill) {
+  InvoiceData(this.bill, {this.terms = defaultInvoiceTerms}) {
     cycles = (bill['cycles'] as List? ?? const []).cast<Map>();
     payments = (bill['payments'] as List? ?? const []).cast<Map>();
     final last = cycles.isEmpty ? null : cycles.last;
@@ -40,6 +44,7 @@ class InvoiceData {
     ];
   }
   final Map<String, dynamic> bill;
+  final String terms;
   late final List<Map> cycles, payments;
   late final RentBreakdown rent;
   late final List<List<String>> lines;
@@ -62,16 +67,19 @@ class InvoiceData {
   ]).toList();
 }
 
-class InvoiceScreen extends StatefulWidget {
+class InvoiceScreen extends ConsumerStatefulWidget {
   const InvoiceScreen({super.key, required this.bill});
   final Map<String, dynamic> bill;
-  @override State<InvoiceScreen> createState() => _InvoiceScreenState();
+  @override ConsumerState<InvoiceScreen> createState() => _InvoiceScreenState();
 }
-class _InvoiceScreenState extends State<InvoiceScreen> {
+class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
   final capture = GlobalKey();
   bool working = false;
   @override Widget build(BuildContext context) {
-    final data = InvoiceData(widget.bill);
+    final settings = ref.watch(settingsProvider).asData?.value ?? const <Map<String,dynamic>>[];
+    final savedTerms = settings.where((row) => row['key'] == 'terms_invoice').firstOrNull?['value'];
+    final data = InvoiceData(widget.bill, terms: savedTerms is String && savedTerms.trim().isNotEmpty
+      ? savedTerms.trim() : defaultInvoiceTerms);
     return Scaffold(appBar: AppBar(title: const Text('Rental invoice'), actions: [
       IconButton(onPressed: working ? null : shareImage, tooltip: 'Share as image',
         icon: const Icon(Icons.image_outlined)),
@@ -111,7 +119,11 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     setState(() => working = true);
     try {
       final logo = await rootBundle.load('assets/sa-traders-logo.jpg');
-      final bytes = await buildInvoicePdf(InvoiceData(widget.bill), logo.buffer.asUint8List());
+      final settings = ref.read(settingsProvider).asData?.value ?? const <Map<String,dynamic>>[];
+      final savedTerms = settings.where((row) => row['key'] == 'terms_invoice').firstOrNull?['value'];
+      final bytes = await buildInvoicePdf(InvoiceData(widget.bill,
+        terms: savedTerms is String && savedTerms.trim().isNotEmpty
+          ? savedTerms.trim() : defaultInvoiceTerms), logo.buffer.asUint8List());
       await Printing.sharePdf(bytes: bytes, filename:
         'SA-Traders-' + widget.bill['bill_no'].toString() + '.pdf');
     } catch (error) {
@@ -132,7 +144,9 @@ class InvoicePaper extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text(businessName, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+              const Row(children: [InvoiceMark(), SizedBox(width: 7),
+                Flexible(child: Text(businessName, maxLines: 1,
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)))]),
               const Text('SCAFFOLDING & CONSTRUCTION MATERIALS', style:
                 TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: invoiceGold)),
               const SizedBox(height: 4),
@@ -178,7 +192,7 @@ class InvoicePaper extends StatelessWidget {
           ...data.paymentRows.map((line) => _row(line, const [2, 4, 2])),
           const SizedBox(height: 12),
           Container(decoration: BoxDecoration(color: invoiceNavy,
-            border: Border.all(color: invoiceGold), borderRadius: BorderRadius.circular(5)),
+            border: Border.all(color: invoicePale), borderRadius: BorderRadius.circular(8)),
             child: Column(children: [
               Padding(padding: const EdgeInsets.all(10), child: Row(children: [
                 _total('TOTAL DUE', data.total), _total('TOTAL PAID', data.paid),
@@ -189,7 +203,16 @@ class InvoicePaper extends StatelessWidget {
                   + (b['cycle_days'] ?? 30).toString() + '-day cycle  ·  Transport Cycle #1 only',
                   style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w700))),
             ])),
-          const SizedBox(height: 25),
+          const SizedBox(height: 12),
+          Container(width: double.infinity, color: invoicePale,
+            padding: const EdgeInsets.all(8), child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('TERMS & CONDITIONS', style: TextStyle(fontSize: 8,
+                  fontWeight: FontWeight.w900, color: invoiceNavy)),
+                const SizedBox(height: 4),
+                Text(data.terms, style: const TextStyle(fontSize: 7.5, height: 1.3)),
+              ])),
+          const SizedBox(height: 18),
           const Row(children: [
             Expanded(child: Text('CUSTOMER SIGNATURE', style: TextStyle(color: invoiceMuted, fontSize: 8))),
             Expanded(child: Text('FOR S.A TRADERS', textAlign: TextAlign.right,
@@ -226,11 +249,21 @@ class InvoicePaper extends StatelessWidget {
     ]));
 }
 
+class InvoiceMark extends StatelessWidget {
+  const InvoiceMark({super.key});
+  @override Widget build(BuildContext context) => Container(width: 32, height: 32,
+    decoration: BoxDecoration(color: invoicePale, borderRadius: BorderRadius.circular(6),
+      border: Border.all(color: invoiceNavy, width: 1.3)),
+    alignment: Alignment.center,
+    child: const Text('SA', style: TextStyle(color: invoiceNavy,
+      fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: -2)));
+}
+
 Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
-  final navy = PdfColor.fromHex('#101827'), gold = PdfColor.fromHex('#C48A22');
-  final pale = PdfColor.fromHex('#F0F3F8'), warm = PdfColor.fromHex('#FFF2C8');
+  final navy = PdfColor.fromHex('#05637F'), gold = PdfColor.fromHex('#75D5EF');
+  final pale = PdfColor.fromHex('#EDF5F8'), warm = PdfColor.fromHex('#DDEFF4');
   final doc = pw.Document();
-  String pdfMoney(num value) => 'Rs ' + value.toStringAsFixed(2);
+  String pdfMoney(num value) => 'Rs ' + NumberFormat('#,##,##0.00', 'en_IN').format(value);
   List<String> clean(List<String> row) => row.map((v) => v
     .replaceAll('₹', 'Rs ').replaceAll('—', '-').replaceAll('–', '-')
     .replaceAll('·', '-')).toList();
@@ -257,7 +290,10 @@ Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
   doc.addPage(pw.MultiPage(pageFormat: PdfPageFormat.a4, margin: const pw.EdgeInsets.all(30),
     build: (context) => [
       pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-        pw.Image(pw.MemoryImage(logo), width: 36, height: 36), pw.SizedBox(width: 9),
+        pw.Container(width: 36, height: 36, alignment: pw.Alignment.center,
+          decoration: pw.BoxDecoration(color: pale, border: pw.Border.all(color: navy)),
+          child: pw.Text('SA', style: pw.TextStyle(color: navy, fontSize: 16,
+            fontWeight: pw.FontWeight.bold))), pw.SizedBox(width: 9),
         pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           pw.Text(businessName, style: pw.TextStyle(color: navy, fontSize: 18,
             fontWeight: pw.FontWeight.bold)),
@@ -314,7 +350,16 @@ Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
       pw.Container(width: double.infinity, color: warm, padding: const pw.EdgeInsets.all(8),
         child: pw.Text('Advance: ' + pdfMoney(data.advance) +
           ' (Refundable)     Transport Cycle #1 only', style: const pw.TextStyle(fontSize: 8))),
-      pw.SizedBox(height: 30),
+      pw.SizedBox(height: 10),
+      pw.Container(width: double.infinity, color: pale, padding: const pw.EdgeInsets.all(8),
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Text('TERMS & CONDITIONS', style: pw.TextStyle(color: navy,
+            fontWeight: pw.FontWeight.bold, fontSize: 8)),
+          pw.SizedBox(height: 4),
+          pw.Text(data.terms.replaceAll('₹', 'Rs ').replaceAll('–', '-'),
+            style: const pw.TextStyle(fontSize: 7)),
+        ])),
+      pw.SizedBox(height: 25),
       pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
         pw.Text('CUSTOMER SIGNATURE', style: const pw.TextStyle(fontSize: 8)),
         pw.Text('FOR S.A TRADERS', style: const pw.TextStyle(fontSize: 8)),
