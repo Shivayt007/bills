@@ -98,6 +98,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
             OutlinedButton.icon(onPressed:()=>_invoice(context,b),
               icon:const Icon(Icons.share_outlined),label:const Text('Invoice')),
             if (b['status'] != 'closed') OutlinedButton.icon(
+              onPressed:()=>_invoice(context,b,cycles.length+1),
+              icon:const Icon(Icons.event_upcoming_outlined),
+              label:const Text('Upcoming cycle bill')),
+            if (b['status'] != 'closed') OutlinedButton.icon(
               onPressed:()=>_close(context,ref,b),
               icon:const Icon(Icons.lock_outline),label:const Text('Close bill')),
             TextButton.icon(onPressed:()=>_deleteBill(context,ref),
@@ -114,7 +118,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
           const SizedBox(height:14),
           _designCard('Rental cycles',Icons.calendar_month_outlined,[
             if (cycles.isEmpty) const Text('No rental cycles yet')
-            else ...cycles.map((cycle)=>_cycle(cycle,payments)),
+            else ...cycles.map((cycle)=>_cycle(cycle,payments,b)),
           ]),
           const SizedBox(height:14),
           _designCard('Payment history',Icons.account_balance_wallet_outlined,[
@@ -205,12 +209,12 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     Text(_money(amount),style:TextStyle(fontWeight:FontWeight.w900,
       color:bold?AppPalette.of(context).accent:AppPalette.of(context).ink)),
   ]);
-  void _invoice(BuildContext context,Map<String,dynamic> b)=>Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoiceScreen(bill:b)));
+  void _invoice(BuildContext context,Map<String,dynamic> b,[int? cycle])=>Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoiceScreen(bill:b,initialCycle:cycle)));
   Widget _summary(String label,Object? amount)=>Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:const TextStyle(color:Colors.white70)),FittedBox(child:Text(_money(amount is num ? amount : 0),style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w900,fontSize:24)))]));
   Widget _tabs(List<String> labels,int selected,ValueChanged<int> change)=>Container(padding:const EdgeInsets.all(4),decoration:BoxDecoration(color:AppPalette.of(context).subtle,borderRadius:BorderRadius.circular(14)),child:Row(children:List.generate(labels.length,(i)=>Expanded(child:TextButton(style:TextButton.styleFrom(backgroundColor:i==selected?navy:Colors.transparent,foregroundColor:i==selected?Colors.white:AppPalette.of(context).ink,padding:const EdgeInsets.symmetric(vertical:12,horizontal:3)),onPressed:()=>change(i),child:Text(labels[i],textAlign:TextAlign.center,style:const TextStyle(fontSize:12,fontWeight:FontWeight.w800)))))));
   Widget _panel(String title,IconData icon,List<Widget> children)=>Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(children:[Icon(icon,color:AppPalette.of(context).accent),const SizedBox(width:8),Expanded(child:Text(title,style:TextStyle(fontWeight:FontWeight.w900,fontSize:18,color:AppPalette.of(context).ink)))]),const SizedBox(height:14),...children])));
   Widget _materials(Map b){final qty=b['balance_qty'] as Map;final wood=b['balance_wood'] as Map;final items=<({String name,int count,String detail})>[...materialCatalog.map((s)=>(name:s.label,count:(qty[s.key] as num? ?? 0).toInt(),detail:'')),...woodCatalog.map((s){final m=Map<String,int>.from(wood[s.key] as Map);return (name:s.label,count:m.values.fold<int>(0,(a,v)=>a+v),detail:woodToText(m));})];items.sort((a,b)=>b.count.compareTo(a.count));final primary=items.where((x)=>x.count>0).toList();final rest=items.where((x)=>x.count==0).toList();return _panel('Materials out · ${items.fold<int>(0,(n,x)=>n+x.count)} units',Icons.construction_outlined,[Wrap(spacing:8,runSpacing:8,children:primary.map((x)=>Container(width:(MediaQuery.sizeOf(context).width-76)/3,padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:AppPalette.of(context).subtle,borderRadius:BorderRadius.circular(14)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(x.name.toLowerCase().contains('sheet')?Icons.layers_outlined:x.name.toLowerCase().contains('span')?Icons.view_agenda_outlined:Icons.construction_outlined,color:AppPalette.of(context).accent),Text(x.name,style:const TextStyle(fontWeight:FontWeight.w800)),Text('${x.count}',style:const TextStyle(fontWeight:FontWeight.w900,fontSize:28)),if(x.detail.isNotEmpty)Text(x.detail)]))).toList()),ExpansionTile(tilePadding:EdgeInsets.zero,title:Text('Other materials · ${rest.length} items',style:const TextStyle(fontWeight:FontWeight.w700)),children:rest.map((x)=>_quantityRow(x.name,x.count)).toList())]);}
-  Widget _cycle(Map c,List<Map> payments){final paid=payments.where((p)=>p['cycle_index']==c['index']&&p['cycle_start_date']==c['start_date']&&p['cycle_end_date']==c['end_date']).fold<double>(0,(v,p)=>v+((p['amount'] as num?)?.toDouble()??0));final due=((c['total'] as num).toDouble()-paid).clamp(0,double.infinity);return Container(padding:const EdgeInsets.symmetric(vertical:12),decoration:BoxDecoration(border:Border(bottom:BorderSide(color:AppPalette.of(context).border))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Cycle ${c['index']}',style:const TextStyle(fontWeight:FontWeight.w900)),Text('${c['start_date']} – ${c['end_date']}',style:const TextStyle(fontSize:12)),const SizedBox(height:8),Wrap(spacing:18,runSpacing:6,children:[Text('Charge ${_money(c['total'])}'),Text('Paid ${_money(paid)}'),Text('Due ${_money(due)}',style:TextStyle(fontWeight:FontWeight.w800,color:due>0?AppPalette.of(context).danger:AppPalette.of(context).positive))])]));}
+  Widget _cycle(Map c,List<Map> payments,Map<String,dynamic> bill){final paid=payments.where((p)=>p['cycle_index']==c['index']&&p['cycle_start_date']==c['start_date']&&p['cycle_end_date']==c['end_date']).fold<double>(0,(v,p)=>v+((p['amount'] as num?)?.toDouble()??0));final due=((c['total'] as num).toDouble()-paid).clamp(0,double.infinity);return Container(padding:const EdgeInsets.symmetric(vertical:12),decoration:BoxDecoration(border:Border(bottom:BorderSide(color:AppPalette.of(context).border))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text('Cycle ${c['index']}',style:const TextStyle(fontWeight:FontWeight.w900))),TextButton.icon(onPressed:()=>_invoice(context,bill,(c['index'] as num).toInt()),icon:const Icon(Icons.receipt_long_outlined,size:17),label:const Text('Invoice'))]),Text('${c['start_date']} – ${c['end_date']}',style:const TextStyle(fontSize:12)),const SizedBox(height:8),Wrap(spacing:18,runSpacing:6,children:[Text('Charge ${_money(c['total'])}'),Text('Paid ${_money(paid)}'),Text('Due ${_money(due)}',style:TextStyle(fontWeight:FontWeight.w800,color:due>0?AppPalette.of(context).danger:AppPalette.of(context).positive))])]));}
   Widget _personCard(BuildContext c,Map<String,dynamic>b){
     final name='${b['name']??'Customer'}'.trim();final closed=b['status']=='closed';
     return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(crossAxisAlignment:CrossAxisAlignment.start,children:[CircleAvatar(radius:24,backgroundColor:const Color(0xffcfe6f7),child:Text(name.isEmpty?'S':name[0].toUpperCase(),style:const TextStyle(color:navy,fontWeight:FontWeight.w900,fontSize:24))),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(name,style:TextStyle(fontWeight:FontWeight.w900,fontSize:22,color:AppPalette.of(context).ink)),Text('${b['mobile']??'—'}',style:const TextStyle(fontWeight:FontWeight.w700)),Text('${b['place']??'—'}')])),const SizedBox(width:6),Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:7),decoration:BoxDecoration(color:closed?const Color(0xffe4eaf0):const Color(0xffbef2c4),borderRadius:BorderRadius.circular(12)),child:Text(closed?'CLOSED':'OPEN',style:TextStyle(color:closed?navy:const Color(0xff115c24),fontWeight:FontWeight.w900,fontSize:12)))]),const SizedBox(height:10),Text('Started ${b['start_date']??'—'} · ${b['cycle_days']??30}-day cycle',style:TextStyle(color:AppPalette.of(context).muted,fontSize:12))])));
@@ -334,48 +338,79 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     }
   }
 
-  Future<bool> _confirmReturn(BuildContext context, List<ReturnAllocation> split,
-      Map<String, Map<String, dynamic>> bills, ReturnDraft draft) async {
+  Future<List<ReturnAllocation>?> _confirmReturn(BuildContext context,
+      List<ReturnAllocation> initial, Map<String, Map<String, dynamic>> bills,
+      ReturnDraft draft) async {
+    final chosen = Map<String, int>.from(draft.effectiveCycles);
+    var split = initial;
+    String? error;
     final date = DateTime.now().toUtc();
-    final preview = <Widget>[];
-    for (final original in bills.values) {
-      final id = '${original['bill_no']}';
-      final allocation = split.where((a) => a.billNo == id).firstOrNull;
-      final rows = withoutReturnGroup(original, groupId: draft.oldGroupId,
-        id: id == draft.billNo ? draft.oldId : null);
-      if (allocation == null && rows.length == historyRows(original['return_history']).length) continue;
-      final before = hydrateRentalBill(original, today: date);
-      final after = hydrateRentalBill({...original, 'return_history': [...rows,
-        if (allocation != null) {
-        'effective_from_cycle': allocation.effectiveCycle,
-        'items': allocation.items, 'wood': allocation.wood,
-      }]}, today: date);
-      final parts = <String>[
-        if (allocation != null) ...[
-          for (final s in materialCatalog) if ((allocation.items[s.key] ?? 0) > 0)
-            '${s.label} ${allocation.items[s.key]}',
-          for (final s in woodCatalog) if (allocation.wood[s.key]!.isNotEmpty)
-            '${s.label} ${woodToText(allocation.wood[s.key])}',
-        ],
-      ];
-      preview.add(Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Bill #$id${allocation == null ? ' · Return removed' : ' · Cycle #${allocation.effectiveCycle}'}',
-            style: const TextStyle(fontWeight: FontWeight.w800)),
-          Text(parts.join(' · ')),
-          Text('Due ${_money(before['pending'] as num)} → ${_money(after['pending'] as num)}',
-            style: TextStyle(color: AppPalette.of(context).accent)),
-        ])));
-    }
-    return await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
-      title: const Text('Review material return'),
-      content: SizedBox(width: 430, child: SingleChildScrollView(child: Column(
-        mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
-        children: [Text('Return date ${draft.date}. These bills and rental cycles will be updated:'),
-          const SizedBox(height: 10), ...preview]))),
-      actions: [TextButton(onPressed: () => Navigator.pop(dialog, false),
-        child: const Text('Back')), FilledButton(onPressed: () => Navigator.pop(dialog, true),
-        child: const Text('Confirm return'))])) ?? false;
+    return showDialog<List<ReturnAllocation>>(context: context, builder: (dialog) =>
+      StatefulBuilder(builder: (dialog, refresh) {
+        final preview = <Widget>[];
+        for (final original in bills.values) {
+          final id = '${original['bill_no']}';
+          final allocation = split.where((a) => a.billNo == id).firstOrNull;
+          final rows = withoutReturnGroup(original, groupId: draft.oldGroupId,
+            id: id == draft.billNo ? draft.oldId : null);
+          if (allocation == null && rows.length == historyRows(original['return_history']).length) continue;
+          final before = hydrateRentalBill(original, today: date);
+          final after = hydrateRentalBill({...original, 'return_history': [...rows,
+            if (allocation != null) {
+              'effective_from_cycle': allocation.effectiveCycle,
+              'items': allocation.items, 'wood': allocation.wood,
+            }]}, today: date);
+          final parts = <String>[
+            if (allocation != null) ...[
+              for (final s in materialCatalog) if ((allocation.items[s.key] ?? 0) > 0)
+                '${s.label} ${allocation.items[s.key]}',
+              for (final s in woodCatalog) if (allocation.wood[s.key]!.isNotEmpty)
+                '${s.label} ${woodToText(allocation.wood[s.key])}',
+            ],
+          ];
+          final start = parseBillingDate(original['start_date']);
+          final days = (original['cycle_days'] as num?)?.toInt() ?? 30;
+          final maxCycle = start == null ? 1 : cycleIndex(start, days, parseBillingDate(draft.date)!) + 1;
+          preview.add(Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Bill #$id', style: const TextStyle(fontWeight: FontWeight.w800)),
+              if (allocation != null) DropdownButtonFormField<int>(
+                value: allocation.effectiveCycle, isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Charge stops from cycle'),
+                items: [for (var i = 1; i <= maxCycle; i++) DropdownMenuItem(
+                  value: i, child: Text('Cycle #$i · ${dateKey(start!.add(Duration(days: (i - 1) * days)))}'))],
+                onChanged: (value) {
+                  if (value == null) return;
+                  final proposed = {...chosen, id: value};
+                  try {
+                    final candidate = ReturnDraft(billNo: draft.billNo, date: draft.date,
+                      note: draft.note, items: draft.items, wood: draft.wood,
+                      applyToCurrentCycle: draft.applyToCurrentCycle,
+                      effectiveCycles: proposed, oldId: draft.oldId,
+                      oldGroupId: draft.oldGroupId);
+                    final updated = ReturnService(ref.read(billingRepositoryProvider))
+                      .preview(candidate, bills.values.toList());
+                    refresh(() { chosen..clear()..addAll(proposed); split = updated; error = null; });
+                  } catch (e) {
+                    refresh(() => error = '$e');
+                  }
+                }),
+              Text(parts.isEmpty ? 'Return removed from this bill' : parts.join(' · ')),
+              Text('Due ${_money(before['pending'] as num)} → ${_money(after['pending'] as num)}',
+                style: TextStyle(color: AppPalette.of(context).accent)),
+            ])));
+        }
+        return AlertDialog(title: const Text('Review material return'),
+          content: SizedBox(width: 430, child: SingleChildScrollView(child: Column(
+            mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+            children: [Text('Return date ${draft.date}. Choose the cycle for each bill:'),
+              const SizedBox(height: 10), ...preview,
+              if (error != null) Text(error!, style: TextStyle(color: AppPalette.of(dialog).danger))]))),
+          actions: [TextButton(onPressed: () => Navigator.pop(dialog),
+            child: const Text('Back')), FilledButton(onPressed: error == null ? () =>
+              Navigator.pop(dialog, split) : null,
+            child: const Text('Confirm return'))]);
+      }));
   }
 
   Future<void> _saveReturn(BuildContext context, WidgetRef ref, Map bill,
@@ -427,13 +462,34 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       final draft = ReturnDraft(billNo: billNo, date: entry.date, note: entry.note,
         items: entry.items, wood: entry.wood,
         applyToCurrentCycle: entry.applyToCurrentCycle,
+        effectiveCycles: {
+          for (final b in byId.values)
+            if (selected != null)
+              for (final row in historyRows(b['return_history']))
+                if (belongsToReturnGroup(row, groupId: groupId,
+                  id: '${b['bill_no']}' == billNo ? selected['rid'] as String? : null))
+                  if (parseBillingDate(b['start_date']) != null &&
+                    (row['effective_from_cycle'] as num).toInt() <= cycleIndex(
+                      parseBillingDate(b['start_date'])!,
+                      (b['cycle_days'] as num?)?.toInt() ?? 30,
+                      parseBillingDate(entry.date)!) + 1)
+                    '${b['bill_no']}': (row['effective_from_cycle'] as num).toInt(),
+          billNo: entry.effectiveCycle!,
+        },
         oldId: selected == null ? null : selected['rid'] as String?, oldGroupId: groupId);
       final split = service.preview(draft, byId.values.toList());
-      if (!context.mounted || !await _confirmReturn(context, split, byId, draft)) return;
-      await service.save(draft, split, byId.values.toList(),
+      if (!context.mounted) return;
+      final confirmed = await _confirmReturn(context, split, byId, draft);
+      if (confirmed == null) return;
+      final finalDraft = ReturnDraft(billNo: draft.billNo, date: draft.date,
+        note: draft.note, items: draft.items, wood: draft.wood,
+        applyToCurrentCycle: draft.applyToCurrentCycle,
+        effectiveCycles: {for (final a in confirmed) a.billNo: a.effectiveCycle},
+        oldId: draft.oldId, oldGroupId: draft.oldGroupId);
+      await service.save(finalDraft, confirmed, byId.values.toList(),
         ref.read(authRepositoryProvider).currentUser?.email ?? 'unknown');
       ref.invalidate(billDetailProvider(billNo));
-      if (context.mounted) _toast(context, 'Return saved across ${split.length} bill(s)');
+      if (context.mounted) _toast(context, 'Return saved across ${confirmed.length} bill(s)');
     } catch (error) {
       if (context.mounted) _toast(context, 'Return not saved: $error');
     }
@@ -550,12 +606,9 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       final old = latest[position];
       latest[position] = {...old, 'date': entry.date, 'note': entry.note,
         'items': entry.items, 'wood': entry.wood,
-        'effective_from_cycle': cycleIndex(start,
-          (fresh['cycle_days'] as num?)?.toInt() ?? 30,
-          parseBillingDate(entry.date)!) +
-          (isReturn && entry.applyToCurrentCycle &&
-            cycleIndex(start, (fresh['cycle_days'] as num?)?.toInt() ?? 30,
-              parseBillingDate(entry.date)!) > 1 ? 0 : 1),
+        'effective_from_cycle': isReturn ? entry.effectiveCycle! :
+          cycleIndex(start, (fresh['cycle_days'] as num?)?.toInt() ?? 30,
+            parseBillingDate(entry.date)!) + 1,
         'edited_by': ref.read(authRepositoryProvider).currentUser?.email,
         'edited_at': DateTime.now().toUtc().toIso8601String()};
       final audit = historyRows(fresh['history_audit'])..add({

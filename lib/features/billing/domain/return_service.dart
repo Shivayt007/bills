@@ -6,11 +6,12 @@ import 'history_corrections.dart';
 class ReturnDraft {
   const ReturnDraft({required this.billNo, required this.date, required this.note,
     required this.items, required this.wood, required this.applyToCurrentCycle,
-    this.oldId, this.oldGroupId});
+    this.effectiveCycles = const {}, this.oldId, this.oldGroupId});
   final String billNo, date, note;
   final Map<String, int> items;
   final Map<String, Map<String, int>> wood;
   final bool applyToCurrentCycle;
+  final Map<String, int> effectiveCycles;
   final String? oldId, oldGroupId;
 }
 
@@ -50,7 +51,8 @@ class ReturnService {
     final primary = candidates.where((b) => '${b['bill_no']}' == draft.billNo).first;
     return allocateReturn(primary: primary, bills: candidates,
       items: draft.items, wood: draft.wood, date: parseBillingDate(draft.date)!,
-      applyToCurrentCycle: draft.applyToCurrentCycle);
+      applyToCurrentCycle: draft.applyToCurrentCycle,
+      effectiveCycles: draft.effectiveCycles);
   }
 
   /// All affected bills are re-read and written atomically, with the preview

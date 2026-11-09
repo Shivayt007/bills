@@ -30,6 +30,13 @@ void main() {
       items: {'jackey': 20}, wood: {}, date: date,
       applyToCurrentCycle: false);
     expect(next.single.effectiveCycle, 3);
+    final earliest = allocateReturn(primary: primary, bills: [primary],
+      items: {'jackey': 20}, wood: {}, date: date,
+      applyToCurrentCycle: false, effectiveCycles: {'A': 1});
+    expect(earliest.single.effectiveCycle, 1);
+    expect(() => allocateReturn(primary: primary, bills: [primary],
+      items: {'jackey': 20}, wood: {}, date: date,
+      applyToCurrentCycle: false, effectiveCycles: {'A': 4}), throwsStateError);
   });
 
   test('single return splits across matching open bills, including absent material', () {
@@ -39,6 +46,10 @@ void main() {
       applyToCurrentCycle: true);
     expect(split.map((x) => x.billNo), ['A', 'B']);
     expect(split.map((x) => x.items['jackey']), [100, 20]);
+    final independent = allocateReturn(primary: a, bills: [a, b],
+      items: {'jackey': 120}, wood: {}, date: date,
+      applyToCurrentCycle: false, effectiveCycles: {'A': 1, 'B': 2});
+    expect(independent.map((x) => x.effectiveCycle), [1, 2]);
     expect(() => allocateReturn(primary: a, bills: [a, b],
       items: {'jackey': 151}, wood: {}, date: date,
       applyToCurrentCycle: true), throwsStateError);

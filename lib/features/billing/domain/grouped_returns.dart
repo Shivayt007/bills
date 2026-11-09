@@ -35,6 +35,7 @@ List<ReturnAllocation> allocateReturn({
   required Map<String, Map<String, int>> wood,
   required DateTime date,
   required bool applyToCurrentCycle,
+  Map<String, int> effectiveCycles = const {},
 }) {
   final candidates = [primary, ...bills.where((b) =>
     '${b['bill_no']}' != '${primary['bill_no']}' && b['status'] != 'closed' &&
@@ -51,7 +52,11 @@ List<ReturnAllocation> allocateReturn({
     if (start == null || start.isAfter(date)) continue;
     final days = (bill['cycle_days'] as num?)?.toInt() ?? 30;
     final cycle = cycleIndex(start, days, date);
-    final effective = cycle + (applyToCurrentCycle && cycle > 1 ? 0 : 1);
+    final effective = effectiveCycles['${bill['bill_no']}'] ??
+      cycle + (applyToCurrentCycle && cycle > 1 ? 0 : 1);
+    if (effective < 1 || effective > cycle + 1) {
+      throw StateError('Choose a cycle from #1 to #${cycle + 1} for bill #${bill['bill_no']}.');
+    }
     // A return cannot precede its own material addition. Ledger validation
     // catches such cases instead of silently clamping the snapshot.
     final refreshed = hydrateRentalBill(bill, today: date);

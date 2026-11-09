@@ -13,11 +13,13 @@ class PaymentEntry {
 }
 
 class MaterialEntry {
-  const MaterialEntry(this.date, this.note, this.items, this.wood, this.applyToCurrentCycle);
+  const MaterialEntry(this.date, this.note, this.items, this.wood, this.applyToCurrentCycle,
+    this.effectiveCycle);
   final String date, note;
   final Map<String, int> items;
   final Map<String, Map<String, int>> wood;
   final bool applyToCurrentCycle;
+  final int? effectiveCycle;
 }
 
 Future<T?> _entrySheet<T>(BuildContext context, Widget child) =>
@@ -179,6 +181,7 @@ class _MaterialFormState extends State<_MaterialForm> {
   final note = TextEditingController();
   DateTime date = DateTime.now();
   bool applyToCurrentCycle = false;
+  int? effectiveCycle;
   String? error;
   List<Map> get availableBills => [widget.bill, ...widget.otherBills];
   int availableQty(String key) => availableBills.fold(0, (n, b) =>
@@ -206,7 +209,8 @@ class _MaterialFormState extends State<_MaterialForm> {
       final start = parseBillingDate(widget.bill['start_date']);
       if (start != null) {
         final cycle = cycleIndex(start, (widget.bill['cycle_days'] as num?)?.toInt() ?? 30, date);
-        applyToCurrentCycle = cycle > 1 && previous['effective_from_cycle'] == cycle;
+        effectiveCycle = (previous['effective_from_cycle'] as num?)?.toInt();
+        applyToCurrentCycle = cycle > 1 && effectiveCycle == cycle;
       }
     }
   }
@@ -221,7 +225,11 @@ class _MaterialFormState extends State<_MaterialForm> {
     final initial = date.isBefore(first) ? first : date;
     final picked = await showDatePicker(context: context, initialDate: initial,
       firstDate: first, lastDate: DateTime(2100));
-    if (picked != null) setState(() => date = picked);
+    if (picked != null) setState(() {
+      date = picked;
+      final cycle = cycleIndex(first, (widget.bill['cycle_days'] as num?)?.toInt() ?? 30, date);
+      if ((effectiveCycle ?? 0) > cycle + 1) effectiveCycle = cycle + 1;
+    });
   }
   void submit() {
     for (final spec in materialCatalog) {
@@ -264,7 +272,12 @@ class _MaterialFormState extends State<_MaterialForm> {
         }
       }
     }
-    Navigator.pop(context, MaterialEntry(dateKey(date), note.text.trim(), Map.of(qty), woods, applyToCurrentCycle));
+    Navigator.pop(context, MaterialEntry(dateKey(date), note.text.trim(), Map.of(qty), woods,
+      applyToCurrentCycle, widget.isReturn ? (effectiveCycle ?? cycleIndex(
+        parseBillingDate(widget.bill['start_date'])!,
+        (widget.bill['cycle_days'] as num?)?.toInt() ?? 30, date) + 1)
+          .clamp(1, cycleIndex(parseBillingDate(widget.bill['start_date'])!,
+            (widget.bill['cycle_days'] as num?)?.toInt() ?? 30, date) + 1).toInt() : null));
   }
 
   @override Widget build(BuildContext context) {
@@ -295,13 +308,16 @@ class _MaterialFormState extends State<_MaterialForm> {
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Text('Also checking ${widget.otherBills.length} other open bill(s) for this customer. Review the bill-by-bill split before saving.',
             style: Theme.of(context).textTheme.bodyMedium)),
-        if (widget.isReturn && cycle > 1) SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Apply to this rental cycle'),
-          subtitle: Text('Return after cycle #$cycle started? Exclude these items from its rent. Otherwise apply from cycle #${cycle+1}.'),
-          value: applyToCurrentCycle,
-          onChanged: (value) => setState(() => applyToCurrentCycle = value)),
-        if (!widget.isReturn || cycle == 1) Text('Changes apply from the next rental cycle after this date.',
+        if (widget.isReturn && start != null) DropdownButtonFormField<int>(
+          value: (effectiveCycle ?? cycle + 1).clamp(1, cycle + 1).toInt(),
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Apply return from cycle',
+            helperText: 'Choose any cycle. Earlier rent and due amounts will recalculate.'),
+          items: [for (var i = 1; i <= cycle + 1; i++)
+            DropdownMenuItem(value: i, child: Text('Cycle #$i · ${dateKey(start.add(
+              Duration(days: (i - 1) * ((widget.bill['cycle_days'] as num?)?.toInt() ?? 30))))}'))],
+          onChanged: (value) => setState(() => effectiveCycle = value)),
+        if (!widget.isReturn) Text('Changes apply from the next rental cycle after this date.',
           style: Theme.of(context).textTheme.bodySmall),
         const SectionTitle('Materials'),
         if (materials.isEmpty && woods.isEmpty)

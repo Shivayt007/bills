@@ -30,10 +30,23 @@ void main() {
     final bill = hydrateRentalBill(sample, today: DateTime.utc(2026, 11, 4));
     final data = InvoiceData(bill);
     expect(data.rent.rentTotal, 6675);
-    expect(data.cycles.length, 2);
-    expect(data.total, 13350);
-    expect(data.paid, 3141);
-    expect(data.pending, 10209);
+    expect(data.allCycles.length, 2);
+    expect(data.cycles.length, 1);
+    expect(data.total, 6675);
+    expect(data.paid, 0);
+    expect(data.pending, 6675);
+    final previous = InvoiceData(bill, cycleIndex: 1);
+    expect(previous.total, 6675);
+    expect(previous.paid, 3141);
+    expect(previous.pending, 3534);
+    final upcoming = InvoiceData(bill, cycleIndex: 3);
+    expect(upcoming.isUpcoming, isTrue);
+    expect(upcoming.cycle['start_date'], '2026-11-16');
+    expect(upcoming.total, 6675);
+    expect(upcoming.paid, 0);
+    expect(bill['total_due'], 13350); // advance preview never changes Firestore debt
+    expect(upcoming.paymentRows, isEmpty);
+    expect(upcoming.cycleRows, hasLength(1));
     expect(data.lines.map((l) => l.first), containsAll(['Jackey', 'Sheet']));
   });
   testWidgets('dark theme keeps surfaces, ink, and primary button contrasting', (tester) async {
@@ -62,7 +75,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(theme: buildTheme(Brightness.dark),
       home: Scaffold(body: SingleChildScrollView(child:
         RepaintBoundary(key: boundary, child: InvoicePaper(data: data))))));
-    expect(find.text('RENTAL CYCLES'), findsOneWidget);
+    expect(find.text('RENTAL CYCLE #2'), findsOneWidget);
     expect(find.text('PENDING'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.runAsync(() async {
@@ -80,5 +93,15 @@ void main() {
     await tester.runAsync(() async {
       await File('build/previews/invoice.pdf').writeAsBytes(pdf);
     });
+  });
+  testWidgets('upcoming invoice is visibly identified as advance preview', (tester) async {
+    final bill = hydrateRentalBill(sample, today: DateTime.utc(2026, 11, 4));
+    final upcoming = InvoiceData(bill, cycleIndex: 3);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(
+      child: InvoicePaper(data: upcoming)))));
+    expect(find.text('UPCOMING · ADVANCE PREVIEW'), findsOneWidget);
+    expect(find.text('RENTAL CYCLE #3'), findsOneWidget);
+    expect(find.text('ESTIMATED RENT'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -22,18 +22,64 @@ const invoiceMuted = Color(0xFF536C78);
 const defaultInvoiceTerms = '1) Rent is cycle-based (15/20/30 days as per bill).\n2) Transport/Loading/Unloading applies only in first cycle.\n3) Advance is a refundable security deposit.\n4) Damaged or missing materials are charged separately.\n5) Payment is due within the agreed period.';
 
 class InvoiceData {
-  InvoiceData(this.bill, {this.terms = defaultInvoiceTerms}) {
-    cycles = (bill['cycles'] as List? ?? const []).cast<Map>();
-    payments = (bill['payments'] as List? ?? const []).cast<Map>();
-    final last = cycles.isEmpty ? null : cycles.last;
-    final snap = last == null ? snapshotForCycle(bill, 1) :
-      {'qty': last['snapshot_qty'], 'wood': last['snapshot_wood']};
+  InvoiceData(this.bill, {this.terms = defaultInvoiceTerms, int? cycleIndex}) {
+    allCycles = (bill['cycles'] as List? ?? const []).cast<Map>();
+    final selected = cycleIndex ?? (allCycles.isEmpty ? 1 : allCycles.length);
+    if (selected < 1 || selected > allCycles.length + 1) {
+      throw RangeError.range(selected, 1, allCycles.length + 1, 'cycleIndex');
+    }
+    isUpcoming = selected > allCycles.length;
+    if (isUpcoming && bill['status'] == 'closed') {
+      throw StateError('Closed bills have no upcoming rental cycle.');
+    }
+    final start = parseBillingDate(bill['start_date']);
+    final days = ((bill['cycle_days'] as num?)?.toInt() ?? 30).clamp(1, 3650);
+    final from = start?.add(Duration(days: (selected - 1) * days));
+    final snap = snapshotForCycle(bill, selected);
     final quantities = (snap['qty'] as Map).map<String, int>(
       (key, value) => MapEntry('$key', (value as num).toInt()));
     final wood = (snap['wood'] as Map).map<String, Map<String, int>>(
       (key, value) => MapEntry('$key', (value as Map).map<String, int>(
         (size, count) => MapEntry('$size', (count as num).toInt()))));
     rent = calculateRent(quantities, wood, bill);
+    final selectedCycle = isUpcoming ? <String, dynamic>{
+      'index': selected,
+      'start_date': from == null ? '—' : dateKey(from),
+      'end_date': from == null ? '—' : dateKey(from.add(Duration(days: days - 1))),
+      'rent': rent.rentTotal,
+      'transport': selected == 1 ? transportTotal(bill) : 0.0,
+      'total': moneyRound(rent.rentTotal + (selected == 1 ? transportTotal(bill) : 0.0)),
+    } : allCycles[selected - 1];
+    cycle = selectedCycle;
+    cycles = [selectedCycle];
+    final recorded = (bill['payments'] as List? ?? const []).cast<Map>();
+    payments = isUpcoming ? [] : recorded.where((p) => p['cycle_index'] == selected &&
+      (p['cycle_start_date'] == null || p['cycle_start_date'] == selectedCycle['start_date']) &&
+      (p['cycle_end_date'] == null || p['cycle_end_date'] == selectedCycle['end_date']))
+      .toList();
+    // Old bills have payments without a cycle index. Assign those credits to
+    // the oldest outstanding cycles for display only; never modify the ledger.
+    if (!isUpcoming) {
+      final remaining = {for (final c in allCycles)
+        (c['index'] as num).toInt(): ((c['total'] as num).toDouble() - recorded
+          .where((p) => p['cycle_index'] == c['index'])
+          .fold<double>(0, (sum, p) => sum + ((p['amount'] as num?)?.toDouble() ?? 0)))
+          .clamp(0, double.infinity).toDouble()};
+      for (final payment in recorded.where((p) => p['cycle_index'] == null)) {
+        var credit = (payment['amount'] as num?)?.toDouble() ?? 0;
+        for (final c in allCycles) {
+          final index = (c['index'] as num).toInt();
+          final applied = credit.clamp(0, remaining[index]!).toDouble();
+          remaining[index] = remaining[index]! - applied;
+          credit -= applied;
+          if (index == selected && applied > 0) {
+            payments.add({...payment, 'amount': applied,
+              'note': '${payment['note'] ?? ''} · Allocated from older payment'.trim()});
+          }
+          if (credit <= 0) break;
+        }
+      }
+    }
     lines = [
       ...rent.materialLines.where((line) => (line['qty'] as int) > 0)
         .map((line) => [line['label'].toString(), line['qty'].toString(),
@@ -45,15 +91,16 @@ class InvoiceData {
   }
   final Map<String, dynamic> bill;
   final String terms;
-  late final List<Map> cycles, payments;
+  late final List<Map> allCycles, cycles, payments;
+  late final Map cycle;
+  late final bool isUpcoming;
   late final RentBreakdown rent;
   late final List<List<String>> lines;
   String get number => (bill['bill_no'] ?? '—').toString();
-  num get total => (bill['total_due'] as num?) ?? cycles.fold<num>(0,
-    (sum, c) => sum + ((c['total'] as num?) ?? 0));
-  num get paid => (bill['total_paid'] as num?) ?? payments.fold<num>(0,
+  num get total => (cycle['total'] as num?) ?? 0;
+  num get paid => payments.fold<num>(0,
     (sum, p) => sum + ((p['amount'] as num?) ?? 0));
-  num get pending => (bill['pending'] as num?) ?? (total - paid).clamp(0, double.infinity);
+  num get pending => (total - paid).clamp(0, double.infinity);
   num get advance => (bill['advance_locked'] as num?) ?? (bill['advance_amount'] as num?) ?? 0;
   List<List<String>> get cycleRows => cycles.map((c) => [
     c['index'].toString(), c['start_date'].toString() + ' – ' + c['end_date'].toString(),
@@ -68,18 +115,34 @@ class InvoiceData {
 }
 
 class InvoiceScreen extends ConsumerStatefulWidget {
-  const InvoiceScreen({super.key, required this.bill});
+  const InvoiceScreen({super.key, required this.bill, this.initialCycle});
   final Map<String, dynamic> bill;
+  final int? initialCycle;
   @override ConsumerState<InvoiceScreen> createState() => _InvoiceScreenState();
 }
 class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
   final capture = GlobalKey();
   bool working = false;
-  @override Widget build(BuildContext context) {
-    final settings = ref.watch(settingsProvider).asData?.value ?? const <Map<String,dynamic>>[];
+  late int selectedCycle;
+  @override void initState() {
+    super.initState();
+    final count = (widget.bill['cycles'] as List? ?? const []).length;
+    selectedCycle = widget.initialCycle ?? (count == 0 ? 1 : count);
+  }
+  InvoiceData invoiceData() {
+    final settings = ref.read(settingsProvider).asData?.value ?? const <Map<String,dynamic>>[];
     final savedTerms = settings.where((row) => row['key'] == 'terms_invoice').firstOrNull?['value'];
-    final data = InvoiceData(widget.bill, terms: savedTerms is String && savedTerms.trim().isNotEmpty
-      ? savedTerms.trim() : defaultInvoiceTerms);
+    return InvoiceData(widget.bill, cycleIndex: selectedCycle,
+      terms: savedTerms is String && savedTerms.trim().isNotEmpty
+        ? savedTerms.trim() : defaultInvoiceTerms);
+  }
+  @override Widget build(BuildContext context) {
+    ref.watch(settingsProvider);
+    final data = invoiceData();
+    final cycles = (widget.bill['cycles'] as List? ?? const []).cast<Map>();
+    final first = parseBillingDate(widget.bill['start_date']);
+    final days = (widget.bill['cycle_days'] as num?)?.toInt() ?? 30;
+    final nextStart = first?.add(Duration(days: cycles.length * days));
     return Scaffold(appBar: AppBar(title: const Text('Rental invoice'), actions: [
       IconButton(onPressed: working ? null : shareImage, tooltip: 'Share as image',
         icon: const Icon(Icons.image_outlined)),
@@ -87,6 +150,20 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
         icon: const Icon(Icons.picture_as_pdf_outlined)),
     ]), body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 650),
       child: ListView(padding: const EdgeInsets.all(12), children: [
+        DropdownButtonFormField<int>(value: selectedCycle, isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Invoice cycle',
+            prefixIcon: Icon(Icons.calendar_month_outlined)),
+          items: [
+            for (final c in cycles) DropdownMenuItem(value: (c['index'] as num).toInt(),
+              child: Text('Cycle #${c['index']} · ${c['start_date']} – ${c['end_date']}')),
+            if (widget.bill['status'] != 'closed') DropdownMenuItem(value: cycles.length + 1,
+              child: Text('Upcoming cycle #${cycles.length + 1} · ${nextStart == null ? 'Preview' : dateKey(nextStart)}')),
+          ],
+          onChanged: working ? null : (value) => setState(() => selectedCycle = value!)),
+        if (data.isUpcoming) const Padding(padding: EdgeInsets.symmetric(vertical: 10),
+          child: Text('Advance preview only · The upcoming charge is not added to the bill until its cycle starts.',
+            style: TextStyle(color: invoiceGold, fontWeight: FontWeight.w700))),
+        const SizedBox(height: 12),
         RepaintBoundary(key: capture, child: InvoicePaper(data: data)),
         const SizedBox(height: 16),
         Row(children: [
@@ -108,7 +185,7 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
       image.dispose();
       await SharePlus.instance.share(ShareParams(files: [
         XFile.fromData(bytes!.buffer.asUint8List(), mimeType: 'image/png',
-          name: 'SA-Traders-' + widget.bill['bill_no'].toString() + '.png'),
+          name: 'SA-Traders-${widget.bill['bill_no']}-Cycle-$selectedCycle.png'),
       ]));
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -119,13 +196,9 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
     setState(() => working = true);
     try {
       final logo = await rootBundle.load('assets/sa-traders-logo.jpg');
-      final settings = ref.read(settingsProvider).asData?.value ?? const <Map<String,dynamic>>[];
-      final savedTerms = settings.where((row) => row['key'] == 'terms_invoice').firstOrNull?['value'];
-      final bytes = await buildInvoicePdf(InvoiceData(widget.bill,
-        terms: savedTerms is String && savedTerms.trim().isNotEmpty
-          ? savedTerms.trim() : defaultInvoiceTerms), logo.buffer.asUint8List());
+      final bytes = await buildInvoicePdf(invoiceData(), logo.buffer.asUint8List());
       await Printing.sharePdf(bytes: bytes, filename:
-        'SA-Traders-' + widget.bill['bill_no'].toString() + '.pdf');
+        'SA-Traders-${widget.bill['bill_no']}-Cycle-$selectedCycle.pdf');
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not create PDF: $error')));
@@ -155,13 +228,14 @@ class InvoicePaper extends StatelessWidget {
             ])),
             const SizedBox(width: 8),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              const Text('RENTAL INVOICE', style: TextStyle(fontSize: 8, color: invoiceMuted)),
+              Text(data.isUpcoming ? 'UPCOMING · ADVANCE PREVIEW' : 'RENTAL INVOICE',
+                style: const TextStyle(fontSize: 8, color: invoiceMuted)),
               const SizedBox(height: 4),
               Container(color: invoiceNavy, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 child: Text(data.number, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900))),
               Text('Date: ' + dateKey(DateTime.now()), style: const TextStyle(fontSize: 8)),
-              Text('Cycle: #' + (data.cycles.isEmpty ? '—' : data.cycles.last['index'].toString())
-                + ' of ' + data.cycles.length.toString(), style: const TextStyle(fontSize: 8)),
+              Text('Cycle: #${data.cycle['index']} · ${data.cycle['start_date']} – ${data.cycle['end_date']}',
+                style: const TextStyle(fontSize: 8)),
             ]),
           ]),
           const SizedBox(height: 10), Container(height: 2, color: invoiceGold),
@@ -172,15 +246,16 @@ class InvoicePaper extends StatelessWidget {
               'Site: ' + (b['place'] ?? '—').toString()])),
             const SizedBox(width: 8),
             Expanded(child: _info('BILLING DETAILS', [
-              'Start: ' + (b['start_date'] ?? '—').toString(),
+              'Period: ${data.cycle['start_date']} – ${data.cycle['end_date']}',
               'Cycle: ' + (b['cycle_days'] ?? 30).toString() + ' days',
-              'Status: ' + (b['status'] ?? 'OPEN').toString().toUpperCase()])),
+              'Status: ' + (data.isUpcoming ? 'ADVANCE PREVIEW' :
+                (b['status'] ?? 'OPEN').toString().toUpperCase())])),
           ]),
           _caption('MATERIALS'), _heading(const ['ITEM', 'QTY', 'AMOUNT (₹)'], const [4, 1, 2]),
           if (data.lines.isEmpty) _row(const ['No chargeable material', '', ''], const [4, 1, 2]),
           ...data.lines.map((line) => _row(line, const [4, 1, 2])),
           _row(['Materials total', '', moneyLabel(data.rent.rentTotal)], const [4, 1, 2], highlight: true),
-          _caption('RENTAL CYCLES'),
+          _caption('RENTAL CYCLE #${data.cycle['index']}'),
           _heading(const ['#', 'PERIOD', 'RENT', 'TRANS', 'TOTAL'], const [1, 4, 2, 2, 2]),
           if (data.cycles.isEmpty) _row(const ['—', 'No cycles yet', '', '', ''], const [1, 4, 2, 2, 2]),
           ...data.cycleRows.asMap().entries.map((entry) =>
@@ -195,8 +270,9 @@ class InvoicePaper extends StatelessWidget {
             border: Border.all(color: invoicePale), borderRadius: BorderRadius.circular(8)),
             child: Column(children: [
               Padding(padding: const EdgeInsets.all(10), child: Row(children: [
-                _total('TOTAL DUE', data.total), _total('TOTAL PAID', data.paid),
-                _total('PENDING', data.pending, gold: true),
+                _total(data.isUpcoming ? 'ESTIMATED RENT' : 'CYCLE DUE', data.total),
+                _total('CYCLE PAID', data.paid),
+                _total(data.isUpcoming ? 'EXPECTED' : 'PENDING', data.pending, gold: true),
               ])),
               Container(width: double.infinity, color: invoiceWarm, padding: const EdgeInsets.all(7),
                 child: Text('Advance: ' + moneyLabel(data.advance) + ' (Refundable)  ·  '
@@ -303,11 +379,14 @@ Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
             style: const pw.TextStyle(fontSize: 7)),
         ])),
         pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-          pw.Text('RENTAL INVOICE', style: const pw.TextStyle(fontSize: 8)),
+          pw.Text(data.isUpcoming ? 'UPCOMING - ADVANCE PREVIEW' : 'RENTAL INVOICE',
+            style: const pw.TextStyle(fontSize: 8)),
           pw.Container(color: navy, padding: const pw.EdgeInsets.all(5),
             child: pw.Text(data.number, style: pw.TextStyle(color: PdfColors.white,
               fontSize: 10, fontWeight: pw.FontWeight.bold))),
           pw.Text('Date: ' + dateKey(DateTime.now()), style: const pw.TextStyle(fontSize: 8)),
+          pw.Text('Cycle #${data.cycle['index']}: ${data.cycle['start_date']} - ${data.cycle['end_date']}',
+            style: const pw.TextStyle(fontSize: 7)),
         ]),
       ]),
       pw.SizedBox(height: 8), pw.Container(height: 2, color: gold),
@@ -317,15 +396,16 @@ Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
           'Mobile: ' + (data.bill['mobile'] ?? '—').toString(),
           'Site: ' + (data.bill['place'] ?? '—').toString()]),
         pw.SizedBox(width: 9),
-        info('BILLING DETAILS', ['Start: ' + (data.bill['start_date'] ?? '—').toString(),
+        info('BILLING DETAILS', ['Period: ${data.cycle['start_date']} - ${data.cycle['end_date']}',
           'Cycle: ' + (data.bill['cycle_days'] ?? 30).toString() + ' days',
-          'Status: ' + (data.bill['status'] ?? 'OPEN').toString()]),
+          'Status: ' + (data.isUpcoming ? 'ADVANCE PREVIEW' :
+            (data.bill['status'] ?? 'OPEN').toString())]),
       ]),
       title('MATERIALS'), heading(const ['ITEM', 'QTY', 'AMOUNT (Rs)'], const [4, 1, 2]),
       if (data.lines.isEmpty) row(const ['No chargeable material', '', ''], const [4, 1, 2]),
       ...data.lines.map((v) => row(v, const [4, 1, 2])),
       row(['Materials total', '', pdfMoney(data.rent.rentTotal)], const [4, 1, 2], highlight: true),
-      title('RENTAL CYCLES'),
+      title('RENTAL CYCLE #${data.cycle['index']}'),
       heading(const ['#', 'PERIOD', 'RENT', 'TRANS', 'TOTAL'], const [1, 4, 2, 2, 2]),
       if (data.cycles.isEmpty) row(const ['—', 'No cycles yet', '', '', ''], const [1, 4, 2, 2, 2]),
       ...data.cycleRows.asMap().entries.map((entry) =>
@@ -338,8 +418,9 @@ Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
       pw.SizedBox(height: 12),
       pw.Container(color: navy, padding: const pw.EdgeInsets.all(12),
         child: pw.Row(children: [
-          for (final item in [('TOTAL DUE', data.total, PdfColors.white),
-            ('TOTAL PAID', data.paid, PdfColors.white), ('PENDING', data.pending, gold)])
+          for (final item in [(data.isUpcoming ? 'ESTIMATED RENT' : 'CYCLE DUE', data.total, PdfColors.white),
+            ('CYCLE PAID', data.paid, PdfColors.white),
+            (data.isUpcoming ? 'EXPECTED' : 'PENDING', data.pending, gold)])
             pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(item.$1, style: const pw.TextStyle(color: PdfColors.white, fontSize: 8)),
