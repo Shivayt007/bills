@@ -10,6 +10,8 @@ import '../../invoice/presentation/invoice_screen.dart';
 import 'bill_entry_sheets.dart';
 import 'bill_form_screen.dart';
 import '../domain/history_corrections.dart';
+import '../domain/grouped_returns.dart';
+import '../domain/return_service.dart';
 
 final billDetailProvider = FutureProvider.autoDispose.family<Map<String,dynamic>?, String>((ref, id) => ref.watch(billingRepositoryProvider).get('bills', id));
 
@@ -220,7 +222,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     final parts=<String>[];
     for(final spec in materialCatalog){final quantity=(items[spec.key] as num?)?.toInt()??0;if(quantity>0)parts.add('${spec.label}: $quantity');}
     for(final spec in woodCatalog){final raw=wood[spec.key];if(raw is Map&&raw.isNotEmpty){final normalized=raw.map<String,int>((key,value)=>MapEntry('$key',(value as num).toInt()));parts.add('${spec.label}: ${woodToText(normalized)}');}}
-    return Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text('${entry['date']??'—'} · Cycle #${entry['effective_from_cycle']??'—'}',style:const TextStyle(fontWeight:FontWeight.w800))),IconButton(tooltip:isReturn?'Edit return':'Edit addition',
+    return Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text('${entry['date']??'—'} · Cycle #${entry['effective_from_cycle']??'—'}${entry['return_group_id']!=null?' · Linked return':''}',style:const TextStyle(fontWeight:FontWeight.w800))),IconButton(tooltip:isReturn?'Edit return':'Edit addition',
       onPressed:()=>_editHistory(context,ref,entry,originalIndex,isReturn),
       icon:const Icon(Icons.edit_outlined)),
       IconButton(tooltip:isReturn?'Delete return':'Delete addition',
@@ -280,6 +282,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       {required bool isReturn}) async {
     final start = parseBillingDate(bill['start_date']);
     if (start == null) { _toast(context, 'Bill start date is missing'); return; }
+    if (isReturn) {
+      await _saveReturn(context, ref, bill);
+      return;
+    }
     final entry = await showMaterialEntry(context, bill, isReturn: isReturn);
     if (entry == null) return;
     try {
@@ -325,6 +331,111 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       if (context.mounted) _toast(context, 'Saved; applies from cycle #$effective');
     } catch (error) {
       if (context.mounted) _toast(context, 'Material change not saved: $error');
+    }
+  }
+
+  Future<bool> _confirmReturn(BuildContext context, List<ReturnAllocation> split,
+      Map<String, Map<String, dynamic>> bills, ReturnDraft draft) async {
+    final date = DateTime.now().toUtc();
+    final preview = <Widget>[];
+    for (final original in bills.values) {
+      final id = '${original['bill_no']}';
+      final allocation = split.where((a) => a.billNo == id).firstOrNull;
+      final rows = withoutReturnGroup(original, groupId: draft.oldGroupId,
+        id: id == draft.billNo ? draft.oldId : null);
+      if (allocation == null && rows.length == historyRows(original['return_history']).length) continue;
+      final before = hydrateRentalBill(original, today: date);
+      final after = hydrateRentalBill({...original, 'return_history': [...rows,
+        if (allocation != null) {
+        'effective_from_cycle': allocation.effectiveCycle,
+        'items': allocation.items, 'wood': allocation.wood,
+      }]}, today: date);
+      final parts = <String>[
+        if (allocation != null) ...[
+          for (final s in materialCatalog) if ((allocation.items[s.key] ?? 0) > 0)
+            '${s.label} ${allocation.items[s.key]}',
+          for (final s in woodCatalog) if (allocation.wood[s.key]!.isNotEmpty)
+            '${s.label} ${woodToText(allocation.wood[s.key])}',
+        ],
+      ];
+      preview.add(Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Bill #$id${allocation == null ? ' · Return removed' : ' · Cycle #${allocation.effectiveCycle}'}',
+            style: const TextStyle(fontWeight: FontWeight.w800)),
+          Text(parts.join(' · ')),
+          Text('Due ${_money(before['pending'] as num)} → ${_money(after['pending'] as num)}',
+            style: TextStyle(color: AppPalette.of(context).accent)),
+        ])));
+    }
+    return await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
+      title: const Text('Review material return'),
+      content: SizedBox(width: 430, child: SingleChildScrollView(child: Column(
+        mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+        children: [Text('Return date ${draft.date}. These bills and rental cycles will be updated:'),
+          const SizedBox(height: 10), ...preview]))),
+      actions: [TextButton(onPressed: () => Navigator.pop(dialog, false),
+        child: const Text('Back')), FilledButton(onPressed: () => Navigator.pop(dialog, true),
+        child: const Text('Confirm return'))])) ?? false;
+  }
+
+  Future<void> _saveReturn(BuildContext context, WidgetRef ref, Map bill,
+      {Map? selected}) async {
+    try {
+      final service = ReturnService(ref.read(billingRepositoryProvider));
+      final groupId = selected?['return_group_id'] as String?;
+      final related = await service.customerBills(billNo);
+      final linked = selected == null ? <Map<String, dynamic>>[] :
+        await service.groupBills(billNo, groupId);
+      final byId = <String, Map<String, dynamic>>{
+        for (final b in [...related, ...linked]) '${b['bill_no']}': b,
+      };
+      if (selected != null && groupId == null && selected['rid'] == null) {
+        throw StateError('This older return has no ID. Refresh and use the bill’s existing edit option.');
+      }
+      final oldRows = <Map<String, dynamic>>[];
+      if (selected != null) {
+        for (final b in byId.values) {
+          oldRows.addAll(historyRows(b['return_history']).where((row) =>
+            belongsToReturnGroup(row, groupId: groupId,
+              id: '${b['bill_no']}' == billNo ? '${selected['rid']}' : null)));
+        }
+      }
+      final initial = selected == null ? null : <String, dynamic>{
+        ...selected,
+        'items': {for (final s in materialCatalog) s.key: oldRows.fold<int>(0, (n, r) =>
+          n + (((r['items'] as Map?)?[s.key] as num?)?.toInt() ?? 0))},
+        'wood': {for (final s in woodCatalog) s.key: <String, int>{
+          for (final r in oldRows)
+            for (final e in ((r['wood'] as Map?)?[s.key] as Map? ?? const {}).entries)
+              '${e.key}': oldRows.fold<int>(0, (n, row) => n +
+                (((row['wood'] as Map?)?[s.key] as Map?)?['${e.key}'] as num? ?? 0).toInt()),
+        }},
+      };
+      final now = DateTime.now().toUtc();
+      final today = DateTime.utc(now.year, now.month, now.day);
+      final usable = byId.values.map((b) => hydrateRentalBill({
+        ...b, 'return_history': withoutReturnGroup(b, groupId: groupId,
+          id: '${b['bill_no']}' == billNo ? selected?['rid'] as String? : null),
+      }, today: today)).toList();
+      final primary = usable.firstWhere((b) => '${b['bill_no']}' == billNo);
+      if (!context.mounted) return;
+      final entry = await showMaterialEntry(context, primary, isReturn: true,
+        initial: initial, otherBills: usable.where((b) =>
+          '${b['bill_no']}' != billNo && b['status'] != 'closed' &&
+          sameRentalCustomer(primary, b)).toList());
+      if (entry == null) return;
+      final draft = ReturnDraft(billNo: billNo, date: entry.date, note: entry.note,
+        items: entry.items, wood: entry.wood,
+        applyToCurrentCycle: entry.applyToCurrentCycle,
+        oldId: selected?['rid'] as String?, oldGroupId: groupId);
+      final split = service.preview(draft, byId.values.toList());
+      if (!context.mounted || !await _confirmReturn(context, split, byId, draft)) return;
+      await service.save(draft, split, byId.values.toList(),
+        ref.read(authRepositoryProvider).currentUser?.email ?? 'unknown');
+      ref.invalidate(billDetailProvider(billNo));
+      if (context.mounted) _toast(context, 'Return saved across ${split.length} bill(s)');
+    } catch (error) {
+      if (context.mounted) _toast(context, 'Return not saved: $error');
     }
   }
   Future<bool> _verifyDelete(BuildContext context, String title) async {
@@ -374,6 +485,17 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
   Future<void> _deleteHistory(BuildContext context, WidgetRef ref, Map entry,
       int originalIndex, bool isReturn) async {
     if (!await _verifyDelete(context, isReturn ? 'Delete return?' : 'Delete addition?')) return;
+    if (isReturn && entry['rid'] != null) {
+      try {
+        await ReturnService(ref.read(billingRepositoryProvider)).delete(billNo, entry,
+          ref.read(authRepositoryProvider).currentUser?.email ?? 'unknown');
+        ref.invalidate(billDetailProvider(billNo));
+        if (context.mounted) _toast(context, 'Return deleted from all linked bills');
+      } catch (error) {
+        if (context.mounted) _toast(context, 'Could not delete return: $error');
+      }
+      return;
+    }
     try {
       final repository = ref.read(billingRepositoryProvider);
       final raw = await repository.get('bills', billNo);
@@ -399,6 +521,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
 
   Future<void> _editHistory(BuildContext context, WidgetRef ref, Map selected,
       int originalIndex, bool isReturn) async {
+    if (isReturn && selected['rid'] != null) {
+      await _saveReturn(context, ref, const {}, selected: selected);
+      return;
+    }
     try {
       final repository = ref.read(billingRepositoryProvider);
       final raw = await repository.get('bills', billNo);
@@ -426,7 +552,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
         'items': entry.items, 'wood': entry.wood,
         'effective_from_cycle': cycleIndex(start,
           (fresh['cycle_days'] as num?)?.toInt() ?? 30,
-          parseBillingDate(entry.date)!) + 1,
+          parseBillingDate(entry.date)!) +
+          (isReturn && entry.applyToCurrentCycle &&
+            cycleIndex(start, (fresh['cycle_days'] as num?)?.toInt() ?? 30,
+              parseBillingDate(entry.date)!) > 1 ? 0 : 1),
         'edited_by': ref.read(authRepositoryProvider).currentUser?.email,
         'edited_at': DateTime.now().toUtc().toIso8601String()};
       final audit = historyRows(fresh['history_audit'])..add({

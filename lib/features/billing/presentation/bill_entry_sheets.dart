@@ -13,10 +13,11 @@ class PaymentEntry {
 }
 
 class MaterialEntry {
-  const MaterialEntry(this.date, this.note, this.items, this.wood);
+  const MaterialEntry(this.date, this.note, this.items, this.wood, this.applyToCurrentCycle);
   final String date, note;
   final Map<String, int> items;
   final Map<String, Map<String, int>> wood;
+  final bool applyToCurrentCycle;
 }
 
 Future<T?> _entrySheet<T>(BuildContext context, Widget child) =>
@@ -33,9 +34,9 @@ Future<PaymentEntry?> showPaymentEntry(BuildContext context, Map bill, List<Map>
     _entrySheet<PaymentEntry>(context, _PaymentForm(bill: bill, cycles: cycles, initial: initial));
 
 Future<MaterialEntry?> showMaterialEntry(BuildContext context, Map bill,
-    {required bool isReturn, Map? initial}) =>
+    {required bool isReturn, Map? initial, List<Map<String, dynamic>> otherBills = const []}) =>
     _entrySheet<MaterialEntry>(context,
-      _MaterialForm(bill: bill, isReturn: isReturn, initial: initial));
+      _MaterialForm(bill: bill, isReturn: isReturn, initial: initial, otherBills: otherBills));
 
 class _PaymentForm extends StatefulWidget {
   const _PaymentForm({required this.bill, required this.cycles, this.initial});
@@ -163,10 +164,11 @@ class _PaymentFormState extends State<_PaymentForm> {
 }
 
 class _MaterialForm extends StatefulWidget {
-  const _MaterialForm({required this.bill, required this.isReturn, this.initial});
+  const _MaterialForm({required this.bill, required this.isReturn, this.initial, required this.otherBills});
   final Map bill;
   final bool isReturn;
   final Map? initial;
+  final List<Map<String, dynamic>> otherBills;
   @override State<_MaterialForm> createState() => _MaterialFormState();
 }
 
@@ -176,7 +178,13 @@ class _MaterialFormState extends State<_MaterialForm> {
   final wood = <String, TextEditingController>{};
   final note = TextEditingController();
   DateTime date = DateTime.now();
+  bool applyToCurrentCycle = false;
   String? error;
+  List<Map> get availableBills => [widget.bill, ...widget.otherBills];
+  int availableQty(String key) => availableBills.fold(0, (n, b) =>
+    n + (((b['balance_qty'] as Map?)?[key] as num?)?.toInt() ?? 0));
+  int availableWood(String key, String size) => availableBills.fold(0, (n, b) =>
+    n + (((((b['balance_wood'] as Map?)?[key] as Map?)?[size]) as num?)?.toInt() ?? 0));
   @override void initState() {
     super.initState();
     final previous = widget.initial;
@@ -195,6 +203,11 @@ class _MaterialFormState extends State<_MaterialForm> {
     if (previous != null) {
       date = parseBillingDate(previous['date']) ?? DateTime.now();
       note.text = '${previous['note'] ?? ''}';
+      final start = parseBillingDate(widget.bill['start_date']);
+      if (start != null) {
+        final cycle = cycleIndex(start, (widget.bill['cycle_days'] as num?)?.toInt() ?? 30, date);
+        applyToCurrentCycle = cycle > 1 && previous['effective_from_cycle'] == cycle;
+      }
     }
   }
   @override void dispose() {
@@ -236,34 +249,33 @@ class _MaterialFormState extends State<_MaterialForm> {
       return;
     }
     if (widget.isReturn) {
-      final balances = widget.bill['balance_qty'] as Map? ?? const {};
       for (final spec in materialCatalog) {
-        if (qty[spec.key]! > ((balances[spec.key] as num?)?.toInt() ?? 0)) {
-          setState(() => error = '${spec.label} exceeds the outstanding quantity.');
+        if (qty[spec.key]! > availableQty(spec.key)) {
+          setState(() => error = '${spec.label} exceeds the customer’s open bills.');
           return;
         }
       }
-      final currentWood = widget.bill['balance_wood'] as Map? ?? const {};
       for (final spec in woodCatalog) {
-        final available = currentWood[spec.key] as Map? ?? const {};
         for (final entry in woods[spec.key]!.entries) {
-          if (entry.value > ((available[entry.key] as num?)?.toInt() ?? 0)) {
-            setState(() => error = '${spec.label} ${entry.key} ft exceeds the outstanding pieces.');
+          if (entry.value > availableWood(spec.key, entry.key)) {
+            setState(() => error = '${spec.label} ${entry.key} ft exceeds the customer’s open bills.');
             return;
           }
         }
       }
     }
-    Navigator.pop(context, MaterialEntry(dateKey(date), note.text.trim(), Map.of(qty), woods));
+    Navigator.pop(context, MaterialEntry(dateKey(date), note.text.trim(), Map.of(qty), woods, applyToCurrentCycle));
   }
 
   @override Widget build(BuildContext context) {
     final balances = widget.bill['balance_qty'] as Map? ?? const {};
     final currentWood = widget.bill['balance_wood'] as Map? ?? const {};
     final materials = materialCatalog.where((spec) => !widget.isReturn ||
-      ((balances[spec.key] as num?)?.toInt() ?? 0) > 0).toList();
+      availableQty(spec.key) > 0 || qty[spec.key]! > 0).toList();
     final woods = woodCatalog.where((spec) => !widget.isReturn ||
-      (currentWood[spec.key] as Map? ?? const {}).isNotEmpty).toList();
+      availableBills.any((b) => ((b['balance_wood'] as Map?)?[spec.key] as Map? ?? const {}).isNotEmpty)).toList();
+    final start = parseBillingDate(widget.bill['start_date']);
+    final cycle = start == null ? 1 : cycleIndex(start, (widget.bill['cycle_days'] as num?)?.toInt() ?? 30, date);
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -279,7 +291,17 @@ class _MaterialFormState extends State<_MaterialForm> {
         OutlinedButton.icon(onPressed: chooseDate, icon: const Icon(Icons.calendar_today_outlined),
           label: Text('${widget.isReturn ? 'Return' : 'Addition'} date · ${dateKey(date)}')),
         const SizedBox(height: 8),
-        Text('Changes apply from the next rental cycle after this date.',
+        if (widget.isReturn && widget.otherBills.isNotEmpty) Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text('Also checking ${widget.otherBills.length} other open bill(s) for this customer. Review the bill-by-bill split before saving.',
+            style: Theme.of(context).textTheme.bodyMedium)),
+        if (widget.isReturn && cycle > 1) SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Apply to this rental cycle'),
+          subtitle: Text('Return after cycle #$cycle started? Exclude these items from its rent. Otherwise apply from cycle #${cycle+1}.'),
+          value: applyToCurrentCycle,
+          onChanged: (value) => setState(() => applyToCurrentCycle = value)),
+        if (!widget.isReturn || cycle == 1) Text('Changes apply from the next rental cycle after this date.',
           style: Theme.of(context).textTheme.bodySmall),
         const SectionTitle('Materials'),
         if (materials.isEmpty && woods.isEmpty)
@@ -289,7 +311,7 @@ class _MaterialFormState extends State<_MaterialForm> {
           child: AppSurface(child: Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(spec.label, style: Theme.of(context).textTheme.titleMedium),
-              if (widget.isReturn) Text('${balances[spec.key]} currently out',
+              if (widget.isReturn) Text('${availableQty(spec.key)} across open bills',
                 style: Theme.of(context).textTheme.bodySmall),
             ])),
             IconButton(tooltip: 'Remove one ${spec.label}',
@@ -312,7 +334,7 @@ class _MaterialFormState extends State<_MaterialForm> {
               }),
             )),
             IconButton(tooltip: 'Add one ${spec.label}',
-              onPressed: widget.isReturn && qty[spec.key]! >= (balances[spec.key] as num).toInt()
+              onPressed: widget.isReturn && qty[spec.key]! >= availableQty(spec.key)
                 ? null : () => setState(() {
                     qty[spec.key] = qty[spec.key]! + 1;
                     qtyInputs[spec.key]!.text = '${qty[spec.key]}';
@@ -325,8 +347,7 @@ class _MaterialFormState extends State<_MaterialForm> {
             decoration: InputDecoration(labelText: spec.label,
               hintText: '8×5+10×2',
               helperText: widget.isReturn
-                ? 'Out: ${woodToText(Map<String,int>.from((currentWood[spec.key] as Map).map(
-                    (key, value) => MapEntry('$key', (value as num).toInt()))))}'
+                ? 'Enter size × pieces; checked across the customer’s open bills'
                 : 'Enter length × pieces, separated by +'),
             onChanged: (_) => setState(() => error = null)))),
         const SectionTitle('Details'),

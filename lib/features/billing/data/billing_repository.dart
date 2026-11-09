@@ -35,6 +35,29 @@ class BillingRepository {
     for(final op in operations){final key=storeKeys[op.store];if(key==null)throw ArgumentError('Unsupported store: ${op.store}');final id='${op.data[key]??''}'.trim();if(id.isEmpty)throw ArgumentError('Missing $key for ${op.store}');batch.set(await _existingOrLegacy(op.store,id),op.data);}
     await batch.commit();
   }
+  /// Read every involved bill again inside the transaction so an intervening
+  /// payment or return cannot be overwritten by a multi-bill correction.
+  Future<void> changeBills(List<String> ids,
+      Map<String, dynamic> Function(Map<String, Map<String, dynamic>>) change) async {
+    final refs = <String, DocumentReference<Map<String, dynamic>>>{};
+    for (final id in ids.toSet()) {
+      refs[id] = await _existingOrLegacy('bills', id);
+    }
+    await firestore.runTransaction((tx) async {
+      final originals = <String, Map<String, dynamic>>{};
+      for (final entry in refs.entries) {
+        final snap = await tx.get(entry.value);
+        if (!snap.exists) throw StateError('Bill #${entry.key} no longer exists. Refresh and try again.');
+        originals[entry.key] = snap.data()!;
+      }
+      final updates = change(originals);
+      for (final entry in updates.entries) {
+        final ref = refs[entry.key];
+        if (ref == null) throw StateError('Bill #${entry.key} was not loaded.');
+        tx.set(ref, entry.value);
+      }
+    });
+  }
   Future<int> nextSequence(String key) async {
     final ref=await _existingOrLegacy('settings',key);var next=1;
     await firestore.runTransaction((tx)async{final s=await tx.get(ref);next=((s.data()?['value'] as num?)?.toInt()??0)+1;tx.set(ref,{'key':key,'value':next});});
