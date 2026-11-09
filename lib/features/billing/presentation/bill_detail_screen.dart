@@ -415,7 +415,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       final today = DateTime.utc(now.year, now.month, now.day);
       final usable = byId.values.map((b) => hydrateRentalBill({
         ...b, 'return_history': withoutReturnGroup(b, groupId: groupId,
-          id: '${b['bill_no']}' == billNo ? selected?['rid'] as String? : null),
+          id: '${b['bill_no']}' == billNo ? (selected == null ? null : selected['rid'] as String?) : null),
       }, today: today)).toList();
       final primary = usable.firstWhere((b) => '${b['bill_no']}' == billNo);
       if (!context.mounted) return;
@@ -427,7 +427,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       final draft = ReturnDraft(billNo: billNo, date: entry.date, note: entry.note,
         items: entry.items, wood: entry.wood,
         applyToCurrentCycle: entry.applyToCurrentCycle,
-        oldId: selected?['rid'] as String?, oldGroupId: groupId);
+        oldId: selected == null ? null : selected['rid'] as String?, oldGroupId: groupId);
       final split = service.preview(draft, byId.values.toList());
       if (!context.mounted || !await _confirmReturn(context, split, byId, draft)) return;
       await service.save(draft, split, byId.values.toList(),
