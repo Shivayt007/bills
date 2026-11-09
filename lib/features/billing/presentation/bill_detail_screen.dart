@@ -99,7 +99,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
               icon:const Icon(Icons.share_outlined),label:const Text('Invoice')),
             if (b['status'] != 'closed') OutlinedButton.icon(
               onPressed:()=>_invoice(context,b,cycles.length+1),
-              icon:const Icon(Icons.event_upcoming_outlined),
+              icon:const Icon(Icons.calendar_today_outlined),
               label:const Text('Upcoming cycle bill')),
             if (b['status'] != 'closed') OutlinedButton.icon(
               onPressed:()=>_close(context,ref,b),
