@@ -281,7 +281,7 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
             Text('Bill #${c['bill_no']!.text.trim()}  ·  ${c['name']!.text.trim()}',
               style: Theme.of(sheet).textTheme.titleMedium),
             const SizedBox(height: 7),
-            Text('Starts ${dateKey(start)}  ·  $days-day cycle'),
+            Text('Starts ${displayDate(start)}  ·  $days-day cycle'),
             const SizedBox(height: 7),
             Text('Estimated first cycle: ${moneyLabel(total)}',
               style: Theme.of(sheet).textTheme.titleLarge),
@@ -346,7 +346,7 @@ class _BillFormScreenState extends ConsumerState<BillFormScreen> {
             Icons.calendar_month_outlined,[
               _space(GlassPillButton(secondary: true,
                 icon: Icons.calendar_today_outlined,
-                label: 'Start date  ·  ${dateKey(start)}',
+                label: 'Start date  ·  ${displayDate(start)}',
                 onPressed: hasHistory ? null : () async {
                   final date = await showDatePicker(context: context,
                     initialDate: start,firstDate: DateTime(2000),lastDate: DateTime(2100));

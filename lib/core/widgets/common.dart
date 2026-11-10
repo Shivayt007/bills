@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 
 String moneyLabel(num value) => '₹${value.toStringAsFixed(2)}';
+
+/// Presentation only. Keep ISO date keys in Firestore and date comparisons.
+String displayDate(Object? value) {
+  if (value == null || '$value'.trim().isEmpty) return '—';
+  if (value is DateTime) return DateFormat('dd MMM yyyy').format(value);
+  final date = DateTime.tryParse('$value');
+  return date == null ? '$value' : DateFormat('dd MMM yyyy').format(date);
+}
 
 class AppPageWidth extends StatelessWidget {
   const AppPageWidth({super.key, required this.child, this.maxWidth = 760});

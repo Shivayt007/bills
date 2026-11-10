@@ -22,7 +22,7 @@ void _details(BuildContext context, WidgetRef ref, Map<String,dynamic> b, double
     ...historyRows(b['payments']).asMap().entries.map((e)=>ListTile(
       contentPadding:EdgeInsets.zero,
       title:Text(moneyLabel((e.value['amount'] as num?)??0)),
-      subtitle:Text('${e.value['payment_date']??''} · ${e.value['method']??'Cash'}'),
+      subtitle:Text('${displayDate(e.value['payment_date'])} · ${e.value['method']??'Cash'}'),
       trailing:Row(mainAxisSize:MainAxisSize.min,children:[
         IconButton(tooltip:'Edit payment',icon:const Icon(Icons.edit_outlined),onPressed:(){Navigator.pop(ctx);_editCustomPayment(context,ref,b,e.value,e.key);}),
         IconButton(tooltip:'Delete payment',icon:const Icon(Icons.delete_outline),onPressed:(){Navigator.pop(ctx);_deleteCustomPayment(context,ref,b,e.value,e.key);})

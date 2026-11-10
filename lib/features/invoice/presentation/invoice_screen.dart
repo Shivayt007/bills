@@ -103,12 +103,12 @@ class InvoiceData {
   num get pending => (total - paid).clamp(0, double.infinity);
   num get advance => (bill['advance_locked'] as num?) ?? (bill['advance_amount'] as num?) ?? 0;
   List<List<String>> get cycleRows => cycles.map((c) => [
-    c['index'].toString(), c['start_date'].toString() + ' – ' + c['end_date'].toString(),
+    c['index'].toString(), displayDate(c['start_date']) + ' – ' + displayDate(c['end_date']),
     moneyLabel((c['rent'] as num?) ?? 0), moneyLabel((c['transport'] as num?) ?? 0),
     moneyLabel((c['total'] as num?) ?? 0),
   ]).toList();
   List<List<String>> get paymentRows => payments.map((p) => [
-    (p['payment_date'] ?? p['date'] ?? '—').toString(),
+    displayDate(p['payment_date'] ?? p['date']),
     (p['method'] ?? 'Payment').toString() + (p['note'] == null ? '' : ' · ' + p['note'].toString()),
     moneyLabel((p['amount'] as num?) ?? 0),
   ]).toList();
@@ -155,9 +155,9 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
             prefixIcon: Icon(Icons.calendar_month_outlined)),
           items: [
             for (final c in cycles) DropdownMenuItem(value: (c['index'] as num).toInt(),
-              child: Text('Cycle #${c['index']} · ${c['start_date']} – ${c['end_date']}')),
+              child: Text('Cycle #${c['index']} · ${displayDate(c['start_date'])} – ${displayDate(c['end_date'])}')),
             if (widget.bill['status'] != 'closed') DropdownMenuItem(value: cycles.length + 1,
-              child: Text('Upcoming cycle #${cycles.length + 1} · ${nextStart == null ? 'Preview' : dateKey(nextStart)}')),
+              child: Text('Upcoming cycle #${cycles.length + 1} · ${nextStart == null ? 'Preview' : displayDate(nextStart)}')),
           ],
           onChanged: working ? null : (value) => setState(() => selectedCycle = value!)),
         if (data.isUpcoming) const Padding(padding: EdgeInsets.symmetric(vertical: 10),
@@ -233,8 +233,8 @@ class InvoicePaper extends StatelessWidget {
               const SizedBox(height: 4),
               Container(color: invoiceNavy, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 child: Text(data.number, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900))),
-              Text('Date: ' + dateKey(DateTime.now()), style: const TextStyle(fontSize: 8)),
-              Text('Cycle: #${data.cycle['index']} · ${data.cycle['start_date']} – ${data.cycle['end_date']}',
+              Text('Date: ' + displayDate(DateTime.now()), style: const TextStyle(fontSize: 8)),
+              Text('Cycle: #${data.cycle['index']} · ${displayDate(data.cycle['start_date'])} – ${displayDate(data.cycle['end_date'])}',
                 style: const TextStyle(fontSize: 8)),
             ]),
           ]),
@@ -246,7 +246,7 @@ class InvoicePaper extends StatelessWidget {
               'Site: ' + (b['place'] ?? '—').toString()])),
             const SizedBox(width: 8),
             Expanded(child: _info('BILLING DETAILS', [
-              'Period: ${data.cycle['start_date']} – ${data.cycle['end_date']}',
+              'Period: ${displayDate(data.cycle['start_date'])} – ${displayDate(data.cycle['end_date'])}',
               'Cycle: ' + (b['cycle_days'] ?? 30).toString() + ' days',
               'Status: ' + (data.isUpcoming ? 'ADVANCE PREVIEW' :
                 (b['status'] ?? 'OPEN').toString().toUpperCase())])),
@@ -270,9 +270,9 @@ class InvoicePaper extends StatelessWidget {
             border: Border.all(color: invoicePale), borderRadius: BorderRadius.circular(8)),
             child: Column(children: [
               Padding(padding: const EdgeInsets.all(10), child: Row(children: [
-                _total(data.isUpcoming ? 'ESTIMATED RENT' : 'CYCLE DUE', data.total),
+                _total(data.isUpcoming ? 'UPCOMING CYCLE RENT' : 'CYCLE DUE', data.total),
                 _total('CYCLE PAID', data.paid),
-                _total(data.isUpcoming ? 'EXPECTED' : 'PENDING', data.pending, gold: true),
+                _total(data.isUpcoming ? 'UPCOMING RENT' : 'PENDING', data.pending, gold: true),
               ])),
               Container(width: double.infinity, color: invoiceWarm, padding: const EdgeInsets.all(7),
                 child: Text('Advance: ' + moneyLabel(data.advance) + ' (Refundable)  ·  '
@@ -384,8 +384,8 @@ Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
           pw.Container(color: navy, padding: const pw.EdgeInsets.all(5),
             child: pw.Text(data.number, style: pw.TextStyle(color: PdfColors.white,
               fontSize: 10, fontWeight: pw.FontWeight.bold))),
-          pw.Text('Date: ' + dateKey(DateTime.now()), style: const pw.TextStyle(fontSize: 8)),
-          pw.Text('Cycle #${data.cycle['index']}: ${data.cycle['start_date']} - ${data.cycle['end_date']}',
+          pw.Text('Date: ' + displayDate(DateTime.now()), style: const pw.TextStyle(fontSize: 8)),
+          pw.Text('Cycle #${data.cycle['index']}: ${displayDate(data.cycle['start_date'])} - ${displayDate(data.cycle['end_date'])}',
             style: const pw.TextStyle(fontSize: 7)),
         ]),
       ]),
@@ -396,7 +396,7 @@ Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
           'Mobile: ' + (data.bill['mobile'] ?? '—').toString(),
           'Site: ' + (data.bill['place'] ?? '—').toString()]),
         pw.SizedBox(width: 9),
-        info('BILLING DETAILS', ['Period: ${data.cycle['start_date']} - ${data.cycle['end_date']}',
+        info('BILLING DETAILS', ['Period: ${displayDate(data.cycle['start_date'])} - ${displayDate(data.cycle['end_date'])}',
           'Cycle: ' + (data.bill['cycle_days'] ?? 30).toString() + ' days',
           'Status: ' + (data.isUpcoming ? 'ADVANCE PREVIEW' :
             (data.bill['status'] ?? 'OPEN').toString())]),
@@ -418,9 +418,9 @@ Future<Uint8List> buildInvoicePdf(InvoiceData data, Uint8List logo) async {
       pw.SizedBox(height: 12),
       pw.Container(color: navy, padding: const pw.EdgeInsets.all(12),
         child: pw.Row(children: [
-          for (final item in [(data.isUpcoming ? 'ESTIMATED RENT' : 'CYCLE DUE', data.total, PdfColors.white),
+          for (final item in [(data.isUpcoming ? 'UPCOMING CYCLE RENT' : 'CYCLE DUE', data.total, PdfColors.white),
             ('CYCLE PAID', data.paid, PdfColors.white),
-            (data.isUpcoming ? 'EXPECTED' : 'PENDING', data.pending, gold)])
+            (data.isUpcoming ? 'UPCOMING RENT' : 'PENDING', data.pending, gold)])
             pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(item.$1, style: const pw.TextStyle(color: PdfColors.white, fontSize: 8)),

@@ -125,7 +125,7 @@ class _PaymentFormState extends State<_PaymentForm> {
       DropdownButtonFormField<Map>(initialValue: cycle, isExpanded: true,
         decoration: const InputDecoration(labelText: 'Rental cycle'),
         items: widget.cycles.map((item) => DropdownMenuItem<Map>(value: item,
-          child: Text('Cycle #${item['index']} · ${item['start_date']}',
+          child: Text('Cycle #${item['index']} · ${displayDate(item['start_date'])}',
             overflow: TextOverflow.ellipsis))).toList(),
         onChanged: (value) => setState(() { cycle = value; error = null; })),
       const SizedBox(height: 12),
@@ -148,7 +148,7 @@ class _PaymentFormState extends State<_PaymentForm> {
         onSelected: (_) => setState(() => method = item))).toList()),
       const SizedBox(height: 12),
       OutlinedButton.icon(onPressed: chooseDate, icon: const Icon(Icons.calendar_today_outlined),
-        label: Text('Payment date · ${dateKey(date)}')),
+        label: Text('Payment date · ${displayDate(date)}')),
       const SizedBox(height: 12),
       TextField(controller: note, maxLength: 500,
         decoration: const InputDecoration(labelText: 'Note (optional)')),
@@ -302,7 +302,7 @@ class _MaterialFormState extends State<_MaterialForm> {
         ])),
       Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), children: [
         OutlinedButton.icon(onPressed: chooseDate, icon: const Icon(Icons.calendar_today_outlined),
-          label: Text('${widget.isReturn ? 'Return' : 'Addition'} date · ${dateKey(date)}')),
+          label: Text('${widget.isReturn ? 'Return' : 'Addition'} date · ${displayDate(date)}')),
         const SizedBox(height: 8),
         if (widget.isReturn && widget.otherBills.isNotEmpty) Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -314,7 +314,7 @@ class _MaterialFormState extends State<_MaterialForm> {
           decoration: const InputDecoration(labelText: 'Apply return from cycle',
             helperText: 'Choose any cycle. Earlier rent and due amounts will recalculate.'),
           items: [for (var i = 1; i <= cycle + 1; i++)
-            DropdownMenuItem(value: i, child: Text('Cycle #$i · ${dateKey(start.add(
+            DropdownMenuItem(value: i, child: Text('Cycle #$i · ${displayDate(start.add(
               Duration(days: (i - 1) * ((widget.bill['cycle_days'] as num?)?.toInt() ?? 30))))}'))],
           onChanged: (value) => setState(() => effectiveCycle = value)),
         if (!widget.isReturn) Text('Changes apply from the next rental cycle after this date.',
