@@ -177,11 +177,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       Expanded(child:Text(value,style:const TextStyle(fontWeight:FontWeight.w700)))]));
 
   List<Widget> _rentRows(Map<String,dynamic> bill, Map cycle) {
-    final rent=calculateRent(Map<String,int>.from(cycle['snapshot_qty'] as Map),
-      Map<String,Map<String,int>>.from((cycle['snapshot_wood'] as Map).map(
-        (key,value)=>MapEntry('$key',Map<String,int>.from(value as Map)))), bill);
-    final lines=[...rent.materialLines.where((line)=>(line['qty'] as num)>0),
-      ...rent.woodLines.where((line)=>(line['pieces'] as num)>0)];
+    final woods=Map<String,Map<String,int>>.from((cycle['snapshot_wood'] as Map).map(
+      (key,value)=>MapEntry('$key',Map<String,int>.from(value as Map))));
+    final rent=calculateRent(Map<String,int>.from(cycle['snapshot_qty'] as Map),woods,bill);
+    final lines=rent.materialLines.where((line)=>(line['qty'] as num)>0).toList();
     return [
       Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:9),
         decoration:BoxDecoration(color:AppPalette.of(context).subtle,
@@ -191,18 +190,58 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       ...lines.map((line)=>Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:9),
         child:Row(children:[Expanded(flex:3,child:Text('${line['label']}',
           style:const TextStyle(fontWeight:FontWeight.w600))),
-          Expanded(child:Text('${line['qty']??line['pieces']}')),
+          Expanded(child:Text('${line['qty']}')),
           Text(_money(line['amount'] as num))]))),
-      if (lines.isEmpty) const Padding(padding:EdgeInsets.all(12),child:Text('No materials in this cycle')),
+      if (lines.isEmpty && rent.woodTotal==0) const Padding(padding:EdgeInsets.all(12),child:Text('No materials in this cycle')),
       Divider(color:AppPalette.of(context).border),
       _totalLine('Materials total',rent.materialTotal),
-      if (rent.woodTotal>0) _totalLine('Wood total',rent.woodTotal),
+      if (rent.woodTotal>0) ...[
+        const SizedBox(height:16),
+        Text('WOOD MATERIALS',style:TextStyle(fontSize:12,fontWeight:FontWeight.w800,
+          color:AppPalette.of(context).muted)),
+        const SizedBox(height:8),
+        _woodTable(woods,rent),
+        const SizedBox(height:10),
+        _totalLine('Wood total',rent.woodTotal),
+      ],
       if ((cycle['transport'] as num? ?? 0)>0) _totalLine('Transport & handling',cycle['transport'] as num),
       Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(12),
         decoration:BoxDecoration(color:AppPalette.of(context).subtle,
           borderRadius:BorderRadius.circular(12)),
         child:_totalLine('Cycle rent',cycle['total'] as num,bold:true)),
     ];
+  }
+  Widget _woodTable(Map<String,Map<String,int>> woods,RentBreakdown rent) {
+    final p=AppPalette.of(context);
+    final columns=woodCatalog.map((spec) {
+      final entries=(woods[spec.key]??const <String,int>{}).entries
+        .where((entry)=>entry.value>0).toList()
+        ..sort((a,b)=>(double.tryParse(a.key)??0).compareTo(double.tryParse(b.key)??0));
+      final line=rent.woodLines.firstWhere((row)=>row['key']==spec.key);
+      return (label:spec.label,entries:entries,feet:line['total_feet'] as num,
+        amount:line['amount'] as num);
+    }).toList();
+    final count=columns.map((column)=>column.entries.length).fold<int>(0,(a,b)=>a>b?a:b);
+    Widget cell(String value,{bool bold=false,Color? color})=>Padding(
+      padding:const EdgeInsets.symmetric(horizontal:2,vertical:7),
+      child:Text(value,textAlign:TextAlign.center,softWrap:false,
+        style:TextStyle(fontSize:11,fontWeight:bold?FontWeight.w800:FontWeight.w500,
+          color:color??p.ink)));
+    Widget row(List<Widget> cells,{Color? background})=>Container(
+      color:background,child:Row(children:[for(final item in cells) Expanded(child:item)]));
+    return ClipRRect(borderRadius:BorderRadius.circular(10),child:Container(
+      decoration:BoxDecoration(border:Border.all(color:p.border)),
+      child:Column(children:[
+        row([for(final column in columns) cell(column.label.toUpperCase(),bold:true)],
+          background:p.subtle),
+        for(var i=0;i<count;i++) row([for(final column in columns)
+          cell(i<column.entries.length
+            ? '${column.entries[i].key}×${column.entries[i].value}' : '')]),
+        row([for(final column in columns) Column(children:[
+          cell('${column.feet} ft',bold:true),
+          cell(_money(column.amount),bold:true),
+        ])],background:p.subtle),
+      ])));
   }
   Widget _totalLine(String label,num amount,{bool bold=false})=>Row(children:[
     Expanded(child:Text(label,style:TextStyle(fontWeight:bold?FontWeight.w800:FontWeight.w600))),
