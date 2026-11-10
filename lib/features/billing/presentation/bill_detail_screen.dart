@@ -192,10 +192,11 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
           style:const TextStyle(fontWeight:FontWeight.w600))),
           Expanded(child:Text('${line['qty']}')),
           Text(_money(line['amount'] as num))]))),
-      if (lines.isEmpty && rent.woodTotal==0) const Padding(padding:EdgeInsets.all(12),child:Text('No materials in this cycle')),
+      if (lines.isEmpty && !woods.values.any((sizes)=>sizes.values.any((count)=>count>0)))
+        const Padding(padding:EdgeInsets.all(12),child:Text('No materials in this cycle')),
       Divider(color:AppPalette.of(context).border),
       _totalLine('Materials total',rent.materialTotal),
-      if (rent.woodTotal>0) ...[
+      if (woods.values.any((sizes)=>sizes.values.any((count)=>count>0))) ...[
         const SizedBox(height:16),
         Text('WOOD MATERIALS',style:TextStyle(fontSize:12,fontWeight:FontWeight.w800,
           color:AppPalette.of(context).muted)),
@@ -224,9 +225,9 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     final count=columns.map((column)=>column.entries.length).fold<int>(0,(a,b)=>a>b?a:b);
     Widget cell(String value,{bool bold=false,Color? color})=>Padding(
       padding:const EdgeInsets.symmetric(horizontal:2,vertical:7),
-      child:Text(value,textAlign:TextAlign.center,softWrap:false,
+      child:FittedBox(fit:BoxFit.scaleDown,child:Text(value,textAlign:TextAlign.center,
         style:TextStyle(fontSize:11,fontWeight:bold?FontWeight.w800:FontWeight.w500,
-          color:color??p.ink)));
+          color:color??p.ink))));
     Widget row(List<Widget> cells,{Color? background})=>Container(
       color:background,child:Row(children:[for(final item in cells) Expanded(child:item)]));
     return ClipRRect(borderRadius:BorderRadius.circular(10),child:Container(
