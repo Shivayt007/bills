@@ -101,7 +101,8 @@ void main() {
       child: InvoicePaper(data: upcoming)))));
     expect(find.text('UPCOMING · ADVANCE PREVIEW'), findsOneWidget);
     expect(find.text('RENTAL CYCLE #3'), findsOneWidget);
-    expect(find.text('ESTIMATED RENT'), findsOneWidget);
+    expect(find.text('UPCOMING CYCLE RENT'), findsOneWidget);
+    expect(find.text('UPCOMING RENT'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
