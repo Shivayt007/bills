@@ -54,12 +54,15 @@ void main() {
         });
       }
       tester.view.physicalSize=Size(width,844);await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.text('Rental cycles'),150);await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('Rental cycles'),150,
+        scrollable:find.byType(Scrollable).first);await tester.pumpAndSettle();
       expect(find.text('Rental cycles'),findsOneWidget);
-      await tester.scrollUntilVisible(find.text('Record return'),150);
+      await tester.scrollUntilVisible(find.text('Record return'),150,
+        scrollable:find.byType(Scrollable).first);
       await tester.pumpAndSettle();
       expect(find.text('Record return'),findsOneWidget);
-      await tester.scrollUntilVisible(find.text('Add material'),150);
+      await tester.scrollUntilVisible(find.text('Add material'),150,
+        scrollable:find.byType(Scrollable).first);
       await tester.pumpAndSettle();
       expect(find.text('Add material'),findsOneWidget);
       expect(tester.takeException(),isNull);
