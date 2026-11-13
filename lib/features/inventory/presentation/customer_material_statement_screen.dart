@@ -127,7 +127,7 @@ class MaterialStatementPaper extends StatelessWidget {
   final List<MaterialHolding> rows;
   final DateTime asOf;
 
-  static const widths = <double>[104, 140, 210, 95, 95, 90, 115, 90, 105];
+  static const widths = <double>[104, 140, 208, 95, 95, 90, 115, 90, 105];
   static const paperWidth = 1100.0;
   static const ink = Color(0xFF15232C);
   static const muted = Color(0xFF566977);

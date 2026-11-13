@@ -161,5 +161,6 @@ These are **proposed follow-ups, not shipped features or release promises**. Upd
 
 ## Documentation changelog
 
+- 2026-11-13: Corrected the material statement column widths after the narrow-screen widget test exposed a 2-pixel overflow.
 - 2026-11-13: Moved customer material details from the Bill Details page to a button and shareable statement screen; removed table selection boxes in Inventory.
 - 2026-11-13: Replaced the short Flutter note with the full handoff, including per-bill customer/Inventory tables, Column Box, returns, schema, calculations, reminders, UI, release and roadmap.
