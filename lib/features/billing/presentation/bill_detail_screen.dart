@@ -12,6 +12,8 @@ import 'bill_form_screen.dart';
 import '../domain/history_corrections.dart';
 import '../domain/grouped_returns.dart';
 import '../domain/return_service.dart';
+import '../../inventory/domain/material_holdings.dart';
+import '../../inventory/presentation/material_holdings_table.dart';
 
 final billDetailProvider = FutureProvider.autoDispose.family<Map<String,dynamic>?, String>((ref, id) => ref.watch(billingRepositoryProvider).get('bills', id));
 
@@ -46,6 +48,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     final returns = (b['return_history'] as List).cast<Map>().reversed.toList();
     final additions = (b['additional_history'] as List).cast<Map>().reversed.toList();
     final active = cycles.lastOrNull;
+    final customerBills = materialHoldings([
+      ...ref.watch(hydratedBillsProvider),
+      if (rows == null || !rows.any((item) => '${item['bill_no']}' == billNo)) b,
+    ]).where((row) => sameRentalCustomer(row.bill, b)).toList();
     final p = AppPalette.of(context);
     return Scaffold(
       appBar: AppBar(title: Text('Bill #$billNo'), actions: [
@@ -114,6 +120,18 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
               style:Theme.of(context).textTheme.bodySmall),
             const SizedBox(height:12),
             if (active != null) ..._rentRows(b,active),
+          ]),
+          const SizedBox(height:14),
+          _designCard('Customer material details',Icons.table_chart_outlined,[
+            Text('Current material balance for each bill · ${customerBills.length} open bills',
+              style:Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height:12),
+            MaterialHoldingsTable(rows:customerBills,showCustomer:false,
+              onOpenBill:(id) {
+                if (id == billNo) return;
+                Navigator.push(context,MaterialPageRoute(
+                  builder:(_)=>BillDetailScreen(billNo:id)));
+              }),
           ]),
           const SizedBox(height:14),
           _designCard('Rental cycles',Icons.calendar_month_outlined,[
