@@ -5,6 +5,7 @@ import 'package:sa_traders_billing/features/billing/domain/billing_calculator.da
 import 'package:sa_traders_billing/features/billing/domain/grouped_returns.dart';
 import 'package:sa_traders_billing/features/inventory/domain/material_holdings.dart';
 import 'package:sa_traders_billing/features/inventory/presentation/material_holdings_table.dart';
+import 'package:sa_traders_billing/features/inventory/presentation/customer_material_statement_screen.dart';
 
 void main() {
   final today = DateTime.utc(2026, 11, 13);
@@ -48,6 +49,29 @@ void main() {
         rows: rows, showCustomer: false, onOpenBill: (_) {})))));
     expect(find.text('#2703'), findsOneWidget);
     expect(find.text('TOTAL MATERIAL PRESENT'), findsOneWidget);
+    expect(find.byType(Checkbox), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shareable paper contains every bill and full-width totals in dark mode', (tester) async {
+    tester.view.physicalSize = const Size(320, 750);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final rows = materialHoldings([
+      bill('2703', '9600463988', 100, sheet: 5, returned: 10),
+      bill('2715', '9600463988', 30),
+    ]);
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(Brightness.dark),
+      home: Scaffold(body: SingleChildScrollView(scrollDirection: Axis.horizontal,
+        child: RepaintBoundary(child: MaterialStatementPaper(
+          customer: 'Max Homes', phone: '9600463988', rows: rows, asOf: today))))));
+    expect(find.text('#2703'), findsOneWidget);
+    expect(find.text('#2715'), findsOneWidget);
+    expect(find.text('TOTAL MATERIAL PRESENT'), findsOneWidget);
+    expect(find.text('120'), findsOneWidget);
+    expect(find.text('WOOD'), findsNothing);
+    expect(find.byType(MaterialStatementPaper).evaluate().single.size!.width, 1100);
     expect(tester.takeException(), isNull);
   });
 }

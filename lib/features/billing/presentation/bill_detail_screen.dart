@@ -13,7 +13,7 @@ import '../domain/history_corrections.dart';
 import '../domain/grouped_returns.dart';
 import '../domain/return_service.dart';
 import '../../inventory/domain/material_holdings.dart';
-import '../../inventory/presentation/material_holdings_table.dart';
+import '../../inventory/presentation/customer_material_statement_screen.dart';
 
 final billDetailProvider = FutureProvider.autoDispose.family<Map<String,dynamic>?, String>((ref, id) => ref.watch(billingRepositoryProvider).get('bills', id));
 
@@ -126,12 +126,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
             Text('Current material balance for each bill · ${customerBills.length} open bills',
               style:Theme.of(context).textTheme.bodySmall),
             const SizedBox(height:12),
-            MaterialHoldingsTable(rows:customerBills,showCustomer:false,
-              onOpenBill:(id) {
-                if (id == billNo) return;
-                Navigator.push(context,MaterialPageRoute(
-                  builder:(_)=>BillDetailScreen(billNo:id)));
-              }),
+            FilledButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(
+              builder:(_)=>CustomerMaterialStatementScreen(customerBill:b))),
+              icon:const Icon(Icons.open_in_new_outlined),
+              label:const Text('View & share material statement')),
           ]),
           const SizedBox(height:14),
           _designCard('Rental cycles',Icons.calendar_month_outlined,[

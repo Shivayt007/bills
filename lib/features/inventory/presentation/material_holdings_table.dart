@@ -55,6 +55,7 @@ class MaterialHoldingsTable extends StatelessWidget {
           border: Border.all(color: palette.border)),
         child: SingleChildScrollView(scrollDirection: Axis.horizontal,
           child: DataTable(
+            showCheckboxColumn: false,
             headingRowColor: WidgetStatePropertyAll(palette.subtle),
             columnSpacing: 22,
             horizontalMargin: 14,
