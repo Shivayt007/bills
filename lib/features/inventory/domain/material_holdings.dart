@@ -11,21 +11,6 @@ class MaterialHolding {
   String get customerName => '${bill['name'] ?? 'Customer'}'.trim();
 }
 
-String _phone(Object? value) {
-  final digits = '$value'.replaceAll(RegExp(r'\D'), '');
-  return digits.length == 12 && digits.startsWith('91')
-    ? digits.substring(2) : digits;
-}
-String _name(Object? value) => '$value'.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-
-bool sameRentalCustomer(Map<String, dynamic> a, Map<String, dynamic> b) {
-  final left = _phone(a['mobile']), right = _phone(b['mobile']);
-  if (left.isNotEmpty || right.isNotEmpty) return left.isNotEmpty && left == right;
-  final name = _name(a['name']);
-  return name.isNotEmpty && name == _name(b['name']) &&
-    _name(a['place']) == _name(b['place']);
-}
-
 List<MaterialHolding> materialHoldings(Iterable<Map<String, dynamic>> bills) {
   final rows = <MaterialHolding>[];
   for (final bill in bills) {
