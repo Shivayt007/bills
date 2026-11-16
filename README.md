@@ -47,7 +47,7 @@ Phone navigation: **Home / Bills / Reports / More**. Notifications, Inventory, S
 3. Enable **Email/Password** in Firebase Authentication and provision the shop account. The old local `admin / shiva` lock is not the Flutter login. Set a trusted Firebase Auth custom claim `admin: true` for admin-only UI actions if needed.
 4. Review and deploy `firestore.rules`. The current rule allows **any authenticated user** to read/write the single business account's subcollections. The admin claim gates UI, not Firestore writes. Harden rules before adding staff or multiple shops.
 5. Run `dart format lib test`, `flutter analyze --no-fatal-infos --no-fatal-warnings`, `flutter test` and `flutter run` for a development device.
-6. Push to `flutter-native-port` or dispatch **Flutter native billing app** in GitHub Actions. CI pins Flutter 3.47.0, formats/analyzes/tests, builds a signed APK, verifies its signature and uploads `sa-traders-flutter-release-apk`. Set GitHub secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` for the **existing signing key**. Extract and install `app-release.apk`, not the artifact ZIP. A `[preview]` commit skips signing/APK.
+6. Push to `flutter-native-port` or dispatch **Flutter native billing app** in GitHub Actions. CI pins Flutter 3.47.0 and Temurin JDK 17 (the runner default Java can be too new for Gradle 8.14.3), formats/analyzes/tests, builds a signed APK, verifies its signature and uploads `sa-traders-flutter-release-apk`. Set GitHub secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` for the **existing signing key**. Extract and install `app-release.apk`, not the artifact ZIP. A `[preview]` commit skips signing/APK.
 
 The current Flutter release targets Android. The old wrapper has other workflows; do not confuse their artifacts. `pubspec.yaml` and `android/app/build.gradle` have separate version metadata; inspect both for releases.
 
@@ -161,6 +161,7 @@ These are **proposed follow-ups, not shipped features or release promises**. Upd
 
 ## Documentation changelog
 
+- 2026-11-16: Pinned Java 17 in the Flutter GitHub Action after the runner default changed to Java 25 and blocked Gradle 8.14.3 APK assembly; the earlier commit's Flutter analysis and 41 tests passed.
 - 2026-11-16: Added active one-cycle rent per bill and its total to the customer material photo statement, excluding transport and cumulative balances.
 - 2026-11-13: Corrected the material statement column widths after the narrow-screen widget test exposed a 2-pixel overflow.
 - 2026-11-13: Moved customer material details from the Bill Details page to a button and shareable statement screen; removed table selection boxes in Inventory.
