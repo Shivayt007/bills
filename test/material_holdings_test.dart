@@ -10,12 +10,15 @@ import 'package:sa_traders_billing/features/inventory/presentation/customer_mate
 void main() {
   final today = DateTime.utc(2026, 11, 13);
   Map<String, dynamic> bill(String number, String phone, int jackey,
-      {int sheet = 0, int returned = 0, String status = 'open'}) =>
+      {int sheet = 0, int returned = 0, String status = 'open',
+       String wood = '0', int transport = 0}) =>
     hydrateRentalBill({
       'bill_no': number, 'name': 'Max Homes', 'mobile': phone,
       'place': 'Seruseri', 'status': status,
       'start_date': '2026-09-17', 'cycle_days': 30,
       'jackey_qty': jackey, 'sheet_qty': sheet,
+      'wood_12': wood, 'transport_up_trips': transport,
+      'transport_up_charge': 300,
       'return_history': returned == 0 ? <Map>[] : [
         {'date': '2026-10-01', 'effective_from_cycle': 2,
           'items': {'jackey': returned}},
@@ -36,6 +39,19 @@ void main() {
     expect(materialHoldingTotals(customer)['sheet'], 5);
     expect(sameRentalCustomer(first, other), isFalse);
     expect(sameRentalCustomer(first, bill('plus91', '+91 9600463988', 0)), isTrue);
+  });
+
+  test('statement rent is one active cycle per bill without transport', () {
+    final first = bill('2703', '9600463988', 100,
+      sheet: 5, returned: 10, wood: '8×2', transport: 1);
+    final second = bill('2715', '9600463988', 30);
+    final rows = materialHoldings([first, second]);
+    // Active cycle #2: (90 × 65) + (5 × 35) + (16 ft × 18).
+    expect(rows[0].singleCycleRent, 6313);
+    expect(rows[1].singleCycleRent, 1950);
+    expect(materialHoldingCycleRentTotal(rows), 8263);
+    expect((first['cycles'] as List).first['total'], 7263);
+    expect(first['total_due'], greaterThan(rows[0].singleCycleRent));
   });
 
   testWidgets('spreadsheet scrolls horizontally on a narrow phone', (tester) async {
@@ -59,7 +75,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final rows = materialHoldings([
-      bill('2703', '9600463988', 100, sheet: 5, returned: 10),
+      bill('2703', '9600463988', 100, sheet: 5, returned: 10,
+        wood: '8×2', transport: 1),
       bill('2715', '9600463988', 30),
     ]);
     await tester.pumpWidget(MaterialApp(theme: buildTheme(Brightness.dark),
@@ -70,8 +87,12 @@ void main() {
     expect(find.text('#2715'), findsOneWidget);
     expect(find.text('TOTAL MATERIAL PRESENT'), findsOneWidget);
     expect(find.text('120'), findsOneWidget);
+    expect(find.text('RENT / CYCLE (₹)'), findsOneWidget);
+    expect(find.text('₹6313.00'), findsOneWidget);
+    expect(find.text('₹1950.00'), findsOneWidget);
+    expect(find.text('₹8263.00'), findsOneWidget);
     expect(find.text('WOOD'), findsNothing);
-    expect(find.byType(MaterialStatementPaper).evaluate().single.size!.width, 1100);
+    expect(find.byType(MaterialStatementPaper).evaluate().single.size!.width, 1250);
     expect(tester.takeException(), isNull);
   });
 }

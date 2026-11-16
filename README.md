@@ -12,7 +12,7 @@ This README is the project handoff and a platform-neutral behavior specification
 | Bills | Search and status filters; create rental, custom shop or Column Box bill | `lib/features/billing/presentation/bills_screen.dart`, `home_shell.dart` |
 | Rental form | Editable bill number, customer/site, start date, cycle length, material quantities/rates, wood sizes/per-foot rates, transport/handling, refundable advance, review before save | `lib/features/billing/presentation/bill_form_screen.dart` |
 | Bill details | Due/paid/pending, cycles and their invoices, payments, returns, additions, correction history, edit/close/delete | `lib/features/billing/presentation/bill_detail_screen.dart` |
-| Customer materials | Bill Details shows a button opening a separate white material statement: one row for each open bill of the same customer, six current non-wood balances, a total row and full-width photo sharing | `lib/features/inventory/domain/material_holdings.dart`, `presentation/customer_material_statement_screen.dart` |
+| Customer materials | Bill Details opens a separate white material statement: each open bill has six current non-wood balances and its active single-cycle rent; the final row totals quantities and one-cycle rents. Share the full-width paper as a photo. | `lib/features/inventory/domain/material_holdings.dart`, `presentation/customer_material_statement_screen.dart` |
 | Inventory | One row for every open rental bill across customers, with customer, bill no, date, site, six non-wood quantities and total; separate stock editors, including wood | `lib/features/inventory/` |
 | Rental invoice | Choose any accrued cycle or preview the next cycle; share PDF/image; customer/shop details, terms, item/qty/amount, due/paid/pending; no rate column or wood size breakdown | `lib/features/invoice/presentation/invoice_screen.dart` |
 | Column Box | Separate list, create/edit, centring and manually sized boxes, day-based totals, invoice/PDF/print, mark paid, delete with five-second Undo | `lib/features/column_box/` |
@@ -97,7 +97,7 @@ The authoritative code is `lib/features/billing/domain/billing_calculator.dart`;
 4. **Material timeline:** For cycle `n`, start with original quantities/wood; apply additions and returns with `effective_from_cycle <= n`. Snapshots clamp quantities to zero and omit nonpositive wood sizes. A return dated after a new cycle begins can deliberately apply from **any valid cycle 1 through current cycle + 1** and recalculate prior rent. Additions normally apply in the cycle after their date. Ledger validation rejects corrections that make a later balance negative.
 5. **Totals/payments:** `total_due = round2(sum(generated cycle totals))`; `total_paid = round2(sum(payment amounts))`; `pending = round2(max(0,total_due−total_paid))`. Payment selects a cycle, checks its remaining amount and current bill balance, and reloads the bill before save. Duplicate amount/date asks for confirmation.
 6. **Cross-bill return:** Match another open bill by normalized last-ten-digit phone. If both phones are absent, require normalized name **and** site. Allocate to selected bill first, then other matching open bills; never exceed available material/wood-size balance. Reject the entire entry if any piece cannot be allocated. Preview bill split/effective cycles; re-read and update all affected bills atomically via Firestore transaction. Grouped edit/delete touches all affected bills.
-7. **Spreadsheet holdings:** Use each open bill's **current** hydrated `balance_qty` (original + additions − returns), not an invoice-cycle snapshot. Inventory shows one row per open rental bill across customers. Bill Details has a button to a separate statement filtered to the same customer. Sum all six non-wood columns in the final row; intentionally omit wood from these two tables. The photo share captures the whole statement paper at its full width, independent of the horizontally scrolled phone preview.
+7. **Spreadsheet holdings:** Use each open bill's **current** hydrated `balance_qty` (original + additions − returns), not an invoice-cycle snapshot. Inventory shows one row per open rental bill across customers. Bill Details has a button to a separate statement filtered to the same customer. Sum all six non-wood quantity columns in the final row; intentionally omit wood from the quantity tables. The statement also shows each bill's active cycle `rent` (material plus wood if present, after effective additions/returns) and the sum of these per-bill one-cycle rents. Exclude cycle-1 transport/loading/unloading, refundable deposit, payments, outstanding and prior cycles. A bill with no started cycle has ₹0 cycle rent. The photo share captures the whole statement paper at its full width, independent of the horizontally scrolled phone preview.
 8. **Custom shop bill:** The current legacy-compatible `customBillTotal()` calculates `round2(rent + up/down transport + loading + unloading + rent)`. **It adds rent twice.** Preserve this exact result for parity until a separately reviewed business-rule change; do not silently fix it in another frontend.
 9. **Column Box:** Each line `round2(qty × ratePerDay × days)`; `itemsTotal = round2(sum(lines))`; `grandTotal = round2(itemsTotal + transport + labourUp + labourDown)`; `balanceDue = round2(max(0,grandTotal−advancePaid−amountPaid))`; `status = paid` iff balance is zero. Require days ≥ 1, no negative amounts, customer name, at least one item with qty > 0 and positive width/depth/height for a nonzero box. Indian currency grouping (e.g. ₹1,25,000). Allocate `CB-0001` via a transaction on the settings sequence.
 
@@ -113,7 +113,7 @@ for each bill, hydrate through the requested date:
   add transport to cycle 1 only
   due = sum(cycle totals); paid = sum(payments); pending = max(0, due − paid)
 for customer holdings, match open bills by phone or name + place fallback
-show each open bill's current six non-wood balances in one row; sum columns
+show each open bill's current six non-wood balances and active cycle rent in one row; sum columns and per-bill cycle rents
 for a cross-bill return, preview split, validate every ledger, commit atomically
 ```
 
@@ -136,7 +136,7 @@ Rental invoices display S.A Traders, `Vijayanagaram, Gandhi Street, Medavakkam, 
 
 - `test/billing_calculator_test.dart`: legacy parity for rates, dates, cycles, transport, pending, returns.
 - `test/grouped_returns_test.dart`, `test/history_backup_test.dart`: cross-bill allocation, correction/ledger and backup behavior.
-- `test/material_holdings_test.dart`: separate bill rows, returns, closed-bill exclusion, customer grouping, narrow-screen table and full-width shareable paper.
+- `test/material_holdings_test.dart`: separate bill rows, returns, closed-bill exclusion, customer grouping, single-cycle rent without transport, narrow-screen table and full-width shareable paper.
 - `test/column_box_bill_test.dart`: Column Box calculations/models. Other `test/` files cover navigation, entry sheets, invoice styling, dates and dashboard.
 - Legacy `tests/` and `whatsapp-reminders/test/` cover those separate runtimes.
 
@@ -161,6 +161,7 @@ These are **proposed follow-ups, not shipped features or release promises**. Upd
 
 ## Documentation changelog
 
+- 2026-11-16: Added active one-cycle rent per bill and its total to the customer material photo statement, excluding transport and cumulative balances.
 - 2026-11-13: Corrected the material statement column widths after the narrow-screen widget test exposed a 2-pixel overflow.
 - 2026-11-13: Moved customer material details from the Bill Details page to a button and shareable statement screen; removed table selection boxes in Inventory.
 - 2026-11-13: Replaced the short Flutter note with the full handoff, including per-bill customer/Inventory tables, Column Box, returns, schema, calculations, reminders, UI, release and roadmap.

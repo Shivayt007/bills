@@ -118,7 +118,7 @@ class _CustomerMaterialStatementScreenState
 }
 
 /// White, invoice-like document independent of the app's light/dark theme.
-/// Only the six non-wood material counts are part of this statement.
+/// The six non-wood quantities remain the same; rent includes wood if present.
 class MaterialStatementPaper extends StatelessWidget {
   const MaterialStatementPaper({super.key, required this.customer,
       required this.phone, required this.rows, required this.asOf});
@@ -127,8 +127,8 @@ class MaterialStatementPaper extends StatelessWidget {
   final List<MaterialHolding> rows;
   final DateTime asOf;
 
-  static const widths = <double>[104, 140, 208, 95, 95, 90, 115, 90, 105];
-  static const paperWidth = 1100.0;
+  static const widths = <double>[104, 140, 208, 95, 95, 90, 115, 90, 105, 150];
+  static const paperWidth = 1250.0;
   static const ink = Color(0xFF15232C);
   static const muted = Color(0xFF566977);
   static const line = Color(0xFFDDE7EB);
@@ -151,7 +151,8 @@ class MaterialStatementPaper extends StatelessWidget {
       child: Row(children: [
         for (var i = 0; i < widths.length; i++)
           _cell(values[i], widths[i], bold: header || i == 0,
-            alignment: i >= 3 ? Alignment.center : Alignment.centerLeft,
+            alignment: i == widths.length - 1 ? Alignment.centerRight :
+                i >= 3 ? Alignment.center : Alignment.centerLeft,
             color: header ? AppColors.teal : ink),
       ]),
     );
@@ -213,12 +214,14 @@ class MaterialStatementPaper extends StatelessWidget {
         ]),
         const SizedBox(height: 18),
         _row(['BILL NO', 'START DATE', 'LOCATION',
-          ...materialCatalog.map((spec) => spec.label.toUpperCase())], header: true),
+          ...materialCatalog.map((spec) => spec.label.toUpperCase()),
+          'RENT / CYCLE (₹)'], header: true),
         for (var i = 0; i < rows.length; i++)
           _row(['#${rows[i].billNo}', displayDate(rows[i].bill['start_date']),
             '${rows[i].bill['place'] ?? '—'}',
             ...materialCatalog.map((spec) =>
-              '${rows[i].quantities[spec.key] ?? 0}')], alternate: i.isOdd),
+              '${rows[i].quantities[spec.key] ?? 0}'),
+            moneyLabel(rows[i].singleCycleRent)], alternate: i.isOdd),
         if (rows.isEmpty)
           const Padding(padding: EdgeInsets.all(16),
             child: Text('No open rental bills for this customer.',
@@ -233,10 +236,13 @@ class MaterialStatementPaper extends StatelessWidget {
             for (var i = 0; i < materialCatalog.length; i++)
               _cell('${totals[materialCatalog[i].key]}', widths[i + 3],
                 bold: true, alignment: Alignment.center),
+            _cell(moneyLabel(materialHoldingCycleRentTotal(rows)), widths.last,
+              bold: true, alignment: Alignment.centerRight),
           ])),
         const SizedBox(height: 20),
-        const Text('Current quantity held across the open rental bills above. '
-          'Wood materials are excluded from this statement.',
+        const Text('Current non-wood quantities across open bills. Rent / cycle '
+          'is each bill’s active cycle rent (including wood where present), '
+          'without transport, loading, unloading, payments or deposit.',
           style: TextStyle(color: muted, fontSize: 12)),
       ]),
     );
