@@ -30,7 +30,8 @@ void main() {
   testWidgets('View bill fetches exact bill and back preserves the source route',(tester)async{
     await tester.pumpWidget(app(const Scaffold(body:ViewBillButton(billNo:'2504')),fetched:bill));
     await tester.tap(find.text('View bill'));await tester.pumpAndSettle();
-    expect(find.text('Bill #2504'),findsOneWidget);expect(find.text('Suriya'),findsOneWidget);
+    expect(find.text('Bill #2504'),findsOneWidget);
+    expect(find.text('Amount due'),findsOneWidget);
     await tester.pageBack();await tester.pumpAndSettle();expect(find.text('View bill'),findsOneWidget);
   });
   testWidgets('Deleted bill ends loading and shows Bill not found',(tester)async{
@@ -54,17 +55,15 @@ void main() {
         });
       }
       tester.view.physicalSize=Size(width,844);await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.text('Rental cycles'),150,
-        scrollable:find.byType(Scrollable).first);await tester.pumpAndSettle();
-      expect(find.text('Rental cycles'),findsOneWidget);
-      await tester.scrollUntilVisible(find.text('Record return'),150,
-        scrollable:find.byType(Scrollable).first);
+      // These actions are in the quick-actions card near the top. Keep the
+      // assertion there before scrolling to the cycle list below it.
+      await tester.drag(find.byType(ListView),const Offset(0,-400));
       await tester.pumpAndSettle();
       expect(find.text('Record return'),findsOneWidget);
-      await tester.scrollUntilVisible(find.text('Add material'),150,
-        scrollable:find.byType(Scrollable).first);
-      await tester.pumpAndSettle();
       expect(find.text('Add material'),findsOneWidget);
+      await tester.drag(find.byType(ListView),const Offset(0,-400));
+      await tester.pumpAndSettle();
+      expect(find.text('Rental cycles'),findsOneWidget);
       expect(tester.takeException(),isNull);
     });
   }

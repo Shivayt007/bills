@@ -163,6 +163,7 @@ These are **proposed follow-ups, not shipped features or release promises**. Upd
 
 ## Documentation changelog
 
+- 2026-11-17: Adjusted Bill Details widget checks to verify actions in their new quick-action position and the fetched bill's amount card; the old assertions targeted offscreen content. No app logic changed in this follow-up.
 - 2026-11-17: Reorganized rental Bill Details around pending periods, per-cycle status/payment/invoice actions, customer-wide open-bill pending, a unified material timeline and a compact quick-action section. Edit/close/delete moved to the bill options menu. No Firestore fields or billing formulas changed.
 - 2026-11-16: Pinned Java 17 in the Flutter GitHub Action after the runner default changed to Java 25 and blocked Gradle 8.14.3 APK assembly; the earlier commit's Flutter analysis and 41 tests passed.
 - 2026-11-16: Added active one-cycle rent per bill and its total to the customer material photo statement, excluding transport and cumulative balances.
