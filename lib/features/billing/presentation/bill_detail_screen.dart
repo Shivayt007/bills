@@ -6,6 +6,7 @@ import '../../../core/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/common.dart';
 import '../domain/billing_calculator.dart';
+import '../domain/bill_detail_view.dart';
 import '../../invoice/presentation/invoice_screen.dart';
 import 'bill_entry_sheets.dart';
 import 'bill_form_screen.dart';
@@ -45,18 +46,41 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     final b = hydrateRentalBill(raw, today: DateTime.utc(now.year, now.month, now.day));
     final cycles = (b['cycles'] as List).cast<Map>();
     final payments = (b['payments'] as List).cast<Map>();
-    final returns = (b['return_history'] as List).cast<Map>().reversed.toList();
-    final additions = (b['additional_history'] as List).cast<Map>().reversed.toList();
     final active = cycles.lastOrNull;
+    final overview = billCycleOverview(b);
+    final pendingCycles = overview.pendingCycles;
     final customerBills = materialHoldings([
       ...ref.watch(hydratedBillsProvider),
       if (rows == null || !rows.any((item) => '${item['bill_no']}' == billNo)) b,
     ]).where((row) => sameRentalCustomer(row.bill, b)).toList();
+    final customerPending = moneyRound(customerBills.fold<double>(0,
+      (sum,row) => sum + ((row.bill['pending'] as num?)?.toDouble() ?? 0)));
+    final materialEvents = <({Map entry, bool isReturn, int index})>[
+      for (var i=0; i<(b['return_history'] as List).length; i++)
+        (entry:(b['return_history'] as List)[i] as Map,isReturn:true,index:i),
+      for (var i=0; i<(b['additional_history'] as List).length; i++)
+        (entry:(b['additional_history'] as List)[i] as Map,isReturn:false,index:i),
+    ]..sort((a,z)=>'${z.entry['date']??''}'.compareTo('${a.entry['date']??''}'));
     final p = AppPalette.of(context);
     return Scaffold(
       appBar: AppBar(title: Text('Bill #$billNo'), actions: [
         IconButton(tooltip: 'View invoice', onPressed: () => _invoice(context,b),
           icon: const Icon(Icons.description_outlined)),
+        PopupMenuButton<String>(tooltip:'Bill options',onSelected:(choice) async {
+          if(choice=='edit') {
+            final updated=await Navigator.push<bool>(context,MaterialPageRoute(
+              builder:(_)=>BillFormScreen(initialBill:raw)));
+            if(updated==true) ref.invalidate(billDetailProvider(billNo));
+          } else if(choice=='close') {
+            await _close(context,ref,b);
+          } else if(choice=='delete') {
+            await _deleteBill(context,ref);
+          }
+        },itemBuilder:(_)=>[
+          const PopupMenuItem(value:'edit',child:Text('Edit bill')),
+          if(b['status']!='closed') const PopupMenuItem(value:'close',child:Text('Close bill')),
+          const PopupMenuItem(value:'delete',child:Text('Delete bill')),
+        ]),
       ]),
       body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 720),
         child: ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 28), children: [
@@ -76,11 +100,53 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
               const SizedBox(height:10),
               Text('Total ${_money(b['total_due'] as num)}  ·  Paid ${_money(b['total_paid'] as num)}',
                 style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700)),
+              const SizedBox(height:10),
+              Text(pendingCycles.isEmpty ? 'All started cycles paid' :
+                '${pendingCycles.length} ${pendingCycles.length==1?'cycle':'cycles'} pending',
+                style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w800)),
+              if(pendingCycles.isNotEmpty) Text(
+                'Oldest: Cycle #${pendingCycles.first.index} · '
+                '${displayDate(pendingCycles.first.cycle['start_date'])} – '
+                '${displayDate(pendingCycles.first.cycle['end_date'])} · '
+                '${_money(pendingCycles.first.pending)}',
+                style:const TextStyle(color:Colors.white70)),
               if ((b['advance_locked'] as num? ?? 0)>0) Padding(
                 padding:const EdgeInsets.only(top:7),
                 child:Text('Advance deposit ${_money(b['advance_locked'] as num)}',
                   style:const TextStyle(color:Colors.white70))),
             ])),
+          const SizedBox(height:14),
+          _designCard('Pending cycles',Icons.pending_actions_outlined,[
+            if(pendingCycles.isEmpty) const Text('No pending rental cycles')
+            else ...pendingCycles.map((view)=>_pendingCycleLine(view,b,cycles)),
+            if(overview.unallocatedCredit>0) Padding(
+              padding:const EdgeInsets.only(top:10),
+              child:Text('${_money(overview.unallocatedCredit)} in payments could not be assigned to a cycle. Review payment history.',
+                style:TextStyle(color:p.warning,fontWeight:FontWeight.w700))),
+          ]),
+          const SizedBox(height:14),
+          _designCard('Quick actions',Icons.bolt_outlined,[
+            Wrap(spacing:8,runSpacing:8,children:[
+              FilledButton.icon(onPressed:()=>_recordPayment(context,ref,b,cycles,
+                  selectedCycle:pendingCycles.firstOrNull?.cycle),
+                icon:const Icon(Icons.payments_outlined),label:const Text('Record payment')),
+              OutlinedButton.icon(onPressed:()=>_materialChange(context,ref,b,isReturn:true),
+                icon:const Icon(Icons.keyboard_return),label:const Text('Record return')),
+              OutlinedButton.icon(onPressed:()=>_materialChange(context,ref,b,isReturn:false),
+                icon:const Icon(Icons.add),label:const Text('Add material')),
+              OutlinedButton.icon(onPressed:()=>_invoice(context,b),
+                icon:const Icon(Icons.share_outlined),label:const Text('View / share invoice')),
+            ]),
+          ]),
+          const SizedBox(height:14),
+          _designCard('Rental cycles',Icons.calendar_month_outlined,[
+            if (cycles.isEmpty) const Text('No rental cycles yet')
+            else ...overview.cycles.map((view)=>_cycle(view,b,cycles)),
+            if(b['status']!='closed') Padding(padding:const EdgeInsets.only(top:12),
+              child:OutlinedButton.icon(onPressed:()=>_invoice(context,b,cycles.length+1),
+                icon:const Icon(Icons.calendar_today_outlined),
+                label:const Text('Preview upcoming cycle invoice'))),
+          ]),
           const SizedBox(height:14),
           _designCard('Customer details',Icons.person_outline,[
             _pair('Name','${b['name']??'—'}'),
@@ -93,48 +159,32 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
             ]),
           ]),
           const SizedBox(height:14),
-          Wrap(spacing:8,runSpacing:8,children:[
-            OutlinedButton.icon(onPressed:() async {
-              final updated=await Navigator.push<bool>(context,MaterialPageRoute(
-                builder:(_)=>BillFormScreen(initialBill:raw)));
-              if (updated == true) ref.invalidate(billDetailProvider(billNo));
-            },icon:const Icon(Icons.edit_outlined),label:const Text('Edit bill')),
-            FilledButton.icon(onPressed:()=>_recordPayment(context,ref,b,cycles),
-              icon:const Icon(Icons.payments_outlined),label:const Text('Record payment')),
-            OutlinedButton.icon(onPressed:()=>_invoice(context,b),
-              icon:const Icon(Icons.share_outlined),label:const Text('Invoice')),
-            if (b['status'] != 'closed') OutlinedButton.icon(
-              onPressed:()=>_invoice(context,b,cycles.length+1),
-              icon:const Icon(Icons.calendar_today_outlined),
-              label:const Text('Upcoming cycle bill')),
-            if (b['status'] != 'closed') OutlinedButton.icon(
-              onPressed:()=>_close(context,ref,b),
-              icon:const Icon(Icons.lock_outline),label:const Text('Close bill')),
-            TextButton.icon(onPressed:()=>_deleteBill(context,ref),
-              icon:const Icon(Icons.delete_outline),label:const Text('Delete bill')),
+          _designCard('Customer account',Icons.people_outline,[
+            Text('${customerBills.length} open bills · ${_money(customerPending)} combined pending',
+              style:Theme.of(context).textTheme.titleMedium),
+            ExpansionTile(tilePadding:EdgeInsets.zero,
+              title:const Text('View customer bills'),children:[
+                for(final row in customerBills) ListTile(
+                  contentPadding:EdgeInsets.zero,
+                  title:Text('Bill #${row.billNo} · ${_money((row.bill['pending'] as num?)??0)} pending'),
+                  subtitle:Text('${displayDate(row.bill['start_date'])} · ${row.bill['place']??'—'}'),
+                  trailing:row.billNo==billNo ? const Text('Current') :
+                    const Icon(Icons.chevron_right),
+                  onTap:row.billNo==billNo ? null : ()=>Navigator.push(context,
+                    MaterialPageRoute(builder:(_)=>BillDetailScreen(billNo:row.billNo)))),
+              ]),
+            OutlinedButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(
+              builder:(_)=>CustomerMaterialStatementScreen(customerBill:b))),
+              icon:const Icon(Icons.table_chart_outlined),
+              label:const Text('View & share material statement')),
           ]),
-          const SizedBox(height:16),
+          const SizedBox(height:14),
           _designCard('Current cycle rent',Icons.layers_outlined,[
             Text(active == null ? 'No active cycle' :
               '${displayDate(active['start_date'])} – ${displayDate(active['end_date'])}  ·  Cycle ${active['index']}',
               style:Theme.of(context).textTheme.bodySmall),
             const SizedBox(height:12),
             if (active != null) ..._rentRows(b,active),
-          ]),
-          const SizedBox(height:14),
-          _designCard('Customer material details',Icons.table_chart_outlined,[
-            Text('Current material balance for each bill · ${customerBills.length} open bills',
-              style:Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height:12),
-            FilledButton.icon(onPressed:()=>Navigator.push(context,MaterialPageRoute(
-              builder:(_)=>CustomerMaterialStatementScreen(customerBill:b))),
-              icon:const Icon(Icons.open_in_new_outlined),
-              label:const Text('View & share material statement')),
-          ]),
-          const SizedBox(height:14),
-          _designCard('Rental cycles',Icons.calendar_month_outlined,[
-            if (cycles.isEmpty) const Text('No rental cycles yet')
-            else ...cycles.map((cycle)=>_cycle(cycle,payments,b)),
           ]),
           const SizedBox(height:14),
           _designCard('Payment history',Icons.account_balance_wallet_outlined,[
@@ -154,24 +204,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
             }),
           ]),
           const SizedBox(height:14),
-          _designCard('Return history',Icons.keyboard_return_outlined,[
-            Align(alignment:Alignment.centerRight,child:OutlinedButton.icon(
-              onPressed:()=>_materialChange(context,ref,b,isReturn:true),
-              icon:const Icon(Icons.keyboard_return),label:const Text('Record return'))),
-            const SizedBox(height:8),
-            if (returns.isEmpty) const Text('No returns recorded')
-            else ...returns.asMap().entries.map((item)=>_historyCard(context,ref,item.value,
-              isReturn:true,originalIndex:returns.length-1-item.key)),
-          ]),
-          const SizedBox(height:14),
-          _designCard('Additional material',Icons.inventory_2_outlined,[
-            Align(alignment:Alignment.centerRight,child:FilledButton.icon(
-              onPressed:()=>_materialChange(context,ref,b,isReturn:false),
-              icon:const Icon(Icons.add),label:const Text('Add material'))),
-            const SizedBox(height:8),
-            if (additions.isEmpty) const Text('No additional materials')
-            else ...additions.asMap().entries.map((item)=>_historyCard(context,ref,item.value,
-              isReturn:false,originalIndex:additions.length-1-item.key)),
+          _designCard('Material activity',Icons.history_outlined,[
+            if(materialEvents.isEmpty) const Text('No returns or additions recorded')
+            else ...materialEvents.map((event)=>_historyCard(context,ref,b,event.entry,
+              isReturn:event.isReturn,originalIndex:event.index)),
           ]),
         ]))));
   }
@@ -270,27 +306,88 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
   Widget _tabs(List<String> labels,int selected,ValueChanged<int> change)=>Container(padding:const EdgeInsets.all(4),decoration:BoxDecoration(color:AppPalette.of(context).subtle,borderRadius:BorderRadius.circular(14)),child:Row(children:List.generate(labels.length,(i)=>Expanded(child:TextButton(style:TextButton.styleFrom(backgroundColor:i==selected?navy:Colors.transparent,foregroundColor:i==selected?Colors.white:AppPalette.of(context).ink,padding:const EdgeInsets.symmetric(vertical:12,horizontal:3)),onPressed:()=>change(i),child:Text(labels[i],textAlign:TextAlign.center,style:const TextStyle(fontSize:12,fontWeight:FontWeight.w800)))))));
   Widget _panel(String title,IconData icon,List<Widget> children)=>Card(margin:EdgeInsets.zero,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Row(children:[Icon(icon,color:AppPalette.of(context).accent),const SizedBox(width:8),Expanded(child:Text(title,style:TextStyle(fontWeight:FontWeight.w900,fontSize:18,color:AppPalette.of(context).ink)))]),const SizedBox(height:14),...children])));
   Widget _materials(Map b){final qty=b['balance_qty'] as Map;final wood=b['balance_wood'] as Map;final items=<({String name,int count,String detail})>[...materialCatalog.map((s)=>(name:s.label,count:(qty[s.key] as num? ?? 0).toInt(),detail:'')),...woodCatalog.map((s){final m=Map<String,int>.from(wood[s.key] as Map);return (name:s.label,count:m.values.fold<int>(0,(a,v)=>a+v),detail:woodToText(m));})];items.sort((a,b)=>b.count.compareTo(a.count));final primary=items.where((x)=>x.count>0).toList();final rest=items.where((x)=>x.count==0).toList();return _panel('Materials out · ${items.fold<int>(0,(n,x)=>n+x.count)} units',Icons.construction_outlined,[Wrap(spacing:8,runSpacing:8,children:primary.map((x)=>Container(width:(MediaQuery.sizeOf(context).width-76)/3,padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:AppPalette.of(context).subtle,borderRadius:BorderRadius.circular(14)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(x.name.toLowerCase().contains('sheet')?Icons.layers_outlined:x.name.toLowerCase().contains('span')?Icons.view_agenda_outlined:Icons.construction_outlined,color:AppPalette.of(context).accent),Text(x.name,style:const TextStyle(fontWeight:FontWeight.w800)),Text('${x.count}',style:const TextStyle(fontWeight:FontWeight.w900,fontSize:28)),if(x.detail.isNotEmpty)Text(x.detail)]))).toList()),ExpansionTile(tilePadding:EdgeInsets.zero,title:Text('Other materials · ${rest.length} items',style:const TextStyle(fontWeight:FontWeight.w700)),children:rest.map((x)=>_quantityRow(x.name,x.count)).toList())]);}
-  Widget _cycle(Map c,List<Map> payments,Map<String,dynamic> bill){final paid=payments.where((p)=>p['cycle_index']==c['index']&&p['cycle_start_date']==c['start_date']&&p['cycle_end_date']==c['end_date']).fold<double>(0,(v,p)=>v+((p['amount'] as num?)?.toDouble()??0));final due=((c['total'] as num).toDouble()-paid).clamp(0,double.infinity);return Container(padding:const EdgeInsets.symmetric(vertical:12),decoration:BoxDecoration(border:Border(bottom:BorderSide(color:AppPalette.of(context).border))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text('Cycle ${c['index']}',style:const TextStyle(fontWeight:FontWeight.w900))),TextButton.icon(onPressed:()=>_invoice(context,bill,(c['index'] as num).toInt()),icon:const Icon(Icons.receipt_long_outlined,size:17),label:const Text('Invoice'))]),Text('${displayDate(c['start_date'])} – ${displayDate(c['end_date'])}',style:const TextStyle(fontSize:12)),const SizedBox(height:8),Wrap(spacing:18,runSpacing:6,children:[Text('Charge ${_money(c['total'])}'),Text('Paid ${_money(paid)}'),Text('Due ${_money(due)}',style:TextStyle(fontWeight:FontWeight.w800,color:due>0?AppPalette.of(context).danger:AppPalette.of(context).positive))])]));}
+  Widget _pendingCycleLine(CyclePaymentView view,Map<String,dynamic> bill,List<Map> cycles) {
+    final p=AppPalette.of(context);
+    return Padding(padding:const EdgeInsets.symmetric(vertical:7),child:Column(
+      crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Row(children:[
+          Expanded(child:Text('Cycle #${view.index} · ${view.status}',
+            style:const TextStyle(fontWeight:FontWeight.w800))),
+          Text(_money(view.pending),style:TextStyle(color:p.danger,
+            fontWeight:FontWeight.w900)),
+        ]),
+        Text('${displayDate(view.cycle['start_date'])} – ${displayDate(view.cycle['end_date'])}',
+          style:Theme.of(context).textTheme.bodySmall),
+        Align(alignment:Alignment.centerRight,child:TextButton.icon(
+          onPressed:()=>_recordPayment(context,ref,bill,cycles,selectedCycle:view.cycle),
+          icon:const Icon(Icons.payments_outlined,size:18),
+          label:const Text('Record payment'))),
+        Divider(color:p.border,height:8),
+      ]));
+  }
+
+  Widget _cycle(CyclePaymentView view,Map<String,dynamic> bill,List<Map> cycles) {
+    final c=view.cycle,p=AppPalette.of(context);
+    final statusColor=view.pending<=0?p.positive:view.paid>0?p.warning:p.danger;
+    return Container(padding:const EdgeInsets.symmetric(vertical:12),
+      decoration:BoxDecoration(border:Border(bottom:BorderSide(color:p.border))),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Wrap(spacing:8,runSpacing:5,crossAxisAlignment:WrapCrossAlignment.center,children:[
+          Text('Cycle #${view.index}',style:const TextStyle(fontWeight:FontWeight.w900)),
+          Container(padding:const EdgeInsets.symmetric(horizontal:9,vertical:4),
+            decoration:BoxDecoration(color:p.subtle,borderRadius:BorderRadius.circular(20)),
+            child:Text(view.status,style:TextStyle(color:statusColor,
+              fontWeight:FontWeight.w800,fontSize:12))),
+        ]),
+        const SizedBox(height:5),
+        Text('${displayDate(c['start_date'])} – ${displayDate(c['end_date'])}',
+          style:Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height:8),
+        Wrap(spacing:18,runSpacing:6,children:[
+          Text('Charge ${_money(view.charge)}'),Text('Paid ${_money(view.paid)}'),
+          Text('Pending ${_money(view.pending)}',style:TextStyle(
+            fontWeight:FontWeight.w800,color:statusColor)),
+        ]),
+        Wrap(spacing:8,children:[
+          if(view.pending>0) TextButton.icon(
+            onPressed:()=>_recordPayment(context,ref,bill,cycles,selectedCycle:c),
+            icon:const Icon(Icons.payments_outlined,size:17),
+            label:const Text('Record payment')),
+          TextButton.icon(onPressed:()=>_invoice(context,bill,view.index),
+            icon:const Icon(Icons.receipt_long_outlined,size:17),
+            label:const Text('View / share invoice')),
+        ]),
+      ]));
+  }
   Widget _personCard(BuildContext c,Map<String,dynamic>b){
     final name='${b['name']??'Customer'}'.trim();final closed=b['status']=='closed';
     return Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(crossAxisAlignment:CrossAxisAlignment.start,children:[CircleAvatar(radius:24,backgroundColor:const Color(0xffcfe6f7),child:Text(name.isEmpty?'S':name[0].toUpperCase(),style:const TextStyle(color:navy,fontWeight:FontWeight.w900,fontSize:24))),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(name,style:TextStyle(fontWeight:FontWeight.w900,fontSize:22,color:AppPalette.of(context).ink)),Text('${b['mobile']??'—'}',style:const TextStyle(fontWeight:FontWeight.w700)),Text('${b['place']??'—'}')])),const SizedBox(width:6),Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:7),decoration:BoxDecoration(color:closed?const Color(0xffe4eaf0):const Color(0xffbef2c4),borderRadius:BorderRadius.circular(12)),child:Text(closed?'CLOSED':'OPEN',style:TextStyle(color:closed?navy:const Color(0xff115c24),fontWeight:FontWeight.w900,fontSize:12)))]),const SizedBox(height:10),Text('Started ${displayDate(b['start_date'])} · ${b['cycle_days']??30}-day cycle',style:TextStyle(color:AppPalette.of(context).muted,fontSize:12))])));
   }
   Widget _quantityRow(String label,Object value)=>Padding(padding:const EdgeInsets.symmetric(vertical:7),child:Row(children:[Expanded(child:Text(label)),Text('$value',style:const TextStyle(fontWeight:FontWeight.w700))]));
-  Widget _historyCard(BuildContext context,WidgetRef ref,Map entry,{required bool isReturn,required int originalIndex}){
+  Widget _historyCard(BuildContext context,WidgetRef ref,Map<String,dynamic> bill,
+      Map entry,{required bool isReturn,required int originalIndex}){
     final items=(entry['items'] as Map?)??const {};
     final wood=(entry['wood'] as Map?)??const {};
     final parts=<String>[];
     for(final spec in materialCatalog){final quantity=(items[spec.key] as num?)?.toInt()??0;if(quantity>0)parts.add('${spec.label}: $quantity');}
     for(final spec in woodCatalog){final raw=wood[spec.key];if(raw is Map&&raw.isNotEmpty){final normalized=raw.map<String,int>((key,value)=>MapEntry('$key',(value as num).toInt()));parts.add('${spec.label}: ${woodToText(normalized)}');}}
-    return Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text('${displayDate(entry['date'])} · Cycle #${entry['effective_from_cycle']??'—'}${entry['return_group_id']!=null?' · Linked return':''}',style:const TextStyle(fontWeight:FontWeight.w800))),IconButton(tooltip:isReturn?'Edit return':'Edit addition',
+    final change=materialEventRentChange(bill,isReturn:isReturn,originalIndex:originalIndex);
+    return Card(margin:const EdgeInsets.only(bottom:9),child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Expanded(child:Text('${isReturn?'Returned':'Added'} · ${displayDate(entry['date'])} · From cycle #${entry['effective_from_cycle']??'—'}${entry['return_group_id']!=null?' · Linked return':''}',style:const TextStyle(fontWeight:FontWeight.w800))),IconButton(tooltip:isReturn?'Edit return':'Edit addition',
       onPressed:()=>_editHistory(context,ref,entry,originalIndex,isReturn),
       icon:const Icon(Icons.edit_outlined)),
       IconButton(tooltip:isReturn?'Delete return':'Delete addition',
       onPressed:()=>_deleteHistory(context,ref,entry,originalIndex,isReturn),
-      icon:Icon(Icons.delete_outline,color:AppPalette.of(context).danger))]),Text(parts.isEmpty?'No material quantities':parts.join('  •  ')),if('${entry['note']??''}'.isNotEmpty)Padding(padding:const EdgeInsets.only(top:6),child:Text('Note: ${entry['note']}')),Text('Recorded by ${entry['created_by']??'—'}',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:AppPalette.of(context).muted))])));
+      icon:Icon(Icons.delete_outline,color:AppPalette.of(context).danger))]),Text(parts.isEmpty?'No material quantities':parts.join('  •  ')),
+      if(change!=null && change!=0) Padding(padding:const EdgeInsets.only(top:6),
+        child:Text('Cycle rent change from #${entry['effective_from_cycle']}: ${change>0?'+':'−'}${_money(change.abs())} per cycle',
+          style:TextStyle(color:change<0?AppPalette.of(context).positive:
+            AppPalette.of(context).warning,fontWeight:FontWeight.w700))),
+      if('${entry['note']??''}'.isNotEmpty)Padding(padding:const EdgeInsets.only(top:6),child:Text('Note: ${entry['note']}')),Text('Recorded by ${entry['created_by']??'—'}',style:Theme.of(context).textTheme.bodySmall?.copyWith(color:AppPalette.of(context).muted))])));
   }
-  Future<void> _recordPayment(BuildContext context, WidgetRef ref, Map bill, List<Map> cycles) async {
-    final entry = await showPaymentEntry(context, bill, cycles);
+  Future<void> _recordPayment(BuildContext context, WidgetRef ref, Map bill, List<Map> cycles,
+      {Map? selectedCycle}) async {
+    final entry = await showPaymentEntry(context, bill, cycles,
+      selectedCycle:selectedCycle);
     if (entry == null) return;
     try {
       final repository = ref.read(billingRepositoryProvider);
@@ -306,6 +403,11 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       if (freshCycle == null) throw StateError('The rental cycle changed. Reopen the payment sheet.');
       if (entry.amount > (refreshed['pending'] as num).toDouble() + .001) {
         throw StateError('The payment exceeds the current pending balance.');
+      }
+      final freshView=billCycleOverview(refreshed).cycles.where((view)=>
+        view.index==freshCycle['index']).firstOrNull;
+      if(entry.amount>(freshView?.pending??0)+.001) {
+        throw StateError('The payment exceeds the selected cycle balance. Refresh and try again.');
       }
       final payments = (raw['payments'] as List? ?? const [])
         .map((p) => Map<String, dynamic>.from(p as Map)).toList();
@@ -736,6 +838,11 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
         item['start_date'] == entry.cycle['start_date'] &&
         item['end_date'] == entry.cycle['end_date']).firstOrNull;
       if (cycle == null) throw StateError('Rental cycle changed. Reopen and try again.');
+      final freshView=billCycleOverview(remaining).cycles.where((view)=>
+        view.index==cycle['index']).firstOrNull;
+      if(entry.amount>(freshView?.pending??0)+.001) {
+        throw StateError('Amount exceeds the selected cycle balance.');
+      }
       final edited = {...old, 'amount': moneyRound(entry.amount),
         'payment_date': entry.date, 'method': entry.method, 'note': entry.note,
         'cycle_index': cycle['index'], 'cycle_start_date': cycle['start_date'],

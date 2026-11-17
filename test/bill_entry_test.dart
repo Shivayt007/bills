@@ -101,4 +101,53 @@ void main() {
     expect(result?.cycle['index'], 1);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('payment action can preselect an older pending cycle', (tester) async {
+    tester.view.physicalSize=const Size(390,844);
+    tester.view.devicePixelRatio=1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    PaymentEntry? result;
+    final cycles=<Map>[
+      {'index':1,'start_date':'2026-10-01','end_date':'2026-10-30','total':4000.0},
+      {'index':2,'start_date':'2026-10-31','end_date':'2026-11-29','total':3200.0},
+    ];
+    await tester.pumpWidget(MaterialApp(theme:buildTheme(),home:Scaffold(
+      body:Builder(builder:(context)=>FilledButton(
+        onPressed:() async => result=await showPaymentEntry(context,bill,cycles,
+          selectedCycle:cycles.first),child:const Text('Pay cycle 1'))))));
+    await tester.tap(find.text('Pay cycle 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cycle #1 · 01 Oct 2026'),findsOneWidget);
+    await tester.tap(find.text('Full cycle'));
+    await tester.tap(find.text('Save payment'));
+    await tester.pumpAndSettle();
+    expect(result?.cycle['index'],1);
+    expect(result?.amount,4000);
+  });
+
+  testWidgets('legacy credits reduce the selected cycle payment limit', (tester) async {
+    tester.view.physicalSize=const Size(390,844);
+    tester.view.devicePixelRatio=1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    PaymentEntry? result;
+    final cycles=<Map>[
+      {'index':1,'start_date':'2026-10-01','end_date':'2026-10-30','total':4000.0},
+      {'index':2,'start_date':'2026-10-31','end_date':'2026-11-29','total':3200.0},
+    ];
+    final credited={...bill,'pending':4200.0,
+      'payments':[{'amount':3000.0}]};
+    await tester.pumpWidget(MaterialApp(theme:buildTheme(),home:Scaffold(
+      body:Builder(builder:(context)=>FilledButton(
+        onPressed:() async => result=await showPaymentEntry(context,credited,cycles,
+          selectedCycle:cycles.first),child:const Text('Open payment'))))));
+    await tester.tap(find.text('Open payment'));
+    await tester.pumpAndSettle();
+    expect(find.text('₹1000.00 available in selected cycle'),findsOneWidget);
+    await tester.tap(find.text('Full cycle'));
+    await tester.tap(find.text('Save payment'));
+    await tester.pumpAndSettle();
+    expect(result?.amount,1000);
+  });
 }

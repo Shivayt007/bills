@@ -116,7 +116,7 @@ void main() {
       home:RepaintBoundary(key:boundary,
         child:const BillDetailScreen(billNo:'2504')))));
     await tester.pumpAndSettle();
-    expect(find.text('Record payment'),findsOneWidget);
+    expect(find.text('Record payment'),findsWidgets);
     expect(tester.takeException(),isNull);
     await tester.runAsync(()async{
       final image=await (boundary.currentContext!.findRenderObject()

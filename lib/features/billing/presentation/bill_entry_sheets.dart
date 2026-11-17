@@ -4,6 +4,7 @@ import '../../../core/constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/common.dart';
 import '../domain/billing_calculator.dart';
+import '../domain/bill_detail_view.dart';
 
 class PaymentEntry {
   const PaymentEntry(this.amount, this.date, this.method, this.note, this.cycle);
@@ -32,8 +33,9 @@ Future<T?> _entrySheet<T>(BuildContext context, Widget child) =>
       });
 
 Future<PaymentEntry?> showPaymentEntry(BuildContext context, Map bill, List<Map> cycles,
-    {Map? initial}) =>
-    _entrySheet<PaymentEntry>(context, _PaymentForm(bill: bill, cycles: cycles, initial: initial));
+    {Map? initial, Map? selectedCycle}) =>
+    _entrySheet<PaymentEntry>(context, _PaymentForm(bill: bill, cycles: cycles,
+      initial: initial, selectedCycle: selectedCycle));
 
 Future<MaterialEntry?> showMaterialEntry(BuildContext context, Map bill,
     {required bool isReturn, Map? initial, List<Map<String, dynamic>> otherBills = const []}) =>
@@ -41,10 +43,11 @@ Future<MaterialEntry?> showMaterialEntry(BuildContext context, Map bill,
       _MaterialForm(bill: bill, isReturn: isReturn, initial: initial, otherBills: otherBills));
 
 class _PaymentForm extends StatefulWidget {
-  const _PaymentForm({required this.bill, required this.cycles, this.initial});
+  const _PaymentForm({required this.bill, required this.cycles,
+    this.initial, this.selectedCycle});
   final Map bill;
   final List<Map> cycles;
-  final Map? initial;
+  final Map? initial, selectedCycle;
   @override State<_PaymentForm> createState() => _PaymentFormState();
 }
 
@@ -61,6 +64,12 @@ class _PaymentFormState extends State<_PaymentForm> {
       widget.cycles.where((item) => item['index'] == previous['cycle_index'] &&
         item['start_date'] == previous['cycle_start_date'] &&
         item['end_date'] == previous['cycle_end_date']).firstOrNull;
+    if (previous == null && widget.selectedCycle != null) {
+      cycle = widget.cycles.where((item) =>
+        item['index'] == widget.selectedCycle!['index'] &&
+        item['start_date'] == widget.selectedCycle!['start_date'] &&
+        item['end_date'] == widget.selectedCycle!['end_date']).firstOrNull;
+    }
     cycle ??= widget.cycles.isEmpty ? null : widget.cycles.last;
     if (previous != null) {
       amount.text = (previous['amount'] as num?)?.toString() ?? '';
@@ -75,11 +84,11 @@ class _PaymentFormState extends State<_PaymentForm> {
   double get remaining => (widget.bill['pending'] as num?)?.toDouble() ?? 0;
   double get cycleRemaining {
     if (cycle == null) return 0;
-    final paid = (widget.bill['payments'] as List? ?? const []).where((p) =>
-      p['cycle_index'] == cycle!['index'] && p['cycle_start_date'] == cycle!['start_date'] &&
-      p['cycle_end_date'] == cycle!['end_date']).fold<double>(0,
-        (total, p) => total + ((p['amount'] as num?)?.toDouble() ?? 0));
-    return math.min(remaining, math.max(0, (cycle!['total'] as num).toDouble() - paid));
+    final selected=billCycleOverview({...widget.bill,'cycles':widget.cycles}).cycles.where((view)=>
+      view.cycle['index']==cycle!['index'] &&
+      view.cycle['start_date']==cycle!['start_date'] &&
+      view.cycle['end_date']==cycle!['end_date']).firstOrNull;
+    return math.min(remaining, selected?.pending ?? 0);
   }
   void shortcut(double fraction) {
     amount.text = (cycleRemaining * fraction).toStringAsFixed(2);
@@ -94,8 +103,8 @@ class _PaymentFormState extends State<_PaymentForm> {
     final text = amount.text.trim();
     final value = double.tryParse(text);
     if (!RegExp(r'^(?:\d+|\d*\.\d{1,2})$').hasMatch(text) || value == null ||
-        value <= 0 || value > remaining + .001) {
-      setState(() => error = 'Enter an amount above ₹0, up to the pending balance.');
+        value <= 0 || value > remaining + .001 || value > cycleRemaining + .001) {
+      setState(() => error = 'Enter an amount above ₹0, up to this cycle’s remaining balance. Record another cycle separately.');
       return;
     }
     if (cycle == null) {
